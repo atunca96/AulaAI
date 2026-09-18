@@ -98,6 +98,65 @@ def assessment_fixture():
     return {"pages": pages}
 
 
+def test_transport_strict_schema_and_content_blocks():
+    print("\n[Q0] reviewer transport uses strict schema and parses content blocks")
+    original = T.urllib.request.urlopen
+    captured = {}
+
+    class FakeHTTP:
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc, tb):
+            return False
+        def read(self):
+            body = {
+                "choices": [{
+                    "finish_reason": "stop",
+                    "message": {"content": [{"type": "text", "text": '{"ok":true}'}]},
+                }],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 20,
+                    "prompt_tokens_details": {"cached_tokens": 0},
+                    "cost": 0.0001,
+                },
+            }
+            return json.dumps(body).encode("utf-8")
+
+    def fake_urlopen(request, timeout=None):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeHTTP()
+
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"ok": {"type": "boolean"}},
+        "required": ["ok"],
+    }
+    try:
+        T.urllib.request.urlopen = fake_urlopen
+        response = T.call_model(
+            [{"role": "user", "content": "return ok"}],
+            max_tokens=100, model="openai/gpt-5.6-luna-pro",
+            reasoning_effort="high", response_schema=schema,
+            response_name="quality_smoke", attempts=1,
+        )
+    finally:
+        T.urllib.request.urlopen = original
+
+    rf = captured.get("payload", {}).get("response_format", {})
+    provider = captured.get("payload", {}).get("provider", {})
+    check(response.ok and response.data == {"ok": True},
+          "content-block responses are normalized before JSON parsing")
+    check(rf.get("type") == "json_schema" and
+          rf.get("json_schema", {}).get("strict") is True,
+          "reviewer requests strict JSON-schema output")
+    check(provider.get("require_parameters") is True,
+          "routing refuses providers that cannot honor structured output")
+    check(Q.LUNA_REVIEW_MODEL == "openai/gpt-5.6-luna-pro",
+          "semantic editor is pinned to Luna Pro")
+
+
 def test_non_ipa_fails_closed():
     print("\n[Q1] look-alike Greek in IPA is never silently guessed")
     lesson = lesson_fixture()
@@ -259,6 +318,7 @@ def test_terra_final_coverage_is_mandatory():
 
 
 def main():
+    test_transport_strict_schema_and_content_blocks()
     test_non_ipa_fails_closed()
     test_luna_lesson_review_repairs_pdf_defects()
     test_luna_assessment_review_removes_multi_correct_item()

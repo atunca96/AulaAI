@@ -159,6 +159,38 @@ def _cacheable(message: Dict[str, Any]) -> Dict[str, Any]:
                          "cache_control": {"type": "ephemeral"}}]}
 
 
+def _message_text(content: Any) -> str:
+    """Normalize provider message content to plain text before JSON parsing.
+
+    OpenRouter normally returns a string, but reasoning/structured-output routes
+    may return content blocks. Calling str(list_of_blocks) produces Python repr,
+    which is not JSON and was the direct cause of a fail-closed review build
+    becoming "unparseable JSON body".
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: List[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                value = block.get("text")
+                if isinstance(value, str):
+                    parts.append(value)
+                else:
+                    value = block.get("content")
+                    if isinstance(value, str):
+                        parts.append(value)
+        return "".join(parts)
+    if isinstance(content, dict):
+        for key in ("text", "content"):
+            value = content.get(key)
+            if isinstance(value, str):
+                return value
+    return ""
+
+
 def _usage_of(payload: Dict[str, Any]) -> Dict[str, Any]:
     usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
     details = usage.get("prompt_tokens_details")
@@ -174,7 +206,9 @@ def _usage_of(payload: Dict[str, Any]) -> Dict[str, Any]:
 def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
                temperature: float = 0.6, model: str = "", cache_system: bool = True,
                timeout: Optional[int] = None, attempts: int = 3,
-               reasoning_effort: Optional[str] = None) -> Response:
+               reasoning_effort: Optional[str] = None,
+               response_schema: Optional[Dict[str, Any]] = None,
+               response_name: str = "aulaai_response") -> Response:
     """One call. Returns a Response whatever happens — never raises for a bad answer."""
     target = model or _budget.MODEL
     key = os.getenv("OPENROUTER_API_KEY", "")
@@ -192,7 +226,18 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
         "model": target,
         "messages": body,
         "max_tokens": int(max_tokens),
-        "response_format": {"type": "json_object"},
+        "response_format": (
+            {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": re.sub(r"[^A-Za-z0-9_-]", "_", response_name or "aulaai_response")[:64],
+                    "strict": True,
+                    "schema": response_schema,
+                },
+            }
+            if isinstance(response_schema, dict)
+            else {"type": "json_object"}
+        ),
         # Ask for the real cost and the real cache split. Without this the
         # ledger is an estimate of an invoice we could simply have been told.
         "usage": {"include": True},
@@ -203,12 +248,18 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
         payload["reasoning"] = {"effort": reasoning_effort or "low"}
     elif target.lower().startswith("openai/gpt-5.6-"):
         # OpenAI reasoning models reject/ignore sampling controls in several
-        # provider paths. Keep the live route simple and let callers explicitly
-        # spend more reasoning only where quality review needs it.
+        # provider paths. Luna Pro is already a model alias with pro reasoning
+        # pinned by the provider; do not overwrite that mode with an effort
+        # parameter. Standard GPT-5.6 routes still accept explicit effort.
         payload["provider"] = {"sort": "throughput"}
-        payload["reasoning"] = {"effort": reasoning_effort or "low"}
+        if not target.lower().endswith("-pro"):
+            payload["reasoning"] = {"effort": reasoning_effort or "low"}
     else:
         payload["temperature"] = float(temperature)
+
+    if isinstance(response_schema, dict):
+        provider = payload.setdefault("provider", {})
+        provider["require_parameters"] = True
 
     seconds = timeout or (180 if max_tokens > 8000 else (120 if max_tokens > 3000 else 60))
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
@@ -245,12 +296,20 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
                                 cached_tokens=usage["cached"], cost=usage["cost"],
                                 seconds=elapsed)
             choice = choices[0] or {}
-            text = str((choice.get("message") or {}).get("content") or "")
-            truncated = str(choice.get("finish_reason") or "").lower() in ("length", "max_tokens")
+            text = _message_text((choice.get("message") or {}).get("content"))
+            finish_reason = str(choice.get("finish_reason") or "").lower()
+            truncated = finish_reason in ("length", "max_tokens")
             data = extract_json(text)
+            parse_error = ""
+            if data is None:
+                preview = re.sub(r"\s+", " ", text[:180]).strip()
+                parse_error = (
+                    f"unparseable JSON body (finish_reason={finish_reason or 'unknown'}, "
+                    f"chars={len(text)}, preview={preview!r})"
+                )
             return Response(
                 data=data, raw=text, truncated=truncated,
-                error="" if data is not None else "unparseable JSON body",
+                error=parse_error,
                 input_tokens=usage["input"], output_tokens=usage["output"],
                 cached_tokens=usage["cached"], cost=usage["cost"],
                 model=target, seconds=elapsed)

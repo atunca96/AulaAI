@@ -34,7 +34,7 @@ from services.authoring import schema as S
 from services.authoring import transport as T
 
 
-LUNA_REVIEW_MODEL = "openai/gpt-5.6-luna"
+LUNA_REVIEW_MODEL = "openai/gpt-5.6-luna-pro"
 TERRA_VERIFY_MODEL = "openai/gpt-5.6-terra"
 QUALITY_REVIEW_CEILING_USD = 0.13
 
@@ -62,6 +62,92 @@ _ASSESSMENT_FIELDS = frozenset({
     "prompt", "question", "stem", "answer", "options", "choices", "distractors",
     "why", "why_tr", "explanation", "explanation_tr",
 })
+
+
+_PATCH_SCALAR_OR_LIST = {
+    "anyOf": [
+        {"type": "string"},
+        {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    ]
+}
+_PATCH_PATH = {
+    "type": "array",
+    "items": {"oneOf": [{"type": "string"}, {"type": "integer"}]},
+    "minItems": 1,
+}
+_NESTED_PATCH_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "path": _PATCH_PATH,
+        "old": _PATCH_SCALAR_OR_LIST,
+        "value": _PATCH_SCALAR_OR_LIST,
+        "reason": {"type": "string"},
+    },
+    "required": ["path", "old", "value", "reason"],
+}
+_TOP_LEVEL_PATCH_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "topic_id": {"type": "string"},
+        "path": _PATCH_PATH,
+        "old": _PATCH_SCALAR_OR_LIST,
+        "value": _PATCH_SCALAR_OR_LIST,
+        "reason": {"type": "string"},
+    },
+    "required": ["topic_id", "path", "old", "value", "reason"],
+}
+_LESSON_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "topics": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "topic_id": {"type": "string"},
+                    "verdict": {"type": "string", "enum": ["ok", "fix"]},
+                    "patches": {"type": "array", "items": _NESTED_PATCH_SCHEMA},
+                },
+                "required": ["topic_id", "verdict", "patches"],
+            },
+        },
+    },
+    "required": ["topics"],
+}
+_ASSESSMENT_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "checked_questions": {
+            "type": "array", "items": {"type": "integer"},
+            "minItems": 10, "maxItems": 10,
+        },
+        "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
+    },
+    "required": ["checked_questions", "patches"],
+}
+_TERRA_VERIFY_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "coverage": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "rules": {"type": "integer"},
+                "phonetics": {"type": "integer"},
+                "assessments": {"type": "integer"},
+            },
+            "required": ["rules", "phonetics", "assessments"],
+        },
+        "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
+    },
+    "required": ["coverage", "patches"],
+}
 
 
 class QualityGateError(RuntimeError):
@@ -277,7 +363,12 @@ For every question check:
   h is silent);
 - the stem is grammatical, natural, unambiguous and CEFR-appropriate;
 - distractors are plausible learner errors, not nonsense giveaways;
-- the item tests taught material and does not require outside knowledge.
+- the item tests taught material and does not require outside knowledge;
+- compare each assessment item with ALL lesson MCQs/evidence in the unit. A repeated
+  or paraphrased question may never contradict the answer taught earlier. If the
+  same fact was asked earlier, preserve the taught fact and repair the assessment;
+- check the answer explanation too: an answer key that contradicts the lesson is
+  a blocking factual defect even when the options are structurally valid.
 
 Return JSON only:
 {"checked_questions":[1,2,3,4,5,6,7,8,9,10],
@@ -301,8 +392,13 @@ publication professionally unacceptable.
 You MUST independently verify:
 1) every grammar/usage rule for truth, scope, exceptions and regional variety;
 2) every IPA pair against the written form and declared variety;
-3) every MCQ for exactly one correct answer, correct key, natural stem and
-   defensible distractors.
+3) every MCQ in BOTH lessons and unit assessments for exactly one correct
+   answer, correct key, natural stem and defensible distractors;
+4) cross-item consistency: repeated/paraphrased questions about the same taught
+   fact must never carry incompatible answers, and answer explanations must agree
+   with the evidence;
+5) Turkish/English paired rule fields must remain semantically equivalent after
+   any repair.
 
 Return JSON only:
 {"coverage":{"rules":N,"phonetics":N,"assessments":N},
@@ -325,7 +421,8 @@ tracks continue to teach the same claim.
 
 def _call_review(*, model: str, system: str, payload: Dict[str, Any],
                  max_tokens: int, effort: str, budget: ReviewBudget,
-                 stage: str) -> Dict[str, Any]:
+                 stage: str, response_schema: Dict[str, Any],
+                 response_name: str) -> Dict[str, Any]:
     user = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     budget.require(model=model, input_chars=len(system) + len(user),
                    output_tokens=max_tokens, stage=stage)
@@ -333,6 +430,7 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
         max_tokens=max_tokens, temperature=0.0, model=model, cache_system=True,
         timeout=180, attempts=2, reasoning_effort=effort,
+        response_schema=response_schema, response_name=response_name,
     )
     budget.record(response, model=model, stage=stage)
     if not response.ok or not isinstance(response.data, dict):
@@ -364,8 +462,9 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
     }
     data = _call_review(
         model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=payload,
-        max_tokens=2600, effort="high", budget=budget,
+        max_tokens=4800, effort="high", budget=budget,
         stage=f"luna_lessons:{unit_title}",
+        response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_review",
     )
     rows = data.get("topics")
     if not isinstance(rows, list):
@@ -417,8 +516,9 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         }
         retry = _call_review(
             model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-            max_tokens=1800, effort="high", budget=budget,
+            max_tokens=2600, effort="high", budget=budget,
             stage=f"luna_blocker_retry:{topic.get('title')}",
+            response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_blocker_repair",
         )
         rows2 = retry.get("topics")
         if not isinstance(rows2, list) or len(rows2) != 1 or                 str(rows2[0].get("topic_id") or "") != str(topic["id"]):
@@ -473,8 +573,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     }
     data = _call_review(
         model=LUNA_REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
-        max_tokens=2200, effort="high", budget=budget,
+        max_tokens=3400, effort="high", budget=budget,
         stage=f"luna_assessment:{unit_title}",
+        response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
     )
     checked = data.get("checked_questions")
     try:
@@ -517,11 +618,24 @@ def _risk_ledger(units: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dic
                 elif field in _RISK_RULE_FIELDS and any(str(p) == "rules" for p in path):
                     include, kind = True, "rule"
                     counts["rules"] += 1
-                elif is_assessment and field in _ASSESSMENT_FIELDS:
-                    include, kind = True, "assessment"
-                    # Count once per prompt/stem/question, not per field.
-                    if field in ("prompt", "question", "stem"):
-                        counts["assessments"] += 1
+                elif field in _ASSESSMENT_FIELDS:
+                    # Final verification covers lesson checks as well as the
+                    # synthetic unit assessment. The shipped PDF contained two
+                    # paraphrases of the same restaurant question with different
+                    # answers; limiting Terra to synthetic assessments made that
+                    # contradiction invisible.
+                    rec_path = rec.get("path") or []
+                    is_mcq = False
+                    if len(rec_path) >= 2 and rec_path[0] == "pages" and isinstance(rec_path[1], int):
+                        pages = topic.get("content", {}).get("pages") or []
+                        page_index = rec_path[1]
+                        if 0 <= page_index < len(pages) and isinstance(pages[page_index], dict):
+                            is_mcq = str(pages[page_index].get("type") or "").casefold() == "mcq"
+                    if is_mcq:
+                        include, kind = True, "assessment"
+                        # Count once per question, not once per answer/option field.
+                        if field in ("prompt", "question", "stem"):
+                            counts["assessments"] += 1
                 if include:
                     ledger.append({
                         "topic_id": tid, "unit": unit.get("title"), "title": topic.get("title"),
@@ -543,8 +657,9 @@ def final_terra_verify(*, units: List[Dict[str, Any]], language: str, level: str
     }
     data = _call_review(
         model=TERRA_VERIFY_MODEL, system=_TERRA_VERIFY_SYSTEM, payload=payload,
-        max_tokens=2600, effort="high", budget=budget,
+        max_tokens=3200, effort="high", budget=budget,
         stage="terra_final_verify",
+        response_schema=_TERRA_VERIFY_SCHEMA, response_name="final_verification",
     )
     coverage = data.get("coverage")
     try:
@@ -578,6 +693,48 @@ def final_terra_verify(*, units: List[Dict[str, Any]], language: str, level: str
             "final publication audit failed: " + "; ".join(remaining[:8])
         )
     return applied
+
+
+def provider_preflight() -> List[Dict[str, Any]]:
+    """Tiny live contract check for the two publication-review providers.
+
+    This is opt-in at deploy time. It spends only a few hundred output-token
+    ceiling per model but exercises the exact structured-output transport that
+    a classroom will later use, so a routing/schema incompatibility is found
+    before a user pays to regenerate thirty lessons.
+    """
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"ok": {"type": "boolean"}},
+        "required": ["ok"],
+    }
+    rows = []
+    for model, effort, name in (
+        (LUNA_REVIEW_MODEL, "high", "luna_pro_preflight"),
+        (TERRA_VERIFY_MODEL, "low", "terra_preflight"),
+    ):
+        response = T.call_model(
+            [
+                {"role": "system", "content": "Return the requested structured health result only."},
+                {"role": "user", "content": "Set ok to true."},
+            ],
+            max_tokens=500, temperature=0.0, model=model, cache_system=False,
+            timeout=90, attempts=2, reasoning_effort=effort,
+            response_schema=schema, response_name=name,
+        )
+        if not response.ok or response.data != {"ok": True}:
+            raise QualityGateError(
+                f"provider preflight failed on {model}: "
+                f"{response.error or repr(response.data)}"
+            )
+        rows.append({
+            "model": model, "seconds": response.seconds,
+            "cost": float(response.cost or 0.0),
+            "input_tokens": response.input_tokens,
+            "output_tokens": response.output_tokens,
+        })
+    return rows
 
 
 def gate_summary(budget: ReviewBudget) -> str:

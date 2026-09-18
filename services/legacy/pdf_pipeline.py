@@ -708,7 +708,30 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     """Review, patch and re-audit every learner-visible field before READY."""
     from services.authoring import quality_gate as Q
 
-    budget = Q.ReviewBudget()
+    # Keep the product's $0.60/classroom promise across generation AND review,
+    # not as two unrelated ceilings. Phase 2's measured provider ledger already
+    # contains lessons/assessments. Reserve two cents for the earlier curriculum
+    # call (the phase-2 ledger is reset after curriculum planning), then give the
+    # semantic gate only the smaller of its normal allowance and real headroom.
+    generation_spend = 0.0
+    try:
+        from services import generation_cost as _generation_cost
+        generation_spend = float(
+            (_generation_cost.summary().get("total") or {}).get("cost") or 0.0
+        )
+    except Exception:
+        pass
+    review_headroom = 0.60 - generation_spend - 0.02
+    if review_headroom <= 0:
+        raise Q.QualityGateError(
+            f"no publication-review budget remains: generation already spent "
+            f"${generation_spend:.4f} before the curriculum reserve"
+        )
+    budget = Q.ReviewBudget(min(Q.QUALITY_REVIEW_CEILING_USD, review_headroom))
+    _log(
+        f"[QUALITY-GATE] generation=${generation_spend:.4f}; "
+        f"review ceiling=${budget.ceiling:.4f}; curriculum reserve=$0.0200"
+    )
     with db_connection() as db:
         chapters = db.execute(
             "SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number",
@@ -793,6 +816,22 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         )
         db.commit()
     bump_version()
+    # Fold review spend back into the class-wide observable ledger so the
+    # production cost summary includes the quality stage rather than stopping at
+    # the author model.
+    try:
+        from services import generation_cost as _generation_cost
+        for row in budget.calls:
+            _generation_cost.record_call(
+                stage=_generation_cost.STAGE_CLAIM_REVIEW,
+                model=str(row.get("model") or ""),
+                prompt_tokens=int(row.get("input_tokens") or 0),
+                completion_tokens=int(row.get("output_tokens") or 0),
+                cost=float(row.get("cost") or 0.0),
+                subject=str(row.get("stage") or "publication_review"),
+            )
+    except Exception:
+        pass
     _log(
         f"[QUALITY-GATE] PASS lesson_patches={lesson_patches} "
         f"assessment_patches={assessment_patches} terra_patches={terra_patches}; "
