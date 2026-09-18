@@ -110,14 +110,12 @@ def generate_full_lesson(topic, topic_type, language, count=6, level="A1", sourc
         pages=max(3, min(8, int(count or 5))), model=MODEL,
         unit_title=str(unit_title or ""), unit_topics=tuple(unit_topics or ()))
 
-    # Terra is intentionally NOT the bulk generator. At 30 topics it measured
-    # about $2/classroom by itself. Use it only as a narrow rescue path when the
-    # cheap primary model cannot produce a clean lesson after its bounded retry.
-    # That preserves the quality escape hatch without paying Terra rates thirty
-    # times on every classroom.
-    if (str(os.getenv("AULAAI_TERRA_RESCUE", "0")).strip().lower() in
-            ("1", "true", "on", "yes")
-            and _audit.blocking(result.findings) and not result.lesson):
+    # Terra is intentionally NOT the bulk generator. It is used only when the
+    # primary author failed to produce any lesson at all. A missing lesson is a
+    # repairable generation defect, not learner-facing content, so do the narrow
+    # rescue automatically instead of persisting a review notice and hoping a
+    # later publication stage notices it.
+    if not result.lesson:
         rescue = _engine.generate_lesson(
             topic=str(topic), topic_type=str(topic_type or "vocabulary"), language=str(language),
             level=str(level or "A1"), track=str(material_language or "tr"),
