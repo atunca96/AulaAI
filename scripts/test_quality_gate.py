@@ -255,7 +255,7 @@ def test_terra_final_coverage_is_mandatory():
     check(applied == 0, "a clean course needs no final patch")
     check(captured.get("model") == "openai/gpt-5.6-terra",
           "final verifier is independent Terra, not the Gemini author")
-    check(captured.get("effort") == "medium", "Terra uses explicit reasoning effort")
+    check(captured.get("effort") == "high", "Terra uses high reasoning effort")
 
 
 def main():
