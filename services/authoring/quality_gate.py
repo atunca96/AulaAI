@@ -460,6 +460,40 @@ def _camel_hump_token_cleaner(a: Any, b: Any) -> Optional[str]:
     return b if ah else a
 
 
+def _sentence_camel_corruption_cleaner(a: Any, b: Any) -> Optional[str]:
+    """Prefer the candidate without an obvious provider-injected CamelCase
+    fragment anywhere in the sentence.
+
+    This is broader than the one-token reconciler because production can emit
+    a corrupted token AND independently rewrite another token in the same
+    candidate pair. We still require exactly one side to contain a suspicious
+    internal uppercase-start fragment of at least four alphabetic characters;
+    if both or neither do, this resolver abstains and fail-closed behavior
+    remains.
+    """
+    if not isinstance(a, str) or not isinstance(b, str) or a == b:
+        return None
+
+    def suspicious(text: str) -> bool:
+        for token in text.split():
+            core = token.strip(".,;:!?()[]{}<>\"'“”‘’«»")
+            for i in range(1, len(core) - 3):
+                if not (core[i].isupper() and core[i - 1].isalpha()):
+                    continue
+                j = i + 1
+                while j < len(core) and core[j].isalpha():
+                    j += 1
+                if j - i >= 4:
+                    return True
+        return False
+
+    ah = suspicious(a)
+    bh = suspicious(b)
+    if ah == bh:
+        return None
+    return b if ah else a
+
+
 def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[Any]) -> int:
     # Normalize duplicates before mutating content, so an ambiguous first
     # proposal cannot be written and then make the concrete duplicate stale.
@@ -503,6 +537,8 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
             cleaned = _embedded_meta_insertion_cleaner(prev_value, new_value)
             if cleaned is None:
                 cleaned = _camel_hump_token_cleaner(prev_value, new_value)
+            if cleaned is None:
+                cleaned = _sentence_camel_corruption_cleaner(prev_value, new_value)
             if cleaned is not None:
                 if cleaned == new_value:
                     normalized[prev_i] = raw
@@ -553,6 +589,8 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
                     resolved = _embedded_meta_insertion_cleaner(previous, proposed)
                     if resolved is None:
                         resolved = _camel_hump_token_cleaner(previous, proposed)
+                    if resolved is None:
+                        resolved = _sentence_camel_corruption_cleaner(previous, proposed)
             if resolved is not None:
                 print(
                     f"[QUALITY-PATCH] RESOLVE slash-alternative duplicate at "
