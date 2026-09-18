@@ -3,7 +3,7 @@
 
 Provider-free. The model call is stubbed so the test proves orchestration:
 Luna may miss a deterministic render blocker; the exact blocker is then handed
-to Terra, which patches the existing question in place. Ten questions remain.
+to Luna, which patches the existing question in place. Ten questions remain.
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def fake_call_review(**kwargs):
     if stage.startswith("luna_assessment:"):
         assert payload["render_contract_blockers"],             "Luna must receive deterministic renderer blockers up front"
         return {"checked_questions": list(range(1, 11)), "patches": []}
-    assert stage.startswith("terra_assessment_render_retry:"), stage
+    assert stage.startswith("luna_assessment_render_retry:"), stage
     blockers = payload["render_contract_blockers"]
     assert blockers and blockers[0]["question"] == 1
     return {
@@ -105,7 +105,7 @@ finally:
     Q.R.repair_lesson = orig_repair
 
 assert applied == 1
-assert len(calls) == 2, f"expected Luna + one targeted Terra pass, got {len(calls)}"
+assert len(calls) == 2, f"expected Luna + one targeted Luna pass, got {len(calls)}"
 assert assessment["content"]["pages"][1]["prompt"] == good_prompt
 assert not Q._assessment_render_blockers(assessment["content"]),     "targeted repair must make all ten questions renderable"
 assert len([p for p in assessment["content"]["pages"] if p.get("type") == "mcq"]) == 10
