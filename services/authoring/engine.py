@@ -167,7 +167,8 @@ def generate_lesson(*, topic: str, topic_type: str, language: str, level: str,
                     track: str = "tr", ledger: Optional[B.BuildLedger] = None,
                     source_text: str = "", taught_so_far: Sequence[str] = (),
                     pages: int = 5, item_budget: int = 2, institution: str = "",
-                    model: str = "", temperature: float = 0.55) -> LessonResult:
+                    model: str = "", temperature: float = 0.55,
+                    unit_title: str = "", unit_topics: Sequence[str] = ()) -> LessonResult:
     """One lesson, repaired and audited, regenerated at most once."""
     ledger = ledger or B.BuildLedger(label=f"{language} {level}")
     system = P.build_lesson_system(language=language, level=level, track=track,
@@ -185,7 +186,8 @@ def generate_lesson(*, topic: str, topic_type: str, language: str, level: str,
         user = P.build_lesson_user(
             topic=topic, topic_type=topic_type, source_text=source_text,
             taught_so_far=taught_so_far, page_target=pages, item_budget=item_budget,
-            track=track, language=language, request_id=f"{_uid()}")
+            track=track, language=language, request_id=f"{_uid()}",
+            unit_title=unit_title, unit_topics=unit_topics)
         if correction:
             user = user + correction
 
