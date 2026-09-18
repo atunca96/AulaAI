@@ -25,6 +25,8 @@ from __future__ import annotations
 import copy
 import json
 import math
+import re
+import unicodedata
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from services.authoring import audit as A
@@ -398,7 +400,11 @@ You MUST independently verify:
    fact must never carry incompatible answers, and answer explanations must agree
    with the evidence;
 5) Turkish/English paired rule fields must remain semantically equivalent after
-   any repair.
+   any repair;
+6) exact or near-duplicate MCQ stems are a publication defect even when their
+   answer is the same. Keep the learning objective but make repeated items test
+   a genuinely different application, context or contrast. Do not let a unit
+   assessment simply copy a lesson check verbatim.
 
 Return JSON only:
 {"coverage":{"rules":N,"phonetics":N,"assessments":N},
@@ -693,6 +699,188 @@ def final_terra_verify(*, units: List[Dict[str, Any]], language: str, level: str
             "final publication audit failed: " + "; ".join(remaining[:8])
         )
     return applied
+
+
+
+_BILINGUAL_PAIRS = (
+    ("title", "title_tr"),
+    ("rule", "rule_tr"),
+    ("explanation", "explanation_tr"),
+    ("context", "context_tr"),
+    ("note", "note_tr"),
+    ("translation", "translation_tr"),
+    ("example_en", "example_tr"),
+    ("line_en", "line_tr"),
+    ("why", "why_tr"),
+)
+
+
+def _stem_text(page: Dict[str, Any]) -> str:
+    for key in ("prompt", "question", "stem", "prompt_tr", "question_tr", "stem_tr",
+                "prompt_en", "question_en", "stem_en"):
+        value = page.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _stem_key(text: str) -> str:
+    """Normalize formatting, not linguistic contrasts, for exact-duplicate checks."""
+    text = unicodedata.normalize("NFC", str(text or "")).casefold()
+    chars = []
+    for ch in text:
+        cat = unicodedata.category(ch)
+        chars.append(ch if (ch.isalnum() or cat.startswith("M")) else " ")
+    return re.sub(r"\s+", " ", "".join(chars)).strip()
+
+
+def _missing_bilingual_pairs(node: Any, *, path: Tuple[Any, ...] = (),
+                             page_level: bool = False) -> List[str]:
+    """Pairs that would make EN/TR reader modes contain different material.
+
+    Only a present field creates an obligation for its counterpart; genuinely
+    optional notes may be absent in both languages. text/text_tr is checked
+    only on page objects because dialogue text is the taught-language utterance,
+    not English instructional prose.
+    """
+    missing: List[str] = []
+    if isinstance(node, dict):
+        pairs = list(_BILINGUAL_PAIRS)
+        if page_level or "type" in node:
+            pairs.append(("text", "text_tr"))
+        for left, right in pairs:
+            left_present = left in node and bool(str(node.get(left) or "").strip())
+            right_present = right in node and bool(str(node.get(right) or "").strip())
+            if left_present != right_present:
+                absent = right if left_present else left
+                missing.append(".".join(map(str, path + (absent,))))
+        for key, value in node.items():
+            if isinstance(value, (dict, list)):
+                missing.extend(_missing_bilingual_pairs(
+                    value, path=path + (key,),
+                    page_level=(key == "pages"),
+                ))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            missing.extend(_missing_bilingual_pairs(
+                value, path=path + (index,), page_level=page_level
+            ))
+    return missing
+
+
+def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str,
+                                   track: str) -> Dict[str, int]:
+    """Last deterministic proof that the renderer cannot silently degrade a course.
+
+    Semantic reviewers can say a course is correct while a later renderer drops
+    an item for a legacy invariant. That produced a real shipped unit with only
+    six of its ten assessment questions. This validator checks the exact
+    post-review objects against both publication boundaries before any of them
+    are persisted or the course can become READY.
+    """
+    from services.authoring import publish as P
+    try:
+        from services.authoring.legacy_text import _v57_unsafe_mcq
+    except Exception as exc:
+        raise QualityGateError(f"cannot load renderer integrity predicate: {exc}")
+
+    canonical = S.canonical_language(language)
+    duplicate_stems: Dict[str, List[str]] = {}
+    topic_count = 0
+    mcq_count = 0
+    assessment_count = 0
+
+    for unit_index, unit in enumerate(units, 1):
+        topics = unit.get("topics") or []
+        assessment_topics = [t for t in topics if t.get("is_assessment")]
+        if len(assessment_topics) != 1:
+            raise QualityGateError(
+                f"unit {unit_index} {unit.get('title')!r}: expected exactly one "
+                f"unit assessment, got {len(assessment_topics)}"
+            )
+
+        assessment = assessment_topics[0]
+        assessment_pages = assessment.get("content", {}).get("pages") or []
+        assessment_mcqs = [
+            p for p in assessment_pages
+            if isinstance(p, dict) and str(p.get("type") or "").casefold() == "mcq"
+        ]
+        if len(assessment_mcqs) != 10:
+            raise QualityGateError(
+                f"{unit.get('title')}: post-review assessment has "
+                f"{len(assessment_mcqs)}/10 questions"
+            )
+        assessment_count += len(assessment_mcqs)
+
+        for topic in topics:
+            topic_count += 1
+            content = topic.get("content")
+            if not isinstance(content, dict):
+                raise QualityGateError(f"{topic.get('title')}: content is not an object")
+
+            blockers = A.blocking(_audit_topic(topic, language=language, track=track))
+            if blockers:
+                raise QualityGateError(
+                    f"{topic.get('title')}: deterministic blockers remain at "
+                    f"publication integrity: {A.summarise(blockers)}"
+                )
+
+            before_pages = content.get("pages") or []
+            published = P.load_publishable_content(
+                copy.deepcopy(content), language=language, material_language=track,
+                topic=str(topic.get("title") or ""),
+            )
+            if published.get("_dropped_items"):
+                raise QualityGateError(
+                    f"{topic.get('title')}: publication boundary would drop "
+                    f"{published.get('_dropped_items')}"
+                )
+            after_pages = published.get("pages") or []
+            if len(after_pages) != len(before_pages):
+                raise QualityGateError(
+                    f"{topic.get('title')}: publication boundary changes page count "
+                    f"{len(before_pages)} -> {len(after_pages)}"
+                )
+
+            if canonical not in ("English", "Turkish"):
+                missing_pairs = _missing_bilingual_pairs(content)
+                if missing_pairs:
+                    raise QualityGateError(
+                        f"{topic.get('title')}: incomplete EN/TR field pairs: "
+                        + ", ".join(missing_pairs[:8])
+                    )
+
+            for page_index, page in enumerate(before_pages):
+                if not isinstance(page, dict):
+                    continue
+                if str(page.get("type") or "").casefold() != "mcq":
+                    continue
+                mcq_count += 1
+                if _v57_unsafe_mcq(page):
+                    raise QualityGateError(
+                        f"{topic.get('title')} page {page_index + 1}: legacy renderer "
+                        "would silently remove this MCQ"
+                    )
+                stem = _stem_text(page)
+                key = _stem_key(stem)
+                if key:
+                    duplicate_stems.setdefault(key, []).append(
+                        f"{unit.get('title')} / {topic.get('title')} / {stem}"
+                    )
+
+    duplicates = [rows for rows in duplicate_stems.values() if len(rows) > 1]
+    if duplicates:
+        examples = [" <> ".join(rows[:2]) for rows in duplicates[:4]]
+        raise QualityGateError(
+            "exact duplicate MCQ stems remain after semantic review: "
+            + " | ".join(examples)
+        )
+
+    return {
+        "topics": topic_count,
+        "mcqs": mcq_count,
+        "unit_assessment_questions": assessment_count,
+    }
 
 
 def provider_preflight() -> List[Dict[str, Any]]:
