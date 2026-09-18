@@ -407,9 +407,9 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
     """The course structure, in the chapter shape the server stores."""
     started = time.perf_counter()
     ledger = _budget.BuildLedger(label=f"curriculum {language} {level}")
-    plan = _blueprint.plan_course(language=str(language), level=str(level or "A1"),
-                                  track="tr", ledger=ledger, extra=str(prompt_extra or ""),
-                                  model=MODEL)
+    plan = _blueprint.plan_curriculum_draft(
+        language=str(language), level=str(level or "A1"), track="tr",
+        extra=str(prompt_extra or ""))
     chapters: List[Dict[str, Any]] = []
     for number, unit in enumerate(plan.units, 1):
         chapters.append({
@@ -440,8 +440,9 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
         if isinstance(chapter, dict):
             chapter["_aulaai_bilingual_healed"] = True
     _log(f"[CURRICULUM] {language} {level} units={len(chapters)} "
-         f"source={'skeleton' if plan.notes == 'skeleton' else 'model'} "
-         f"cost=${ledger.spent:.4f} in {time.perf_counter() - started:.1f}s")
+         f"topics={sum(len(ch.get('topics') or []) for ch in chapters)} "
+         f"source={plan.notes or 'model'} "
+         f"in {time.perf_counter() - started:.1f}s")
     return chapters
 
 

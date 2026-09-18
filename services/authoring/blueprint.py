@@ -28,7 +28,7 @@ from services.authoring import prompts as P
 from services.authoring import schema as S
 from services.authoring import transport as T
 
-__all__ = ["plan_course", "CoursePlan", "Unit", "Topic", "validate_plan", "skeleton_plan"]
+__all__ = ["plan_course", "plan_curriculum_draft", "CoursePlan", "Unit", "Topic", "validate_plan", "skeleton_plan"]
 
 
 TOPIC_TYPES = ("phonetics", "vocabulary", "grammar", "dialogue", "reading", "review")
@@ -214,7 +214,9 @@ Return ONLY:
 }}"""
 
 
-def _parse(payload: Any, language: str, level: str, track: str) -> Optional[CoursePlan]:
+def _parse(payload: Any, language: str, level: str, track: str,
+           *, max_units: int = MAX_UNITS,
+           max_topics_per_unit: int = MAX_TOPICS_PER_UNIT) -> Optional[CoursePlan]:
     if isinstance(payload, list):
         payload = {"units": payload}
     if not isinstance(payload, dict):
@@ -223,11 +225,11 @@ def _parse(payload: Any, language: str, level: str, track: str) -> Optional[Cour
     if not isinstance(raw_units, list) or not raw_units:
         return None
     units: List[Unit] = []
-    for raw in raw_units[:MAX_UNITS]:
+    for raw in raw_units[:max_units]:
         if not isinstance(raw, dict):
             continue
         topics: List[Topic] = []
-        for raw_topic in (raw.get("topics") or [])[:MAX_TOPICS_PER_UNIT]:
+        for raw_topic in (raw.get("topics") or [])[:max_topics_per_unit]:
             if isinstance(raw_topic, str):
                 topics.append(Topic(raw_topic.strip()))
             elif isinstance(raw_topic, dict):
@@ -244,6 +246,102 @@ def _parse(payload: Any, language: str, level: str, track: str) -> Optional[Cour
                               str(raw.get("goal") or "").strip(), topics,
                               title_tr=str(raw.get("title_tr") or "").strip()))
     return CoursePlan(language, level, track, units) if units else None
+
+
+DRAFT_CURRICULUM_MODEL = "google/gemini-3.8-flash"
+DRAFT_UNITS = 6
+DRAFT_TOPICS_PER_UNIT = 5
+
+
+def plan_curriculum_draft(*, language: str, level: str, track: str = "tr",
+                          extra: str = "") -> CoursePlan:
+    """Fast lecturer-facing curriculum: exactly six units, five topics each.
+
+    This is intentionally separate from `plan_course`. The latter is the
+    budget-constrained end-to-end authoring harness; the curriculum editor is a
+    cheap planning step and historically worked best on Gemini Flash. Keeping
+    these concerns separate prevents Terra's lesson budget from collapsing the
+    visible syllabus to 3x3.
+    """
+    band = P.cefr_band(level)
+    profile = S.profile_for_language(language)
+    script_line = ""
+    if profile and set(profile.scripts) - {"Latin"} and str(level).upper().startswith("A1"):
+        script_line = (
+            f"\n- {language} uses {' + '.join(profile.scripts)}. The FIRST topic "
+            "must teach the writing system and its core sounds before reading words."
+        )
+
+    system = f"""You are the curriculum architect for AulaAI. Plan one CEFR {level}
+course in {language} for adult learners. Return one JSON object only.
+
+A CEFR {level} learner can {band['can']}.
+STRUCTURAL CEILING: {band['ceiling']}.
+LEXIS: {band['lexis']}.
+
+REQUIRED SHAPE
+- EXACTLY {DRAFT_UNITS} units.
+- EXACTLY {DRAFT_TOPICS_PER_UNIT} topics in EVERY unit.
+- Strict progression: every topic may assume only earlier topics.{script_line}
+- Each topic has a type from: {", ".join(TOPIC_TYPES)}.
+- Each topic's `teaches` is concrete and specific.
+- Each unit has one communicative goal.
+- Stay inside CEFR {level}; do not pad with above-level content.
+
+BILINGUAL TITLES
+Every unit/topic has an English `title` and natural Turkish `title_tr`.
+Write `goal` and `teaches` in English.
+
+Return ONLY:
+{{
+  "units": [
+    {{
+      "title": "English unit title",
+      "title_tr": "Doğal Türkçe başlık",
+      "goal": "Communicative goal in English",
+      "topics": [
+        {{"title": "English topic title", "title_tr": "Doğal Türkçe konu başlığı",
+          "type": "vocabulary", "teaches": ["specific item", "specific item"]}}
+      ]
+    }}
+  ]
+}}"""
+    user = (f"Plan the complete CEFR {level} {language} curriculum with exactly "
+            f"{DRAFT_UNITS} units and exactly {DRAFT_TOPICS_PER_UNIT} topics per unit."
+            + (f"\n\nAdditional requirements: {extra}" if extra else ""))
+
+    response = T.call_model(
+        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        max_tokens=4200, temperature=0.35, model=DRAFT_CURRICULUM_MODEL)
+
+    if not response.ok:
+        print(f"[CURRICULUM-MODEL-ERROR] {language} {level} on "
+              f"{DRAFT_CURRICULUM_MODEL}: {response.error}")
+        return CoursePlan(language, level, track, [], notes="draft_failed")
+
+    plan = _parse(response.data, language, level, track,
+                  max_units=DRAFT_UNITS,
+                  max_topics_per_unit=DRAFT_TOPICS_PER_UNIT)
+    if plan is None:
+        print(f"[CURRICULUM-MODEL-ERROR] {language} {level} returned unusable JSON")
+        return CoursePlan(language, level, track, [], notes="draft_failed")
+
+    valid_shape = (
+        len(plan.units) == DRAFT_UNITS
+        and all(len(unit.topics) == DRAFT_TOPICS_PER_UNIT for unit in plan.units)
+        and all(str(unit.title or "").strip() and str(unit.title_tr or "").strip()
+                for unit in plan.units)
+        and all(str(topic.title or "").strip() and str(topic.title_tr or "").strip()
+                for unit in plan.units for topic in unit.topics)
+    )
+    if not valid_shape:
+        print(f"[CURRICULUM-MODEL-ERROR] {language} {level} returned "
+              f"{len(plan.units)} unit(s) / "
+              f"{[len(u.topics) for u in plan.units]} topics; expected 6x5")
+        return CoursePlan(language, level, track, [], notes="draft_failed")
+
+    plan.notes = f"model:{DRAFT_CURRICULUM_MODEL}"
+    return plan
 
 
 def _trim_to_budget(plan: CoursePlan) -> CoursePlan:
