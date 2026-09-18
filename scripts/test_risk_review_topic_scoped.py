@@ -143,7 +143,11 @@ print("\n[3] each selected topic gets its own call, and all three complete")
 topics = unit_topics()
 
 
+CALL_KWARGS = []
+
+
 def one_each(kwargs):
+    CALL_KWARGS.append(kwargs)
     ids = supplied_ids(kwargs)
     assert len(ids) == 1, ids
     assert kwargs["payload"]["language"] == "Spanish"
@@ -162,6 +166,21 @@ check(calls == [
 ], f"each call is scoped to its own topic ({calls})")
 check(all(t.get(Q._RISK_REVIEW_DONE_KEY) for t in topics),
       "every topic is marked complete")
+
+# Hidden reasoning shares the completion budget with the structured JSON. A
+# production risk call died at finish_reason=length after 86 visible characters
+# on a 1302-char payload with max_tokens=1600 — the budget went to reasoning,
+# not to the schema. Every other structured review call in this module already
+# asks for low effort for exactly that reason.
+check(CALL_KWARGS and all(kw["effort"] == "low" for kw in CALL_KWARGS),
+      f"risk review asks for low reasoning effort "
+      f"({sorted({kw['effort'] for kw in CALL_KWARGS})})")
+check(all(kw["max_tokens"] == 1600 for kw in CALL_KWARGS),
+      "and the completion budget is unchanged")
+check(all(kw["response_schema"] is Q._LESSON_REVIEW_SCHEMA for kw in CALL_KWARGS),
+      "and the response schema is unchanged")
+check(all(len(kw["payload"]["topics"]) == 1 for kw in CALL_KWARGS),
+      "and each call still carries exactly one topic")
 
 
 print("\n[4] a wrong or missing topic_id still fails closed")

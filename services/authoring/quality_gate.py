@@ -2634,7 +2634,14 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             # Still ample for every selected record to be patched; the reduction
             # is in what a single response can ever need to carry.
             max_tokens=1600,
-            effort="high",
+            # Low, for the same reason broad lesson review is low: hidden
+            # reasoning shares this completion budget with the structured JSON.
+            # In production a 1302-char payload with max_tokens=1600 came back
+            # at finish_reason=length after 86 visible characters — the response
+            # died inside `"patches` with the whole budget spent on reasoning
+            # nobody reads. The factual work still happens; it just stops being
+            # charged against the bytes the schema needs.
+            effort="low",
             budget=budget,
             stage=f"review_risk:{unit_title}:{topic.get('title')}",
             response_schema=_LESSON_REVIEW_SCHEMA,
