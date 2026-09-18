@@ -74,7 +74,11 @@ _PATCH_SCALAR_OR_LIST = {
 }
 _PATCH_PATH = {
     "type": "array",
-    "items": {"oneOf": [{"type": "string"}, {"type": "integer"}]},
+    # OpenAI Structured Outputs rejects nested oneOf in array items. Keep the
+    # wire contract provider-compatible by encoding list indexes as decimal
+    # strings ("0", "1", ...); _coerce_patch_path converts them back only when
+    # the current container is actually a list.
+    "items": {"type": "string"},
     "minItems": 1,
 }
 _NESTED_PATCH_SCHEMA = {
@@ -240,7 +244,41 @@ def _review_records(node: Any, *, path: Tuple[Any, ...] = (),
     return out
 
 
+def _coerce_patch_path(root: Any, path: Sequence[Any]) -> List[Any]:
+    """Convert provider-safe string path segments into typed traversal parts.
+
+    Review response schemas use string-only path items because OpenAI's
+    Structured Outputs subset rejects nested oneOf. A decimal string is treated
+    as a list index only when traversal is currently at a list; otherwise it
+    remains an ordinary object key. This preserves exact field names and keeps
+    structural edits impossible.
+    """
+    cur = root
+    out: List[Any] = []
+    for raw in path:
+        part: Any = raw
+        if isinstance(cur, list):
+            if isinstance(raw, str) and re.fullmatch(r"0|[1-9][0-9]*", raw):
+                part = int(raw)
+            if not isinstance(part, int) or part < 0 or part >= len(cur):
+                raise QualityGateError(
+                    f"invalid list path component {raw!r} in {list(path)!r}"
+                )
+            out.append(part)
+            cur = cur[part]
+            continue
+
+        if not isinstance(cur, dict) or not isinstance(part, str) or part not in cur:
+            raise QualityGateError(
+                f"invalid object path component {part!r} in {list(path)!r}"
+            )
+        out.append(part)
+        cur = cur[part]
+    return out
+
+
 def _get_path(root: Any, path: Sequence[Any]) -> Any:
+    path = _coerce_patch_path(root, path)
     cur = root
     for part in path:
         if isinstance(part, int):
@@ -255,6 +293,7 @@ def _get_path(root: Any, path: Sequence[Any]) -> Any:
 
 
 def _set_path(root: Any, path: Sequence[Any], value: Any, *, old: Any) -> None:
+    path = _coerce_patch_path(root, path)
     if not path or not isinstance(path[-1], str) or path[-1] not in _PATCHABLE_FIELDS:
         raise QualityGateError(f"reviewer tried to patch forbidden path {list(path)!r}")
     parent = root
@@ -296,11 +335,12 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
         path = raw.get("path")
         if topic_id not in topics_by_id or not isinstance(path, list):
             raise QualityGateError("semantic patch has an unknown topic or missing path")
+        content = topics_by_id[topic_id]["content"]
+        path = _coerce_patch_path(content, path)
         marker = (topic_id, json.dumps(path, ensure_ascii=False))
         if marker in seen:
             raise QualityGateError(f"duplicate semantic patch for {topic_id} {path!r}")
         seen.add(marker)
-        content = topics_by_id[topic_id]["content"]
         _set_path(content, path, raw.get("value"), old=raw.get("old"))
         applied += 1
     return applied
@@ -350,7 +390,8 @@ Contract:
 - Return exactly one entry for EVERY topic_id supplied.
 - Any supplied English/Turkish counterpart whose value is empty is a blocking
   completeness defect. Fill it from its non-empty semantic pair.
-- Use only paths that appear in the supplied records.
+- Use only paths that appear in the supplied records. Encode every path segment
+  as a JSON string; list indexes must be decimal strings such as "0" or "12".
 - Copy old exactly, byte for byte.
 - Patch only genuine correctness/naturalness problems. No cosmetic rewrites.
 - When one correction has paired EN/TR fields, patch both so they remain
@@ -391,7 +432,8 @@ Return JSON only:
 
 The overview is pages[0]; assessment question 1 is pages[1], question 10 is
 pages[10]. Any supplied English/Turkish counterpart whose value is empty must
-be filled from the non-empty semantic pair. Use only supplied paths, copy old
+be filled from the non-empty semantic pair. Use only supplied paths and encode
+every path segment as a JSON string (list indexes like "0", "1"). Copy old
 exactly, and make the smallest correction that yields one unambiguously correct
 answer. Keep answer/options/
 distractors mutually consistent. No cosmetic rewrites.
