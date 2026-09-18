@@ -86,37 +86,24 @@ def fake_call(**kwargs):
         }
 
     if stage.endswith("pages.0.items.0.target"):
-        row = payload["topics"][0]
-        assert [r["path"] for r in row["records"]] == [
-            ["pages", 0, "items", 0, "target"]
-        ]
+        assert payload["taught_language"] == "Spanish"
+        assert payload["path"] == ["pages", 0, "items", 0, "target"]
+        assert payload["current_value"] == BAD_TARGET
         return {
-            "topics": [{
-                "topic_id": "family",
-                "verdict": "fix",
-                "patches": [{
-                    "path": ["pages", "0", "items", "0", "target"],
-                    "old": BAD_TARGET,
-                    "value": GOOD_TARGET,
-                    "reason": "Use taught-language content.",
-                }],
-            }]
+            "value": GOOD_TARGET,
+            "reason": "Use taught-language content.",
         }
 
     if stage.endswith("pages.1.prompt"):
-        row = payload["topics"][0]
-        assert [r["path"] for r in row["records"]] == [["pages", 1, "prompt"]]
+        assert payload["taught_language"] == "Spanish"
+        assert payload["path"] == ["pages", 1, "prompt"]
+        assert payload["current_value"] == BAD_PROMPT
+        context = payload["immutable_page_context"]
+        assert context["answer"] == "madre"
+        assert context["options"] == ["madre", "padre", "hermano", "abuela"]
         return {
-            "topics": [{
-                "topic_id": "family",
-                "verdict": "fix",
-                "patches": [{
-                    "path": ["pages", "1", "prompt"],
-                    "old": BAD_PROMPT,
-                    "value": GOOD_PROMPT,
-                    "reason": "Use a taught-language stem.",
-                }],
-            }]
+            "value": GOOD_PROMPT,
+            "reason": "Use a taught-language stem.",
         }
 
     raise AssertionError(f"unexpected stage {stage}")
