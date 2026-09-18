@@ -695,6 +695,48 @@ def final_terra_verify(*, units: List[Dict[str, Any]], language: str, level: str
     return applied
 
 
+def provider_preflight() -> List[Dict[str, Any]]:
+    """Tiny live contract check for the two publication-review providers.
+
+    This is opt-in at deploy time. It spends only a few hundred output-token
+    ceiling per model but exercises the exact structured-output transport that
+    a classroom will later use, so a routing/schema incompatibility is found
+    before a user pays to regenerate thirty lessons.
+    """
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"ok": {"type": "boolean"}},
+        "required": ["ok"],
+    }
+    rows = []
+    for model, effort, name in (
+        (LUNA_REVIEW_MODEL, "high", "luna_pro_preflight"),
+        (TERRA_VERIFY_MODEL, "low", "terra_preflight"),
+    ):
+        response = T.call_model(
+            [
+                {"role": "system", "content": "Return the requested structured health result only."},
+                {"role": "user", "content": "Set ok to true."},
+            ],
+            max_tokens=500, temperature=0.0, model=model, cache_system=False,
+            timeout=90, attempts=2, reasoning_effort=effort,
+            response_schema=schema, response_name=name,
+        )
+        if not response.ok or response.data != {"ok": True}:
+            raise QualityGateError(
+                f"provider preflight failed on {model}: "
+                f"{response.error or repr(response.data)}"
+            )
+        rows.append({
+            "model": model, "seconds": response.seconds,
+            "cost": float(response.cost or 0.0),
+            "input_tokens": response.input_tokens,
+            "output_tokens": response.output_tokens,
+        })
+    return rows
+
+
 def gate_summary(budget: ReviewBudget) -> str:
     calls = ", ".join(
         f"{row['stage']}=${row['cost']:.4f}" for row in budget.calls
