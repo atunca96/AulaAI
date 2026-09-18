@@ -311,9 +311,17 @@ def _set_path(root: Any, path: Sequence[Any], value: Any, *, old: Any) -> None:
         raise QualityGateError(f"patch may not invent field {key!r}")
     current = parent[key]
     if current != old:
-        raise QualityGateError(
-            f"stale semantic patch at {list(path)!r}: reviewer saw {old!r}, current is {current!r}"
-        )
+        # Structured reviewers sometimes return null/empty for `old` even
+        # though the exact non-empty field value was present in the supplied
+        # records. That is not evidence of concurrent mutation. For scalar text
+        # fields only, treat a nullable reviewer-old as unspecified and validate
+        # the proposed replacement against the current canonical value instead.
+        # Any non-empty conflicting old value still fails closed.
+        nullable_old = old is None or old == ""
+        if not (nullable_old and isinstance(current, str) and current.strip()):
+            raise QualityGateError(
+                f"stale semantic patch at {list(path)!r}: reviewer saw {old!r}, current is {current!r}"
+            )
     if isinstance(current, str):
         if not isinstance(value, str) or not value.strip():
             raise QualityGateError(f"patch for {list(path)!r} must be a non-empty string")
@@ -510,6 +518,29 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
     return response.data
 
 
+def _topic_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Deterministic renderer-contract failures for learner-visible MCQ pages."""
+    from services.authoring import render_contract as RC
+    pages = content.get("pages") if isinstance(content, dict) else None
+    blockers: List[Dict[str, Any]] = []
+    for page_index, page in enumerate(pages or []):
+        if not isinstance(page, dict) or str(page.get("type") or "").casefold() != "mcq":
+            continue
+        for is_tr in RC.EXPORT_LOCALES:
+            ok, why = RC.page_is_renderable(page, is_tr)
+            if ok:
+                continue
+            blockers.append({
+                "page_index": page_index,
+                "title": str(page.get("title") or f"page {page_index}"),
+                "locale": "tr" if is_tr else "en",
+                "why": why,
+                "stem": RC.resolve_stem(page, is_tr),
+                "answer": str(page.get("answer") or ""),
+            })
+    return blockers
+
+
 def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         language: str, level: str, track: str,
                         budget: ReviewBudget) -> int:
@@ -527,6 +558,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             "title": str(topic.get("title") or ""),
             "records": _review_records(topic["content"]),
             "deterministic_blockers": _findings_payload(findings),
+            "render_contract_blockers": _topic_render_blockers(topic["content"]),
         })
     profile = S.profile_for_language(language)
     payload = {
@@ -575,7 +607,8 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
     # small targeted pass. This is bounded and fail-closed.
     for topic in topics:
         blockers = A.blocking(_audit_topic(topic, language=language, track=track))
-        if not blockers:
+        render_blockers = _topic_render_blockers(topic.get("content"))
+        if not blockers and not render_blockers:
             continue
         targeted = {
             "language": language, "level": level, "unit": unit_title,
@@ -586,8 +619,14 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 "title": str(topic.get("title") or ""),
                 "records": _review_records(topic["content"]),
                 "deterministic_blockers": _findings_payload(blockers),
+                "render_contract_blockers": render_blockers,
             }],
-            "instruction": "Fix every deterministic blocker. Return this one topic only.",
+            "instruction": (
+                "Fix every deterministic and renderer-contract blocker. For any MCQ "
+                "whose answer depends on an unstated identity/biographical inference, "
+                "rewrite the smallest learner-visible fields so exactly one answer is "
+                "derivable from explicit stem or taught evidence. Return this one topic only."
+            ),
         }
         retry = _call_review(
             # Deterministic blockers are the cases where the broad cheap editor
@@ -617,6 +656,15 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             raise QualityGateError(
                 f"{topic.get('title')}: deterministic blockers remain after semantic repair: "
                 f"{A.summarise(still)}"
+            )
+        still_render = _topic_render_blockers(topic.get("content"))
+        if still_render:
+            detail = "; ".join(
+                f"page {row['page_index']} {row['locale']}: {row['why']}"
+                for row in still_render[:4]
+            )
+            raise QualityGateError(
+                f"{topic.get('title')}: renderer-contract blockers remain after semantic repair — {detail}"
             )
 
     # Bilingual completeness is a publication invariant but not every missing
