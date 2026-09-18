@@ -401,6 +401,50 @@ def test_publication_integrity_rejects_duplicates_and_missing_english():
         check(False, "one-language-only lesson fields must not publish")
 
 
+
+def test_luna_can_fill_a_missing_bilingual_counterpart():
+    print("\n[Q8] missing bilingual fields are made patchable before semantic review")
+    units = clean_integrity_fixture()
+    topic = units[0]["topics"][0]
+    del topic["content"]["pages"][0]["title_tr"]
+    original = Q.T.call_model
+    saw_empty_slot = {"value": False}
+
+    def provider(messages, **kwargs):
+        payload = json.loads(messages[-1]["content"])
+        records = payload["topics"][0]["records"]
+        saw_empty_slot["value"] = any(
+            rec.get("path") == ["pages", 0, "title_tr"] and rec.get("value") == ""
+            for rec in records
+        )
+        return T.Response(
+            data={"topics": [{
+                "topic_id": "t1", "verdict": "fix",
+                "patches": [{
+                    "path": ["pages", 0, "title_tr"],
+                    "old": "", "value": "Sayılar",
+                    "reason": "Restore the missing Turkish counterpart.",
+                }],
+            }]},
+            input_tokens=2500, output_tokens=200, cost=0.001,
+            model=kwargs.get("model", ""),
+        )
+
+    try:
+        Q.T.call_model = provider
+        budget = Q.ReviewBudget(0.05)
+        applied = Q.review_unit_lessons(
+            unit_title="Unit 1", topics=[topic], language="Spanish",
+            level="A1", track="tr", budget=budget)
+    finally:
+        Q.T.call_model = original
+
+    check(saw_empty_slot["value"],
+          "the missing counterpart is exposed as an exact empty patch path")
+    check(applied == 1 and topic["content"]["pages"][0]["title_tr"] == "Sayılar",
+          "Luna can repair the missing bilingual field without inventing structure")
+
+
 def main():
     test_transport_strict_schema_and_content_blocks()
     test_non_ipa_fails_closed()
@@ -410,6 +454,7 @@ def main():
     test_publication_integrity_keeps_ten_questions()
     test_publication_integrity_catches_renderer_silent_drop()
     test_publication_integrity_rejects_duplicates_and_missing_english()
+    test_luna_can_fill_a_missing_bilingual_counterpart()
     print(f"\n=== {len(FAILS)} quality-gate failing checks ===")
     for failure in FAILS:
         print("  -", failure)
