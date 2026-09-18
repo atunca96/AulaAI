@@ -116,12 +116,12 @@ class CoursePlan:
 
 # ── Shape rules ──────────────────────────────────────────────────────────────
 # Sizes chosen so a full synchronous Terra course stays inside the $0.60
-# classroom ceiling. Terra's discounted $1/$6 route is asynchronous batch;
-# the live request/response route is $2/$12, which makes twelve authored
-# lessons the largest conservative course shape this pipeline can promise.
+# classroom ceiling including unit assessments and retry headroom. The build
+# matrix shows ten authored lessons can leave too little budget for the last
+# lesson; nine is the largest conservative shape that completes end to end.
 MIN_UNITS, MAX_UNITS = 3, 6
 MIN_TOPICS_PER_UNIT, MAX_TOPICS_PER_UNIT = 2, 4
-MAX_LESSONS = 12
+MAX_LESSONS = 9
 
 
 def validate_plan(plan: CoursePlan) -> List[str]:
