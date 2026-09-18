@@ -58,6 +58,7 @@ VERIFICATION_STEPS = [
     "scripts/test_review_reconciliation_v2.py",
     "scripts/test_exact_deterministic_repair.py",
     "scripts/test_preflight_deterministic_repair.py",
+    "scripts/test_preflight_exact_residuals.py",
     "scripts/test_empty_semantic_patch.py",
     "scripts/test_gemini_review_chunking.py",
     "scripts/test_final_publication_autorepair.py",

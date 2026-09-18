@@ -740,10 +740,124 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
             still = A.blocking(
                 _audit_topic(topic, language=language, track=track)
             )
+
+            # A multi-path repair can return syntactically valid JSON yet leave
+            # some exact fields untouched. Do not throw away the whole retry at
+            # that point. Resolve every residual finding to its exact learner-
+            # visible path and repair one path at a time. This keeps each call
+            # tiny, removes ambiguity about which field must change, and lets
+            # deterministic re-audit decide whether the repair actually worked.
             if still:
+                residual_rounds = 0
+                while still and residual_rounds < 8:
+                    residual_rounds += 1
+                    residual_rows = _findings_with_repair_paths(content, still)
+
+                    path_to_findings: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = {}
+                    for row in residual_rows:
+                        for repair_path in row.get("repair_paths") or []:
+                            marker = tuple(repair_path)
+                            if marker:
+                                path_to_findings.setdefault(marker, []).append(row)
+
+                    if not path_to_findings:
+                        break
+
+                    progress = False
+                    for marker, path_findings in path_to_findings.items():
+                        current_records = [
+                            rec for rec in _review_records(content)
+                            if tuple(rec.get("path") or []) == marker
+                        ]
+                        if len(current_records) != 1:
+                            continue
+
+                        one_payload = {
+                            "language": language,
+                            "level": level,
+                            "unit": unit.get("title"),
+                            "regional_variety": profile.variety if profile else "",
+                            "instruction_track": track,
+                            "topics": [{
+                                "topic_id": str(topic["id"]),
+                                "title": str(topic.get("title") or ""),
+                                "records": current_records,
+                                "deterministic_blockers": path_findings,
+                                "render_contract_blockers": [],
+                            }],
+                            "instruction": (
+                                "Repair exactly this one learner-visible path. "
+                                "You MUST return one non-empty replacement patch for the "
+                                "record path supplied. Do not patch any other path."
+                            ),
+                        }
+                        one = _call_review(
+                            model=REPAIR_MODEL,
+                            system=_LESSON_REVIEW_SYSTEM,
+                            payload=one_payload,
+                            max_tokens=1400,
+                            effort="low",
+                            budget=budget,
+                            stage=(
+                                f"review_preflight_exact:{topic.get('title')}:"
+                                + ".".join(map(str, marker))
+                            ),
+                            response_schema=_LESSON_REVIEW_SCHEMA,
+                            response_name="lesson_preflight_exact_repair",
+                        )
+                        one_rows = one.get("topics")
+                        if not isinstance(one_rows, list) or len(one_rows) != 1 or \
+                                str(one_rows[0].get("topic_id") or "") != str(topic["id"]):
+                            raise QualityGateError(
+                                f"preflight exact repair coverage failed for "
+                                f"{topic.get('title')} {list(marker)!r}"
+                            )
+                        one_patches = []
+                        for patch in one_rows[0].get("patches") or []:
+                            if not isinstance(patch, dict):
+                                raise QualityGateError(
+                                    "preflight exact repair patch is not an object"
+                                )
+                            patch = dict(patch)
+                            patch["topic_id"] = str(topic["id"])
+                            one_patches.append(patch)
+
+                        before = _get_path(content, list(marker))
+                        changed = _apply_patches(
+                            {str(topic["id"]): topic}, one_patches
+                        )
+                        after = _get_path(content, list(marker))
+                        if changed and before != after:
+                            applied += changed
+                            progress = True
+                            R.repair_lesson(content, language=language)
+
+                    refreshed = A.blocking(
+                        _audit_topic(topic, language=language, track=track)
+                    )
+                    if not refreshed:
+                        still = []
+                        break
+                    if not progress or A.summarise(refreshed) == A.summarise(still):
+                        still = refreshed
+                        break
+                    still = refreshed
+
+            if still:
+                unresolved = _findings_with_repair_paths(content, still)
+                detail = [
+                    {
+                        "code": row.get("code"),
+                        "path": row.get("path"),
+                        "field": row.get("field"),
+                        "repair_paths": row.get("repair_paths"),
+                    }
+                    for row in unresolved[:12]
+                ]
                 raise QualityGateError(
                     f"{topic.get('title')}: deterministic blockers remain after "
-                    f"preflight repair: {A.summarise(still)}"
+                    f"preflight exact repair: {A.summarise(still)}; "
+                    f"unresolved={detail}"
                 )
 
     return applied
