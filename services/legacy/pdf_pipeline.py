@@ -892,41 +892,43 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     # passed. When a later unrelated failure aborted the run, the persisted
     # snapshot stayed at preflight level and the outer publication validation
     # refused the course over a counterpart that had in fact been repaired.
+    def _checkpoint_bilingual_topic(topic, patch_count):
+        # Topic-level transaction: never persist a half-repaired topic, but once
+        # this exact topic is proven complete, keep that proof even if a later
+        # topic/provider call fails.
+        incomplete = Q.missing_bilingual_pairs(topic["content"])
+        if incomplete:
+            raise Q.QualityGateError(
+                f"{topic['title']}: refusing to checkpoint incomplete "
+                f"EN/TR field pairs: " + ", ".join(incomplete[:8])
+            )
+        with db_connection() as db:
+            db.execute(
+                "UPDATE topics SET content = ? WHERE id = ?",
+                (json.dumps(topic["content"], ensure_ascii=False), topic["id"]),
+            )
+            db.execute(
+                "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                (f"Quality review: bilingual topic checkpointed — {topic['title']}", course_id),
+            )
+            db.commit()
+        bump_version()
+        _log(
+            f"[QUALITY-GATE] bilingual topic checkpoint persisted "
+            f"{patch_count} repair(s): {topic['title']}"
+        )
+
     bilingual_patches = Q.repair_bilingual_preflight(
         units=preflight_units,
         language=language,
         level=level,
         track=material_language,
         budget=budget,
+        on_topic_complete=_checkpoint_bilingual_topic,
     )
     if bilingual_patches:
-        # Write only what carries the proof. The stage above already fails
-        # closed on a topic it could not complete; this re-proves it at the
-        # persistence boundary, because that is the boundary whose output a
-        # later failure leaves behind.
-        for unit in units:
-            for topic in unit["lessons"]:
-                incomplete = Q.missing_bilingual_pairs(topic["content"])
-                if incomplete:
-                    raise Q.QualityGateError(
-                        f"{topic['title']}: refusing to checkpoint incomplete "
-                        f"EN/TR field pairs: " + ", ".join(incomplete[:8])
-                    )
-        with db_connection() as db:
-            for unit in units:
-                for topic in unit["lessons"]:
-                    db.execute(
-                        "UPDATE topics SET content = ? WHERE id = ?",
-                        (json.dumps(topic["content"], ensure_ascii=False), topic["id"]),
-                    )
-            db.execute(
-                "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-                ("Quality review: bilingual counterparts checkpointed", course_id),
-            )
-            db.commit()
-        bump_version()
         _log(
-            f"[QUALITY-GATE] bilingual checkpoint persisted "
+            f"[QUALITY-GATE] bilingual preflight completed "
             f"{bilingual_patches} exact counterpart repair(s)."
         )
 
