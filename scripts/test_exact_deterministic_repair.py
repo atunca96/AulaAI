@@ -21,6 +21,7 @@ topic = {
             {
                 "type": "vocabulary",
                 "title": "Family",
+                "title_tr": "Aile",
                 "items": [{
                     "target": "at the start of a word",
                     "translation_en": "position note",
@@ -30,6 +31,7 @@ topic = {
             {
                 "type": "mcq",
                 "title": "Practice",
+                "title_tr": "Alıştırma",
                 "prompt": "Which family member is this?",
                 "answer": "madre",
                 "options": ["madre", "padre", "hermano", "abuela"],
