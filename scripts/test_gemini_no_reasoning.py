@@ -18,6 +18,7 @@ os.environ.setdefault("AULAAI_DATA_DIR", tempfile.mkdtemp(prefix="aulaai-gemini-
 from services.authoring import transport as T
 
 captured = {}
+requests = []
 original = T.urllib.request.urlopen
 
 class FakeHTTP:
@@ -37,7 +38,9 @@ class FakeHTTP:
         }).encode("utf-8")
 
 def fake_urlopen(request, timeout=None):
-    captured["payload"] = json.loads(request.data.decode("utf-8"))
+    payload = json.loads(request.data.decode("utf-8"))
+    captured["payload"] = payload
+    requests.append(payload)
     return FakeHTTP()
 
 schema = {
@@ -49,21 +52,31 @@ schema = {
 
 try:
     T.urllib.request.urlopen = fake_urlopen
-    response = T.call_model(
+    response37 = T.call_model(
         [{"role": "user", "content": "repair exact path"}],
         max_tokens=2000,
         model="google/gemini-3.7-flash",
         reasoning_effort="none",
         response_schema=schema,
-        response_name="gemini_no_reasoning",
+        response_name="gemini37_no_reasoning",
+        attempts=1,
+    )
+    response38 = T.call_model(
+        [{"role": "user", "content": "repair exact path"}],
+        max_tokens=3200,
+        model="google/gemini-3.8-flash",
+        reasoning_effort="none",
+        response_schema=schema,
+        response_name="gemini38_min_reasoning",
         attempts=1,
     )
 finally:
     T.urllib.request.urlopen = original
 
-assert response.ok and response.data == {"ok": True}
-payload = captured["payload"]
-assert payload.get("reasoning") == {"max_tokens": 0}, payload.get("reasoning")
-assert payload["max_tokens"] == 2000
-assert payload["response_format"]["type"] == "json_schema"
-print("[GEMINI-NO-REASONING] targeted repair leaves completion budget for JSON")
+assert response37.ok and response37.data == {"ok": True}
+assert response38.ok and response38.data == {"ok": True}
+assert requests[0].get("reasoning") == {"max_tokens": 0}, requests[0].get("reasoning")
+assert requests[1].get("reasoning") == {"effort": "low"}, requests[1].get("reasoning")
+assert requests[1]["max_tokens"] == 3200
+assert requests[1]["response_format"]["type"] == "json_schema"
+print("[GEMINI-REASONING] 3.7 disables thinking; mandatory 3.8 repairs use low reasoning")

@@ -245,14 +245,16 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
     if "gemini" in target.lower() or "google" in target.lower():
         payload["temperature"] = float(temperature)
         payload["provider"] = {"order": ["Google AI Studio", "Google"], "allow_fallbacks": True}
-        # Narrow schema-bound repairs do not benefit from hidden reasoning.
-        # Omitting the reasoning object was NOT enough: the Gemini provider
-        # still used its default thinking budget and twice exhausted a 2k-token
-        # completion after emitting only ~120 visible JSON chars. OpenRouter's
-        # unified reasoning control uses max_tokens=0 to disable thinking.
+        # Gemini 3.8 Flash requires reasoning and rejects max_tokens=0.
+        # For repair calls our "none" sentinel therefore means the smallest
+        # supported reasoning mode on 3.8. Older Gemini routes that permit
+        # disabled reasoning still receive an explicit zero budget.
         gemini_effort = (reasoning_effort or "low").lower()
         if gemini_effort == "none":
-            payload["reasoning"] = {"max_tokens": 0}
+            if "gemini-3.8-" in target.lower():
+                payload["reasoning"] = {"effort": "low"}
+            else:
+                payload["reasoning"] = {"max_tokens": 0}
         else:
             payload["reasoning"] = {"effort": gemini_effort}
     elif target.lower().startswith("openai/gpt-5.6-"):
