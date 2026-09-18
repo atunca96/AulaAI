@@ -45,5 +45,7 @@ assert len(str(digest)) < len(str(tr)) * 0.60, (len(str(digest)), len(str(tr)))
 
 pipeline=open(os.path.join(ROOT,"services","legacy","pdf_pipeline.py"),encoding="utf-8").read()
 assert "assessment_workers = 1" in pipeline
-assert "ThreadPoolExecutor(max_workers=assessment_workers)" in pipeline
-print("[ASSESSMENT-BUDGET] compact one-track evidence + serialized reservations")
+assert 'assessment review running serially with fail-fast unit boundaries.' in pipeline
+assert '_run_quality_units_serially(' in pipeline
+assert 'stage="assessment review"' in pipeline
+print("[ASSESSMENT-BUDGET] compact one-track evidence + serial fail-fast reservations")
