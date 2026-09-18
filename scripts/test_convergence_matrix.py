@@ -245,11 +245,17 @@ topic = spanish_topic([dict(clean_pages()[1],
                             explanation="Ana is a feminine name, so «alta».",
                             explanation_tr="Ana kadın ismidir; bu yüzden «alta».")],
                       title="Stuck")
+# Every strategy this blocker owns returns something that changes nothing. Each
+# is attempted exactly once against the fingerprint, in order, and then the
+# controller — not a strategy — ends the run with its own diagnostic.
 noop = {"stem": "Ana es ___. (alto)",
         "explanation_en": "Ana is a feminine name, so «alta».",
         "explanation_tr": "Ana kadın ismidir; bu yüzden «alta».",
         "reason": "unchanged"}
-provider = Provider({"review_render_name_gender:": noop})
+provider = Provider({
+    "review_render_name_gender:": noop,
+    "review_render_exact:": {"value": "Ana es ___. (alto)", "reason": "unchanged"},
+})
 raised = None
 try:
     Q._call_review = provider
@@ -260,11 +266,14 @@ except Q.QualityGateError as exc:
 finally:
     Q._call_review = ORIG_CALL
 check(raised is not None, f"a non-progressing repair fails closed ({str(raised)[:60]})")
-check(len(provider.calls) == 1,
-      f"the same strategy is not called again for the same fingerprint "
-      f"({provider.calls})")
-check("still refused" in str(raised) and "tr export" in str(raised),
-      "the strategy proves its own output and names the locale that refused it")
+check(provider.calls == [
+    "review_render_name_gender:Stuck:pages.0.prompt",
+    "review_render_exact:Stuck:pages.0.prompt",
+], f"each strategy attempted once, in order ({provider.calls})")
+check(len(set(provider.calls)) == len(provider.calls),
+      "no strategy is called twice for the same fingerprint")
+check("not converging" in str(raised) and "render_contract" in str(raised),
+      "the controller names the unresolved blocker once its routes are spent")
 
 # And the controller's own non-progress path: a strategy that changes nothing
 # and does not raise. The same fingerprint is never dispatched twice, and the

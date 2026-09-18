@@ -1154,7 +1154,8 @@ def _topic_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
                                       level: str, budget: ReviewBudget,
-                                      blockers: Sequence[Dict[str, Any]]) -> int:
+                                      blockers: Sequence[Dict[str, Any]],
+                                      atomic_name_gender: bool = True) -> int:
     """Repair residual MCQ renderer blockers one stem at a time.
 
     Generic lesson review may understand the semantic issue yet still leave a
@@ -1189,10 +1190,21 @@ def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
             continue
 
         # The personal-name→gender refusal is read off the STEM AND the
-        # explanation together, so rewriting the stem alone cannot clear it.
-        # That page gets the atomic repair instead of this stem-only one.
-        if any(str(row.get("why") or "") == RC.NAME_GENDER_REASON
-               for row in page_blockers):
+        # explanation together, so rewriting the stem alone is not the first
+        # thing to try: that page gets the atomic repair instead.
+        #
+        # `atomic_name_gender=False` is the convergence controller invoking this
+        # as the FALLBACK after the atomic repair has already been attempted on
+        # this fingerprint. Routing back here would make that fallback a second
+        # atomic attempt and the chain would have no second route at all, so the
+        # page falls through to the genuinely stem-only repair below. Removing
+        # the person from the stem clears the blocker too; the next convergence
+        # round re-proves it against the audit, bilingual completeness and the
+        # renderer contract in both locales.
+        if atomic_name_gender and any(
+            str(row.get("why") or "") == RC.NAME_GENDER_REASON
+            for row in page_blockers
+        ):
             applied += _repair_name_gender_page_exact(
                 topic=topic, page=page, page_index=page_index,
                 language=language, level=level, budget=budget,
@@ -1325,7 +1337,8 @@ _NAME_GENDER_TR_KEYS = ("explanation_tr", "analysis_tr")
 def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any],
                                    page_index: int, language: str, level: str,
                                    budget: ReviewBudget,
-                                   blockers: Sequence[Dict[str, Any]]) -> int:
+                                   blockers: Sequence[Dict[str, Any]],
+                                   strict: bool = True) -> int:
     """Repair one page's stem and rationale together, or refuse the page.
 
     Bounded and page-scoped: one call, one page, and only the stem plus the
@@ -1333,8 +1346,20 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
     when the renderer contract passes for BOTH export locales on the page as it
     would look after the write, and when the answer, options and distractors
     come through untouched.
+
+    `strict=False` is how the convergence controller calls it. An unusable
+    candidate then writes nothing and returns 0 — a non-progressing attempt the
+    controller can move past — instead of aborting the run before the fallback
+    strategy on the same fingerprint is ever reached. Every other caller keeps
+    the fail-closed behaviour: a rejected candidate there has nowhere else to go.
     """
     from services.authoring import render_contract as RC
+
+    def reject(message: str) -> int:
+        if strict:
+            raise QualityGateError(message)
+        print(f"[QUALITY-REPAIR] REJECT {message}", flush=True)
+        return 0
 
     stem_key = next(
         (key for key in ("prompt", "question", "stem")
@@ -1391,7 +1416,7 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
     explanation_tr = data.get("explanation_tr") if isinstance(data, dict) else None
     if not all(isinstance(v, str) and v.strip()
                for v in (stem, explanation_en, explanation_tr)):
-        raise QualityGateError(
+        return reject(
             f"{topic.get('title')}: name/gender page repair returned an empty "
             f"field for page {page_index}"
         )
@@ -1409,13 +1434,13 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
     for is_tr in RC.EXPORT_LOCALES:
         ok, why = RC.page_is_renderable(probe, is_tr)
         if not ok:
-            raise QualityGateError(
+            return reject(
                 f"{topic.get('title')}: name/gender page repair still refused in "
                 f"the {'tr' if is_tr else 'en'} export for page {page_index}: {why}"
             )
     for key in ("answer", "options", "choices", "distractors"):
         if probe.get(key) != page.get(key):
-            raise QualityGateError(
+            return reject(
                 f"{topic.get('title')}: name/gender page repair changed {key!r} "
                 f"on page {page_index}; the keyed answer is immutable here"
             )
@@ -1433,7 +1458,7 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
             if name in RC.personal_name_tokens(probe, str(probe.get(key) or ""))
         )
         if leftover:
-            raise QualityGateError(
+            return reject(
                 f"{topic.get('title')}: name/gender page repair left {leftover} "
                 f"in the rationale after removing it from the stem on page "
                 f"{page_index}"
@@ -2251,15 +2276,18 @@ def _strategy_render_name_gender(*, topic, blocker, language, level, track,
         return 0
     return _repair_name_gender_page_exact(
         topic=topic, page=pages[index], page_index=index, language=language,
-        level=level, budget=budget, blockers=rows,
+        level=level, budget=budget, blockers=rows, strict=False,
     )
 
 
 def _strategy_render_stem(*, topic, blocker, language, level, track, budget,
                           unit_title):
+    # Stem-only, always. When this runs as the name/gender fallback the atomic
+    # repair has already been attempted on this fingerprint, so re-entering it
+    # would spend a second call on the same answer.
     return _repair_topic_render_stems_exact(
         topic=topic, language=language, level=level, budget=budget,
-        blockers=blocker["render_rows"],
+        blockers=blocker["render_rows"], atomic_name_gender=False,
     )
 
 
