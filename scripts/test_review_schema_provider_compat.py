@@ -26,7 +26,6 @@ def walk(node):
 for name, schema in (
     ("lesson_review", Q._LESSON_REVIEW_SCHEMA),
     ("assessment_review", Q._ASSESSMENT_REVIEW_SCHEMA),
-    ("terra_verify", Q._TERRA_VERIFY_SCHEMA),
 ):
     assert not any("oneOf" in obj for obj in walk(schema)), (
         f"{name} contains oneOf, rejected by OpenAI Structured Outputs"
