@@ -332,12 +332,32 @@ for env_path in [
         except Exception:
             pass
 
-MODEL_CURRICULUM = os.getenv("MODEL_CURRICULUM", "google/gemini-3.7-flash")
-MODEL_LESSON = os.getenv("MODEL_LESSON", "google/gemini-3.7-flash")
-MODEL_TRANSLATOR = os.getenv("MODEL_TRANSLATOR", "google/gemini-3.7-flash")
-MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", "google/gemini-3.7-flash")
-MODEL_NARRATIVE = os.getenv("MODEL_NARRATIVE", "google/gemini-3.7-flash")
-MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "google/gemini-3.7-flash")
+# ── The generation models ─────────────────────────────────────────────────────
+# Every role is one env var, so a single role can be moved without moving the
+# rest — the lesson is the expensive, high-stakes artifact every question is
+# downstream of, and it does not have to share a model with the translator.
+#
+# Claude Haiku 4.5 rather than Gemini Flash for two reasons that are specific to
+# this codebase, not general preference. The prompts here are long and
+# rule-dense — the assessment contract alone is ~5k tokens of instruction the
+# model has to hold all of at once. And `_cacheable_system_message` sends an
+# explicit `cache_control: ephemeral` breakpoint, which is the Anthropic
+# convention: on Anthropic it is native, and a cache READ bills at a tenth of
+# the input price rather than a quarter of it. With a class-invariant prefix
+# reused across every generation in a course, that discount pays back a real
+# share of the higher headline rate.
+_DEFAULT_MODEL = "anthropic/claude-haiku-4.5"
+
+MODEL_CURRICULUM = os.getenv("MODEL_CURRICULUM", _DEFAULT_MODEL)
+MODEL_LESSON = os.getenv("MODEL_LESSON", _DEFAULT_MODEL)
+MODEL_TRANSLATOR = os.getenv("MODEL_TRANSLATOR", _DEFAULT_MODEL)
+MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", _DEFAULT_MODEL)
+MODEL_NARRATIVE = os.getenv("MODEL_NARRATIVE", _DEFAULT_MODEL)
+# Deliberately the same model, which makes `_call_ai`'s fallback a no-op: a
+# trial whose results are half-served by a second model measures nothing. Point
+# this at a different provider once the trial is over and it becomes real
+# cross-provider resilience.
+MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", _DEFAULT_MODEL)
 
 # Output ceiling for one generated lesson, and the ceiling a retry may escalate to
 # when the provider reports the previous attempt was cut off at the limit.
@@ -350,22 +370,45 @@ MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "google/gemini-3.7-flash")
 LESSON_OUTPUT_TOKENS = int(os.getenv("AULAAI_LESSON_OUTPUT_TOKENS", "8192"))
 LESSON_OUTPUT_TOKENS_MAX = int(os.getenv("AULAAI_LESSON_OUTPUT_TOKENS_MAX", "24576"))
 
+# Published OpenRouter rates in USD per MILLION tokens, as (input, output),
+# matched against the model id in order — the first substring that matches wins,
+# so more specific families are listed before the ones that would also match
+# them. The last entry is the fallback for a model nobody has priced here.
+#
+# These are only consulted when the provider does NOT return a cost of its own
+# for the call (see `_call_ai`, which prefers `usage.cost`). A stale rate here
+# therefore changes no bill — but it does make the spend ledger misattribute
+# which stage is expensive, which is the single question the ledger exists to
+# answer. The gemini-3.x flash family sat at 1.25/5.00 while actually billing
+# 0.75/3.75, so every estimated line overstated spend by about half.
+_MODEL_RATES = (
+    (("claude-haiku",), 1.00, 5.00),
+    (("claude-sonnet-5",), 2.00, 10.00),
+    (("claude-sonnet", "claude-3-5-sonnet"), 3.00, 15.00),
+    (("gemini-2.5-flash-lite",), 0.10, 0.40),
+    (("gemini-3.1-flash-lite",), 0.25, 1.50),
+    (("flash-lite",), 0.30, 2.50),
+    (("gemini-3.8", "gemini-3.7", "gemini-3.6"), 0.75, 3.75),
+    (("gemini-3.5-flash",), 1.50, 9.00),
+    (("gemini-2.5-flash",), 0.30, 2.50),
+    (("gemini-3.1-pro", "gemini-3-pro", "gemini-1.5-pro"), 2.00, 12.00),
+    (("gpt-5-mini",), 0.25, 2.00),
+    (("gpt-4o",), 3.50, 10.50),
+    (("flash",), 0.75, 3.75),
+)
+_FALLBACK_RATE = (1.00, 4.00)
+
+
 def _estimate_llm_cost(model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
-    """Estimates OpenRouter / API inference cost in USD based on model family and token counts."""
+    """Estimated OpenRouter inference cost in USD. Used only when the provider
+    returned no cost of its own for the call."""
     m = str(model_name or "").lower()
-    if any(k in m for k in ["flash-lite", "2.0-flash-lite", "2.5-flash-lite"]):
-        inp_rate = 0.075 / 1_000_000
-        out_rate = 0.30 / 1_000_000
-    elif any(k in m for k in ["gemini-3.7", "gemini-2.5-flash", "gemini-1.5-flash", "flash"]):
-        inp_rate = 1.25 / 1_000_000
-        out_rate = 5.00 / 1_000_000
-    elif any(k in m for k in ["gemini-3-pro", "gemini-1.5-pro", "claude-3-5-sonnet", "gpt-4o"]):
-        inp_rate = 3.50 / 1_000_000
-        out_rate = 10.50 / 1_000_000
-    else:
-        inp_rate = 1.00 / 1_000_000
-        out_rate = 4.00 / 1_000_000
-    return (float(prompt_tokens) * inp_rate) + (float(completion_tokens) * out_rate)
+    inp_rate, out_rate = _FALLBACK_RATE
+    for keys, rin, rout in _MODEL_RATES:
+        if any(k in m for k in keys):
+            inp_rate, out_rate = rin, rout
+            break
+    return (float(prompt_tokens) * inp_rate / 1_000_000) + (float(completion_tokens) * out_rate / 1_000_000)
 
 def is_ai_available():
     """Checks if the system has AI capabilities configured (Groq or OpenRouter)."""
