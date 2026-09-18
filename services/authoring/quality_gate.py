@@ -2087,7 +2087,8 @@ Hard contract:
 
 def repair_bilingual_preflight(*, units: List[Dict[str, Any]],
                                language: str, level: str, track: str,
-                               budget: ReviewBudget) -> int:
+                               budget: ReviewBudget,
+                               on_topic_complete: Optional[Any] = None) -> int:
     """Prove EN/TR completeness for every lesson before broad review runs.
 
     Bilingual completeness used to be a tail check inside `review_unit_lessons`,
@@ -2129,13 +2130,16 @@ def repair_bilingual_preflight(*, units: List[Dict[str, Any]],
             if not slots:
                 continue
 
+            topic_applied = 0
             for slot in slots:
-                applied += _repair_bilingual_counterpart(
+                changed = _repair_bilingual_counterpart(
                     topic=topic, content=content, slot=slot,
                     language=language, level=level, track=track, budget=budget,
                     unit_title=str(unit.get("title") or ""),
                     profile=profile,
                 )
+                topic_applied += changed
+                applied += changed
 
             remaining = _missing_bilingual_pairs(content)
             if remaining:
@@ -2143,6 +2147,12 @@ def repair_bilingual_preflight(*, units: List[Dict[str, Any]],
                     f"{topic.get('title')}: incomplete EN/TR field pairs after "
                     f"bilingual preflight repair: " + ", ".join(remaining[:8])
                 )
+
+            # Persist only a topic that has proved complete.  The callback keeps
+            # database concerns out of this module while ensuring a later topic's
+            # failure cannot resurrect an already-repaired stale snapshot.
+            if topic_applied and on_topic_complete is not None:
+                on_topic_complete(topic, topic_applied)
 
     return applied
 
@@ -2176,47 +2186,70 @@ def _repair_bilingual_counterpart(*, topic: Dict[str, Any], content: Dict[str, A
                 if value not in (None, "", []):
                     page_context[key] = value
 
-    data = _call_review(
-        model=REPAIR_MODEL,
-        system=_EXACT_BILINGUAL_COUNTERPART_SYSTEM,
-        payload={
-            "taught_language": language,
-            "level": level,
-            "regional_variety": profile.variety if profile else "",
-            "instruction_track": track,
-            "unit": unit_title,
-            "topic_title": str(topic.get("title") or ""),
-            "path": path,
-            "field": slot["field"],
-            "target_locale": slot["target_locale"],
-            # Immutable evidence. The source field is read, never written.
-            "source_field": slot["source_field"],
-            "source_locale": slot["source_locale"],
-            "source_value": source_value,
-            "immutable_page_context": page_context,
-        },
-        max_tokens=500,
-        effort="low",
-        budget=budget,
-        stage=(
-            f"review_bilingual_exact:{topic.get('title')}:"
-            + ".".join(map(str, path))
-        ),
-        response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
-        response_name="lesson_bilingual_counterpart",
+    base_payload = {
+        "taught_language": language,
+        "level": level,
+        "regional_variety": profile.variety if profile else "",
+        "instruction_track": track,
+        "unit": unit_title,
+        "topic_title": str(topic.get("title") or ""),
+        "path": path,
+        "field": slot["field"],
+        "target_locale": slot["target_locale"],
+        # Immutable evidence. The source field is read, never written.
+        "source_field": slot["source_field"],
+        "source_locale": slot["source_locale"],
+        "source_value": source_value,
+        "immutable_page_context": page_context,
+    }
+    stage = (
+        f"review_bilingual_exact:{topic.get('title')}:"
+        + ".".join(map(str, path))
     )
-    value = data.get("value")
-    if not isinstance(value, str) or not value.strip():
-        raise QualityGateError(
-            f"{topic.get('title')}: bilingual exact repair returned an empty "
-            f"counterpart for {'.'.join(map(str, path))}"
+
+    def _candidate(*, corrective: bool = False, rejected: str = "") -> str:
+        payload = dict(base_payload)
+        if corrective:
+            payload["rejected_candidate"] = rejected
+            payload["instruction"] = (
+                "The previous candidate was invalid because it was empty or "
+                "copied source_value. Return a faithful translation in "
+                "target_locale only; do not copy the source."
+            )
+        data = _call_review(
+            model=REPAIR_MODEL,
+            system=_EXACT_BILINGUAL_COUNTERPART_SYSTEM,
+            payload=payload,
+            max_tokens=500,
+            effort="low",
+            budget=budget,
+            stage=stage + (":corrective" if corrective else ""),
+            response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+            response_name="lesson_bilingual_counterpart",
         )
-    value = value.strip()
-    if _stem_key(value) == _stem_key(source_value):
+        value = data.get("value")
+        return value.strip() if isinstance(value, str) else ""
+
+    value = _candidate()
+    invalid = not value or _stem_key(value) == _stem_key(source_value)
+    if invalid:
+        # A counterpart is a repairable defect, not a reason to abandon the
+        # whole classroom after one bad candidate. Retry this exact slot once;
+        # no topic/unit work is repeated.
+        value = _candidate(corrective=True, rejected=value)
+        invalid = not value or _stem_key(value) == _stem_key(source_value)
+
+    if invalid:
+        if not value:
+            raise QualityGateError(
+                f"{topic.get('title')}: bilingual exact repair returned an "
+                f"empty counterpart twice for {'.'.join(map(str, path))}"
+            )
         raise QualityGateError(
             f"{topic.get('title')}: bilingual exact repair copied the "
-            f"{slot['source_locale']} source into {'.'.join(map(str, path))} "
-            f"instead of writing {slot['target_locale']}"
+            f"{slot['source_locale']} source twice into "
+            f"{'.'.join(map(str, path))} instead of writing "
+            f"{slot['target_locale']}"
         )
 
     # Exactly the target counterpart is written, at the exact path, through the
