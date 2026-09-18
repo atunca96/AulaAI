@@ -80,7 +80,7 @@ budget=Q.ReviewBudget(0.01)
 r1=budget.reserve(model=Q.LUNA_REVIEW_MODEL,input_chars=1000,output_tokens=1000,stage="a")
 try:
     try:
-        budget.reserve(model=Q.LUNA_REVIEW_MODEL,input_chars=1000,output_tokens=7000,stage="b")
+        budget.reserve(model=Q.LUNA_REVIEW_MODEL,input_chars=1000,output_tokens=8000,stage="b")
     except Q.QualityGateError:
         pass
     else:
