@@ -4,9 +4,9 @@ from pathlib import Path
 p = Path("services/authoring/budget.py")
 s = p.read_text(encoding="utf-8")
 s = s.replace('MODEL = "google/gemini-3.8-flash"', 'MODEL = "openai/gpt-5.6-terra"', 1)
-anchor = 'RATES: Dict[str, Dict[str, float]] = {\\n'
+anchor = 'RATES: Dict[str, Dict[str, float]] = {\n'
 assert anchor in s
-s = s.replace(anchor, anchor + '    "openai/gpt-5.6-terra": {"input": 2.00, "output": 12.00, "cache_read": 0.20},\\n', 1)
+s = s.replace(anchor, anchor + '    "openai/gpt-5.6-terra": {"input": 2.00, "output": 12.00, "cache_read": 0.20},\n', 1)
 p.write_text(s, encoding="utf-8")
 
 # 2) English-track schema: never collide target-language example with its English gloss.
@@ -45,11 +45,11 @@ old = '''def generate_unit_assessment(unit_title, unit_topics, language, level="
                 content = {}
         block = _material_for_assessment(content)
         if block.strip():
-            parts.append(f"=== {topic.get('title', '')} ===\\n{block}")
+            parts.append(f"=== {topic.get('title', '')} ===\n{block}")
     if not parts:
         return []
     return ai_generate_questions(
-        unit_title, "review", {"_preassembled_content_str": "\\n\\n".join(parts)[:9000]},
+        unit_title, "review", {"_preassembled_content_str": "\n\n".join(parts)[:9000]},
         language, count=count, level=level, material_language=material_language,
         model_override=model_override, timing_ctx=timing_ctx, ledger=ledger)
 '''
@@ -76,11 +76,11 @@ new = '''def generate_unit_assessment(unit_title, unit_topics, language, level="
                 content = {}
         block = _material_for_assessment(content)
         if block.strip():
-            parts.append(f"=== {topic.get('title', '')} ===\\n{block}")
+            parts.append(f"=== {topic.get('title', '')} ===\n{block}")
     if not parts:
         return []
 
-    source = "\\n\\n".join(parts)[:9000]
+    source = "\n\n".join(parts)[:9000]
     own_ledger = ledger or _budget.BuildLedger(label=f"unit assessment {unit_title}")
     model = model_override or MODEL
     result = _engine.generate_assessment(
@@ -123,7 +123,7 @@ p.write_text(s, encoding="utf-8")
 # 4) Teach the bilingual finisher how to fill either missing instructional track.
 p = Path("services/bilingual_finisher.py")
 s = p.read_text(encoding="utf-8")
-anchor = '\\ndef finalize_course_bilingual_data(course_id: str):\\n'
+anchor = '\ndef finalize_course_bilingual_data(course_id: str):\n'
 assert anchor in s
 helpers = r'''
 # These are instructional-language mirrors. Target-language strings such as
