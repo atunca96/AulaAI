@@ -45,7 +45,7 @@ __all__ = [
 # The one model this system runs on. Pinned here rather than read from the
 # environment at each call site, so "which model produced this material" has a
 # single answer that a reader can find.
-MODEL = "openai/gpt-5.6-terra"
+MODEL = "google/gemini-3.8-flash"
 
 # USD per million tokens, as OpenRouter publishes them. `cache_read` is the
 # discounted rate for input served from a cached prefix.
