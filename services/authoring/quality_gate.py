@@ -846,7 +846,12 @@ Review EVERY supplied topic. Be adversarial and conservative. Check:
 - every absolute pedagogical claim containing meanings such as always, never,
   every, only, must or impossible. Keep it absolute only if it is genuinely
   exceptionless in the declared standard variety; otherwise scope it precisely;
-- lesson MCQs for exactly one defensible answer and plausible distractors.
+- lesson MCQs for exactly one defensible answer and plausible distractors;
+- topical scope against the supplied unit title and unit topic list. A review,
+  recap or milestone lesson must review THIS unit's material only. Content from
+  another unit or from a generic textbook sequence is a blocking defect. When
+  unit_scope_evidence is supplied, use it as the source of truth and patch every
+  wrong-scope learner-visible field back to that unit.
 
 Return JSON only:
 {"topics":[
@@ -869,6 +874,44 @@ Contract:
 - Never change structure, add pages, delete content, or change the lesson scope.
 """
 
+
+_RISK_REVIEW_SYSTEM = """You are AulaAI's pedagogical-rule verifier.
+Another editor already reviewed these lessons. This pass exists only for factual
+grammar/usage claims that can harm a learner if they are overgeneralized.
+
+Check EVERY supplied rule/explanation/text record against the declared language
+and regional variety. In particular, actively search for standard
+counterexamples before accepting words such as always, never, only, every,
+must, cannot, asla, yalnızca, sadece, daima, değişmez or zorunlu. A broad rule
+that is true only for a subclass must be narrowed to that subclass. Preserve
+CEFR level and meaning. If one correction has paired English/Turkish fields,
+patch both so they remain semantically equivalent.
+
+Return JSON only:
+{"topics":[
+  {"topic_id":"EXACT ID","verdict":"ok|fix","patches":[
+    {"path":["pages","0","rules","0","rule_tr"],"old":"EXACT OLD VALUE",
+     "value":"CORRECT REPLACEMENT","reason":"brief factual reason"}
+  ]}
+]}
+
+Contract:
+- Return exactly one entry for EVERY topic_id supplied.
+- Use only paths present in the supplied records.
+- Copy old exactly, byte for byte.
+- Patch only correctness/scope errors, never style.
+"""
+
+_EXACT_PHONETIC_CONFLICT_REPAIR_SYSTEM = """You are AulaAI's pronunciation
+arbiter for exactly ONE written headword. The same headword was published with
+multiple IPA transcriptions in one classroom.
+
+Return the single correct IPA transcription for the declared language and
+regional variety. Judge linguistic correctness; do not choose by majority.
+Preserve the classroom's bracket style when the candidates are bracketed.
+Do not return respelling, commentary, alternatives or multiple pronunciations.
+Return JSON only: {"value":"IPA","reason":"brief factual reason"}.
+"""
 
 _EXACT_TARGET_REPAIR_SYSTEM = """You repair exactly ONE existing learner-visible
 TARGET-language string that failed AulaAI's deterministic publication audit.
@@ -1385,7 +1428,8 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
 
 def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         language: str, level: str, track: str,
-                        budget: ReviewBudget) -> int:
+                        budget: ReviewBudget,
+                        unit_topic_titles: Sequence[str] = ()) -> int:
     """Review a unit without sending a 70-110k character mega-prompt.
 
     Gemini 3.7 Flash can read the old unit-sized payload, but its completion budget
@@ -1411,6 +1455,9 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             "language": language, "level": level, "unit": unit_title,
             "regional_variety": profile.variety if profile else "",
             "instruction_track": track,
+            "unit_topic_titles": [
+                str(v) for v in unit_topic_titles if str(v).strip()
+            ],
             "topics": [{
                 "topic_id": str(topic["id"]),
                 "title": str(topic.get("title") or ""),
@@ -1419,6 +1466,18 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 "render_contract_blockers": _topic_render_blockers(topic["content"]),
             }],
         }
+        topic_type = str(topic.get("type") or "").casefold()
+        if "review" in topic_type or "recap" in topic_type or "revision" in topic_type:
+            payload["unit_scope_evidence"] = [
+                {
+                    "title": str(other.get("title") or ""),
+                    "evidence": _assessment_evidence_digest(
+                        other.get("content") or {}, track=track
+                    ),
+                }
+                for other in topics
+                if str(other.get("id")) != str(topic.get("id"))
+            ]
         data = _call_review(
             model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=payload,
             # Broad review is editorial classification + exact patching. Hidden
@@ -1659,6 +1718,238 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         + ", ".join(remaining[:8])
                     )
 
+    return applied
+
+
+
+_ABSOLUTE_RISK_RE = re.compile(
+    r"\b(?:always|never|every|only|must|cannot|can't|impossible)\b"
+    r"|\b(?:her\s+zaman|asla|hiçbir|yalnızca|sadece|daima|değişmez|zorunlu|imkânsız)\b",
+    re.IGNORECASE,
+)
+
+
+def _risk_review_records(content: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Compact learner-visible claims that deserve a dedicated factual pass."""
+    out: List[Dict[str, Any]] = []
+    for rec in _review_records(content):
+        field = str(rec.get("field") or "")
+        value = rec.get("value")
+        if field in _RISK_RULE_FIELDS:
+            out.append(rec)
+            continue
+        if field in ("text", "text_tr") and isinstance(value, str) and _ABSOLUTE_RISK_RE.search(value):
+            out.append(rec)
+    return out
+
+
+def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
+                            language: str, level: str, track: str,
+                            budget: ReviewBudget) -> int:
+    """Second, narrow semantic pass over pedagogical claims only.
+
+    Broad lesson review has many jobs and can miss a subtle overgeneralization.
+    This pass is intentionally small: rules, explanations and absolute-sounding
+    prose only. It does not rewrite ordinary lesson content.
+    """
+    profile = S.profile_for_language(language)
+    selected = []
+    by_id = {str(t["id"]): t for t in topics}
+    for topic in topics:
+        records = _risk_review_records(topic.get("content") or {})
+        if records:
+            selected.append({
+                "topic_id": str(topic["id"]),
+                "title": str(topic.get("title") or ""),
+                "records": records,
+            })
+    if not selected:
+        return 0
+
+    payload = {
+        "language": language,
+        "level": level,
+        "unit": unit_title,
+        "regional_variety": profile.variety if profile else "",
+        "instruction_track": track,
+        "topics": selected,
+    }
+    data = _call_review(
+        model=REVIEW_MODEL,
+        system=_RISK_REVIEW_SYSTEM,
+        payload=payload,
+        max_tokens=2600,
+        effort="high",
+        budget=budget,
+        stage=f"review_risk:{unit_title}",
+        response_schema=_LESSON_REVIEW_SCHEMA,
+        response_name="pedagogical_risk_review",
+    )
+    rows = data.get("topics")
+    expected = {row["topic_id"] for row in selected}
+    actual = {
+        str(row.get("topic_id") or "")
+        for row in (rows or [])
+        if isinstance(row, dict)
+    }
+    if not isinstance(rows, list) or actual != expected or len(rows) != len(selected):
+        raise QualityGateError(
+            f"{unit_title}: risk reviewer returned incomplete topic coverage"
+        )
+
+    patches = []
+    for row in rows:
+        topic_id = str(row.get("topic_id") or "")
+        for patch in (row.get("patches") or []):
+            if not isinstance(patch, dict):
+                raise QualityGateError("risk-review patch is not an object")
+            item = dict(patch)
+            item["topic_id"] = topic_id
+            patches.append(item)
+    applied = _apply_patches(by_id, patches)
+
+    for row in selected:
+        topic = by_id[row["topic_id"]]
+        R.repair_lesson(topic["content"], language=language)
+        blockers = A.blocking(_audit_topic(topic, language=language, track=track))
+        if blockers:
+            raise QualityGateError(
+                f"{topic.get('title')}: risk review introduced deterministic blockers: "
+                f"{A.summarise(blockers)}"
+            )
+        render = _topic_render_blockers(topic.get("content"))
+        if render:
+            raise QualityGateError(
+                f"{topic.get('title')}: risk review introduced renderer blockers"
+            )
+    return applied
+
+
+def _cross_topic_phonetic_occurrences(
+        units: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+    """Same lexical headword carrying multiple transcriptions across a class."""
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+
+    def walk(node: Any, path: List[Any], unit: Dict[str, Any],
+             topic: Dict[str, Any]) -> None:
+        if isinstance(node, dict):
+            term = node.get("term") or node.get("word") or node.get("target")
+            if isinstance(term, str) and term.strip():
+                key = " ".join(
+                    unicodedata.normalize("NFC", term).strip().casefold().split()
+                )
+                for field in _NOTATION_FIELDS:
+                    value = node.get(field)
+                    if isinstance(value, str) and value.strip():
+                        groups.setdefault(key, []).append({
+                            "unit": str(unit.get("title") or ""),
+                            "topic": topic,
+                            "term": term.strip(),
+                            "field": field,
+                            "path": path + [field],
+                            "value": value.strip(),
+                        })
+            for key, value in node.items():
+                walk(value, path + [key], unit, topic)
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                walk(value, path + [index], unit, topic)
+
+    for unit in units:
+        for topic in unit.get("topics") or []:
+            walk(topic.get("content") or {}, [], unit, topic)
+
+    conflicts = []
+    for rows in groups.values():
+        variants = {
+            unicodedata.normalize("NFC", row["value"]).strip()
+            for row in rows
+        }
+        if len(variants) > 1:
+            conflicts.append(rows)
+    return conflicts
+
+
+def repair_cross_topic_phonetic_conflicts(*, units: List[Dict[str, Any]],
+                                          language: str, level: str,
+                                          track: str,
+                                          budget: ReviewBudget) -> int:
+    """Resolve class-wide pronunciation disagreement by linguistic judgement."""
+    profile = S.profile_for_language(language)
+    applied = 0
+    touched: Dict[str, Dict[str, Any]] = {}
+
+    for rows in _cross_topic_phonetic_occurrences(units):
+        term = rows[0]["term"]
+        variants = []
+        for row in rows:
+            if row["value"] not in variants:
+                variants.append(row["value"])
+        payload = {
+            "language": language,
+            "level": level,
+            "regional_variety": profile.variety if profile else "",
+            "term": term,
+            "candidates": variants,
+            "occurrences": [
+                {
+                    "unit": row["unit"],
+                    "topic": str(row["topic"].get("title") or ""),
+                    "field": row["field"],
+                    "current_value": row["value"],
+                }
+                for row in rows
+            ],
+        }
+        data = _call_review(
+            model=REPAIR_MODEL,
+            system=_EXACT_PHONETIC_CONFLICT_REPAIR_SYSTEM,
+            payload=payload,
+            max_tokens=500,
+            effort="low",
+            budget=budget,
+            stage=f"review_phonetic_conflict:{term}",
+            response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+            response_name="phonetic_conflict_repair",
+        )
+        replacement = data.get("value")
+        if not isinstance(replacement, str) or not replacement.strip():
+            raise QualityGateError(
+                f"{term}: phonetic-conflict repair returned empty value"
+            )
+        replacement = replacement.strip()
+        for row in rows:
+            if unicodedata.normalize("NFC", row["value"]).strip() == replacement:
+                continue
+            _set_path(
+                row["topic"]["content"],
+                row["path"],
+                replacement,
+                old=row["value"],
+            )
+            touched[str(row["topic"]["id"])] = row["topic"]
+            applied += 1
+
+    remaining = _cross_topic_phonetic_occurrences(units)
+    if remaining:
+        examples = [
+            f"{rows[0]['term']}: "
+            + " <> ".join(dict.fromkeys(row["value"] for row in rows))
+            for rows in remaining[:4]
+        ]
+        raise QualityGateError(
+            "cross-topic phonetic conflicts remain after repair: "
+            + " | ".join(examples)
+        )
+
+    for topic in touched.values():
+        R.repair_lesson(topic["content"], language=language)
+        blockers = A.blocking(_audit_topic(topic, language=language, track=track))
+        if blockers:
+            raise QualityGateError(
+                f"{topic.get('title')}: phonetic conflict repair introduced blockers: "
+                f"{A.summarise(blockers)}"
+            )
     return applied
 
 
