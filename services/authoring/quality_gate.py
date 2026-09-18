@@ -225,6 +225,12 @@ class ReviewBudget:
         return cost
 
 
+# In-memory marker on an in-flight topic record (never persisted, never part of
+# lesson content) saying that review_unit_lessons already carried this lesson
+# through semantic review, deterministic re-audit and the render contract.
+_LESSON_REVIEW_DONE_KEY = "_quality_lesson_review_complete"
+
+
 def _field_spec(key: str, container: str = "") -> Optional[S.FieldSpec]:
     return S.spec_for(str(key), container)
 
@@ -588,10 +594,34 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
             raise QualityGateError("semantic patch is not an object")
         topic_id = str(raw.get("topic_id") or "").strip()
         path = raw.get("path")
-        if topic_id not in topics_by_id or not isinstance(path, list):
-            raise QualityGateError("semantic patch has an unknown topic or missing path")
+        if topic_id not in topics_by_id:
+            raise QualityGateError("semantic patch has an unknown topic")
         content = topics_by_id[topic_id]["content"]
-        path = _coerce_patch_path(content, path)
+
+        # A patch whose path does not resolve against the current content is a
+        # malformed proposal, not a content defect: the reviewer emitted a
+        # segment like "," or an out-of-range index. Reject exactly that patch
+        # instead of aborting the whole lesson/unit review. Nothing is written,
+        # no index is guessed and no invalid path is remapped to a nearby field,
+        # so exact-patch safety is unchanged; the deterministic and
+        # renderer-contract re-audit that immediately follows still sees the
+        # untouched content and routes any real blocker into the targeted
+        # exact-repair layer, which fails closed if it cannot fix it.
+        if not isinstance(path, list) or not path:
+            print(
+                f"[QUALITY-PATCH] REJECT malformed patch path {path!r} at {topic_id}",
+                flush=True,
+            )
+            continue
+        try:
+            path = _coerce_patch_path(content, path)
+        except QualityGateError as path_error:
+            print(
+                f"[QUALITY-PATCH] REJECT unresolvable patch path at {topic_id}: "
+                f"{path_error}",
+                flush=True,
+            )
+            continue
         marker = (topic_id, json.dumps(path, ensure_ascii=False))
         proposed = raw.get("value")
         if marker in seen:
@@ -1447,6 +1477,12 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
     applied = 0
 
     for topic in topics:
+        # The unit is the retry boundary, but a lesson that already passed
+        # review, deterministic re-audit and the render contract is finished
+        # work. Re-sending it would spend review budget to re-derive the same
+        # result and could only be undone by a second provider response.
+        if topic.get(_LESSON_REVIEW_DONE_KEY):
+            continue
         if canonical not in ("English", "Turkish"):
             _ensure_bilingual_slots(topic.get("content"))
 
@@ -1717,6 +1753,10 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         f"{topic.get('title')}: incomplete EN/TR field pairs after targeted repair: "
                         + ", ".join(remaining[:8])
                     )
+
+        # Reached only when this lesson cleared every check above, so a retry of
+        # the unit resumes at the first lesson that has not passed yet.
+        topic[_LESSON_REVIEW_DONE_KEY] = True
 
     return applied
 
