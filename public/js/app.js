@@ -7012,6 +7012,7 @@ function renderClassroomSelection(courses) {
   container.innerHTML = courses.map(c => {
     const isBuilding = c.is_building === 1;
     const isPhase1 = c.language === "Detecting...";
+    const isFailed = !isBuilding && String(c.build_stage || '').toLowerCase() === 'failed';
 
     return `<div class="card classroom-card${isPhase1 ? ' is-pending' : ''}">
         ${isBuilding ? '<div class="classroom-card__building"></div>' : ''}
@@ -7042,6 +7043,16 @@ function renderClassroomSelection(courses) {
                 </div>
                 <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); stopClassroomBuild('${c.id}')" style="width:100%; color:var(--danger); border:1px solid rgba(239,68,68,0.3); font-size:11px; padding:4px 8px; border-radius:6px; background:rgba(239,68,68,0.05); cursor:pointer;">
                   🛑 <span data-i18n="class.stop_build">${t('class.stop_build')}</span>
+                </button>
+              </div>
+            ` : ''}
+            ${isFailed ? `
+              <div style="margin:12px 0; padding:10px; border-radius:8px; border:1px solid rgba(239,68,68,.32); background:rgba(239,68,68,.06);">
+                <div style="font-size:11px; color:var(--danger); line-height:1.4; margin-bottom:8px; overflow-wrap:anywhere;">
+                  ${esc(translateBuildMessage(c.build_message || 'Publication review failed.'))}
+                </div>
+                <button class="btn btn-outline btn-xs" onclick="event.stopPropagation(); retryPublicationReview('${c.id}')" style="width:100%; font-size:11px;">
+                  <span>${currentLang === 'tr' ? 'Sadece incelemeyi tekrar dene' : 'Retry review only'}</span>
                 </button>
               </div>
             ` : ''}
@@ -7117,6 +7128,29 @@ function checkClassroomBuildingPoll() {
       showClassroomSelection();
     }
   }, 2000);
+}
+
+async function retryPublicationReview(cid) {
+  if (!cid) return;
+  try {
+    const res = await api('/classroom/retry-publication', {
+      method: 'POST',
+      body: { course_id: cid }
+    });
+    if (res && res.success) {
+      showToast(
+        currentLang === 'tr'
+          ? 'Dersler yeniden üretilmeden yayın incelemesi tekrar başlatıldı.'
+          : 'Publication review restarted without regenerating lessons.',
+        'success'
+      );
+      await showClassroomSelection();
+    } else {
+      showAlert(t('error'), res?.error || 'Publication review retry could not start.', true);
+    }
+  } catch (e) {
+    showAlert(t('error'), 'Publication review retry could not start.', true);
+  }
 }
 
 async function stopClassroomBuild(cid) {
