@@ -231,6 +231,11 @@ class ReviewBudget:
 # through semantic review, deterministic re-audit and the render contract.
 _LESSON_REVIEW_DONE_KEY = "_quality_lesson_review_complete"
 
+# Same idea for the pedagogical-risk pass: a topic that has been risk-reviewed
+# and proven again is finished work, and a later failure elsewhere must not
+# re-spend its call. In-memory only, never persisted, never part of content.
+_RISK_REVIEW_DONE_KEY = "_quality_risk_review_complete"
+
 
 def _field_spec(key: str, container: str = "") -> Optional[S.FieldSpec]:
     return S.spec_for(str(key), container)
@@ -2543,77 +2548,94 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
     Broad lesson review has many jobs and can miss a subtle overgeneralization.
     This pass is intentionally small: rules, explanations and absolute-sounding
     prose only. It does not rewrite ordinary lesson content.
+
+    The review boundary is one topic, not the unit. It used to send every topic
+    carrying risk records in a single payload and then demand that the response
+    contain exactly one row per supplied topic_id. The response schema cannot
+    express array cardinality or topic-id coverage, so the provider could — and
+    in production did — return valid JSON covering only some of them: the call
+    was ok=True, cost real money, and the build died on
+    "risk reviewer returned incomplete topic coverage" with nothing salvaged.
+
+    One topic per call removes that state entirely. A response either covers
+    the single id it was asked about or it fails closed, and partial coverage
+    of a batch is no longer a shape the code can be handed. A topic that
+    completes is marked done, so a failure on a later topic never re-spends the
+    calls that already succeeded. The system prompt is the cached prefix of
+    every one of these calls, and only the selected risk records travel, which
+    is what keeps splitting the payload from costing more than the whole-unit
+    call it replaces.
     """
     profile = S.profile_for_language(language)
-    selected = []
-    by_id = {str(t["id"]): t for t in topics}
+    applied = 0
+
     for topic in topics:
+        if topic.get(_RISK_REVIEW_DONE_KEY):
+            continue
+
         records = _risk_review_records(topic.get("content") or {})
-        if records:
-            selected.append({
-                "topic_id": str(topic["id"]),
-                "title": str(topic.get("title") or ""),
-                "records": records,
-            })
-    if not selected:
-        return 0
+        if not records:
+            # Nothing in this topic makes a pedagogical claim worth verifying.
+            # The selector stays the authority on that; no call is made.
+            topic[_RISK_REVIEW_DONE_KEY] = True
+            continue
 
-    payload = {
-        "language": language,
-        "level": level,
-        "unit": unit_title,
-        "regional_variety": profile.variety if profile else "",
-        "instruction_track": track,
-        "topics": selected,
-    }
-    data = _call_review(
-        model=REVIEW_MODEL,
-        system=_RISK_REVIEW_SYSTEM,
-        payload=payload,
-        max_tokens=2600,
-        effort="high",
-        budget=budget,
-        stage=f"review_risk:{unit_title}",
-        response_schema=_LESSON_REVIEW_SCHEMA,
-        response_name="pedagogical_risk_review",
-    )
-    rows = data.get("topics")
-    expected = {row["topic_id"] for row in selected}
-    actual = {
-        str(row.get("topic_id") or "")
-        for row in (rows or [])
-        if isinstance(row, dict)
-    }
-    if not isinstance(rows, list) or actual != expected or len(rows) != len(selected):
-        raise QualityGateError(
-            f"{unit_title}: risk reviewer returned incomplete topic coverage"
+        topic_id = str(topic["id"])
+        data = _call_review(
+            model=REVIEW_MODEL,
+            system=_RISK_REVIEW_SYSTEM,
+            payload={
+                "language": language,
+                "level": level,
+                "unit": unit_title,
+                "regional_variety": profile.variety if profile else "",
+                "instruction_track": track,
+                "topics": [{
+                    "topic_id": topic_id,
+                    "title": str(topic.get("title") or ""),
+                    "records": records,
+                }],
+            },
+            # One topic's worth of rows and patches rather than a whole unit's.
+            # Still ample for every selected record to be patched; the reduction
+            # is in what a single response can ever need to carry.
+            max_tokens=1600,
+            effort="high",
+            budget=budget,
+            stage=f"review_risk:{unit_title}:{topic.get('title')}",
+            response_schema=_LESSON_REVIEW_SCHEMA,
+            response_name="pedagogical_risk_review",
         )
+        rows = data.get("topics")
+        if not isinstance(rows, list) or len(rows) != 1 or \
+                not isinstance(rows[0], dict) or \
+                str(rows[0].get("topic_id") or "") != topic_id:
+            raise QualityGateError(
+                f"{topic.get('title')}: risk reviewer returned incomplete topic "
+                f"coverage"
+            )
 
-    patches = []
-    for row in rows:
-        topic_id = str(row.get("topic_id") or "")
-        for patch in (row.get("patches") or []):
+        patches = []
+        for patch in (rows[0].get("patches") or []):
             if not isinstance(patch, dict):
                 raise QualityGateError("risk-review patch is not an object")
             item = dict(patch)
             item["topic_id"] = topic_id
             patches.append(item)
-    applied = _apply_patches(by_id, patches)
+        applied += _apply_patches({topic_id: topic}, patches)
 
-    for row in selected:
-        topic = by_id[row["topic_id"]]
-        R.repair_lesson(topic["content"], language=language)
-        blockers = A.blocking(_audit_topic(topic, language=language, track=track))
-        if blockers:
-            raise QualityGateError(
-                f"{topic.get('title')}: risk review introduced deterministic blockers: "
-                f"{A.summarise(blockers)}"
-            )
-        render = _topic_render_blockers(topic.get("content"))
-        if render:
-            raise QualityGateError(
-                f"{topic.get('title')}: risk review introduced renderer blockers"
-            )
+        # A risk patch is an ordinary content edit and can leave any of the
+        # repairable classes behind it. Proving that is the convergence
+        # controller's job, not a second hand-rolled audit/render check here:
+        # it re-runs the deterministic audit, bilingual completeness and the
+        # renderer contract, dispatches whatever it finds to the strategy that
+        # owns it, and fails closed when nothing progresses.
+        applied += converge_topic(
+            topic=topic, language=language, level=level, track=track,
+            budget=budget, unit_title=unit_title,
+        )
+        topic[_RISK_REVIEW_DONE_KEY] = True
+
     return applied
 
 
