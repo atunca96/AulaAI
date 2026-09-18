@@ -738,7 +738,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             }
             retry = _call_review(
                 model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-                max_tokens=2000, effort="medium", budget=budget,
+                max_tokens=2000, effort="none", budget=budget,
                 stage=f"review_blocker_retry:{topic.get('title')}",
                 response_schema=_LESSON_REVIEW_SCHEMA,
                 response_name="lesson_blocker_repair",
@@ -790,7 +790,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                     exact_retry = _call_review(
                         model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
                         payload=exact_retry_payload,
-                        max_tokens=1800, effort="medium", budget=budget,
+                        max_tokens=1800, effort="none", budget=budget,
                         stage=f"review_exact_blocker_retry:{topic.get('title')}",
                         response_schema=_LESSON_REVIEW_SCHEMA,
                         response_name="lesson_exact_blocker_repair",
@@ -862,7 +862,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 }
                 retry = _call_review(
                     model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-                    max_tokens=1600, effort="low", budget=budget,
+                    max_tokens=1600, effort="none", budget=budget,
                     stage=f"review_bilingual_retry:{topic.get('title')}",
                     response_schema=_LESSON_REVIEW_SCHEMA,
                     response_name="lesson_bilingual_repair",
@@ -1023,7 +1023,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         }
         retry = _call_review(
             model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
-            payload=retry_payload, max_tokens=2400, effort="high", budget=budget,
+            payload=retry_payload, max_tokens=2400, effort="none", budget=budget,
             stage=f"review_assessment_render_retry:{unit_title}",
             response_schema=_ASSESSMENT_REVIEW_SCHEMA,
             response_name="assessment_render_repair",
@@ -1112,7 +1112,7 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                 }
                 data = _call_review(
                     model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
-                    payload=payload, max_tokens=2400, effort="high", budget=budget,
+                    payload=payload, max_tokens=2400, effort="none", budget=budget,
                     stage=f"review_final_repair:{unit.get('title')}:assessment",
                     response_schema=_ASSESSMENT_REVIEW_SCHEMA,
                     response_name="final_assessment_repair",
@@ -1155,7 +1155,7 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                 }
                 data = _call_review(
                     model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
-                    payload=payload, max_tokens=2200, effort="high", budget=budget,
+                    payload=payload, max_tokens=2200, effort="none", budget=budget,
                     stage=f"review_final_repair:{topic.get('title')}",
                     response_schema=_LESSON_REVIEW_SCHEMA,
                     response_name="final_lesson_repair",

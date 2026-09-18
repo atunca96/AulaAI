@@ -245,7 +245,14 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
     if "gemini" in target.lower() or "google" in target.lower():
         payload["temperature"] = float(temperature)
         payload["provider"] = {"order": ["Google AI Studio", "Google"], "allow_fallbacks": True}
-        payload["reasoning"] = {"effort": reasoning_effort or "low"}
+        # Narrow schema-bound repairs do not benefit from hidden reasoning. In
+        # production Gemini 3.7 Flash spent a 2k-token completion budget on
+        # reasoning and emitted only 110 visible JSON characters. "none" is a
+        # transport sentinel: omit the reasoning parameter entirely so the
+        # completion budget is available for the structured patch.
+        gemini_effort = (reasoning_effort or "low").lower()
+        if gemini_effort != "none":
+            payload["reasoning"] = {"effort": gemini_effort}
     elif target.lower().startswith("openai/gpt-5.6-"):
         # OpenAI reasoning models reject/ignore sampling controls in several
         # provider paths. Pro aliases have reasoning pinned by the provider.
