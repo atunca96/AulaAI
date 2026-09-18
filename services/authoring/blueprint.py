@@ -282,10 +282,12 @@ def plan_course(*, language: str, level: str, track: str = "tr",
                   output_tokens=response.output_tokens, cached_tokens=response.cached_tokens,
                   reported_cost=response.cost)
     if not response.ok:
+        print(f"[CURRICULUM-MODEL-ERROR] {language} {level} on {model or B.MODEL}: {response.error}")
         return skeleton_plan(language, level, track)
 
     plan = _parse(response.data, language, level, track)
     if plan is None:
+        print(f"[CURRICULUM-MODEL-ERROR] {language} {level} returned unusable JSON")
         return skeleton_plan(language, level, track)
     plan = _trim_to_budget(plan)
     if validate_plan(plan):
