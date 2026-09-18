@@ -92,6 +92,6 @@ finally:
 assert applied == 1, applied
 assert topic["content"]["pages"][0]["items"][0]["target"] == GOOD
 assert seen["model"] == "google/gemini-3.7-flash", seen
-assert seen["reasoning_effort"] == "none", seen
+assert seen["reasoning_effort"] == "low", seen
 assert [c["stage"] for c in budget.calls] == ["review_preflight_repair:Family Members"]
 print("[PREFLIGHT-REPAIR] exact blocker repaired before broad review spend")

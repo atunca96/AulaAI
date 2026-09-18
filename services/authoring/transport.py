@@ -245,18 +245,14 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
     if "gemini" in target.lower() or "google" in target.lower():
         payload["temperature"] = float(temperature)
         payload["provider"] = {"order": ["Google AI Studio", "Google"], "allow_fallbacks": True}
-        # Gemini 3.8 Flash requires reasoning and rejects max_tokens=0.
-        # For repair calls our "none" sentinel therefore means the smallest
-        # supported reasoning mode on 3.8. Older Gemini routes that permit
-        # disabled reasoning still receive an explicit zero budget.
+        # Current Gemini 3.7/3.8 endpoints require reasoning and reject
+        # attempts to disable it. Treat our historical "none" sentinel as the
+        # smallest supported mode so repair calls stay valid instead of failing
+        # immediately with HTTP 400.
         gemini_effort = (reasoning_effort or "low").lower()
         if gemini_effort == "none":
-            if "gemini-3.8-" in target.lower():
-                payload["reasoning"] = {"effort": "low"}
-            else:
-                payload["reasoning"] = {"max_tokens": 0}
-        else:
-            payload["reasoning"] = {"effort": gemini_effort}
+            gemini_effort = "low"
+        payload["reasoning"] = {"effort": gemini_effort}
     elif target.lower().startswith("openai/gpt-5.6-"):
         # OpenAI reasoning models reject/ignore sampling controls in several
         # provider paths. Pro aliases have reasoning pinned by the provider.
