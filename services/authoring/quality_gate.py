@@ -418,6 +418,48 @@ def _embedded_meta_insertion_cleaner(a: Any, b: Any) -> Optional[str]:
     return None
 
 
+def _camel_hump_token_cleaner(a: Any, b: Any) -> Optional[str]:
+    """Prefer the clean candidate when two otherwise identical sentences differ
+    in exactly one token and only one version contains a suspicious mid-word
+    CamelCase hump.
+
+    Production example:
+    "Ben İspanyStandardım, Madridliyim." vs
+    "Ben İspanyolum, Madridliyim."
+
+    This is intentionally narrow and language-agnostic: same token count, every
+    other token byte-identical, exactly one differing token, and exactly one of
+    those tokens contains an internal uppercase letter after an alphabetic
+    character. Genuine semantic rewrites still remain conflicts.
+    """
+    if not isinstance(a, str) or not isinstance(b, str) or a == b:
+        return None
+    ta = a.split()
+    tb = b.split()
+    if len(ta) != len(tb) or not ta:
+        return None
+
+    diffs = [i for i, (x, y) in enumerate(zip(ta, tb)) if x != y]
+    if len(diffs) != 1:
+        return None
+    i = diffs[0]
+
+    def has_midword_hump(token: str) -> bool:
+        core = token.strip(".,;:!?()[]{}<>\"'“”‘’«»")
+        if len(core) < 3:
+            return False
+        for j in range(1, len(core)):
+            if core[j].isupper() and core[j - 1].isalpha():
+                return True
+        return False
+
+    ah = has_midword_hump(ta[i])
+    bh = has_midword_hump(tb[i])
+    if ah == bh:
+        return None
+    return b if ah else a
+
+
 def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[Any]) -> int:
     # Normalize duplicates before mutating content, so an ambiguous first
     # proposal cannot be written and then make the concrete duplicate stale.
@@ -459,6 +501,8 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
             if prev_value in _slash_alternative_variants(new_value):
                 continue
             cleaned = _embedded_meta_insertion_cleaner(prev_value, new_value)
+            if cleaned is None:
+                cleaned = _camel_hump_token_cleaner(prev_value, new_value)
             if cleaned is not None:
                 if cleaned == new_value:
                     normalized[prev_i] = raw
@@ -507,6 +551,8 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
                     resolved = previous
                 else:
                     resolved = _embedded_meta_insertion_cleaner(previous, proposed)
+                    if resolved is None:
+                        resolved = _camel_hump_token_cleaner(previous, proposed)
             if resolved is not None:
                 print(
                     f"[QUALITY-PATCH] RESOLVE slash-alternative duplicate at "
