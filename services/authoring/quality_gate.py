@@ -511,6 +511,35 @@ def _records_for_findings(content: Dict[str, Any],
     ]
 
 
+def _assessment_evidence_records(content: Dict[str, Any], *, track: str) -> List[Dict[str, Any]]:
+    """Compact semantic evidence for assessment review.
+
+    Full lesson review records duplicated both EN/TR instructional prose and UI
+    text, producing 100k+ character assessment payloads. Assessment correctness
+    only needs taught-language material plus ONE instructional track. Preserve
+    all target/notation records and only the active instructional/gloss track.
+    """
+    wanted_track = "tr" if str(track or "tr").casefold() == "tr" else "en"
+    compact: List[Dict[str, Any]] = []
+    for rec in _review_records(content):
+        role = rec.get("role")
+        rec_track = rec.get("track")
+        field = str(rec.get("field") or "")
+        if role in (S.TARGET, S.NOTATION):
+            compact.append(rec)
+            continue
+        if role in (S.INSTRUCTION, S.GLOSS):
+            if rec_track == wanted_track:
+                compact.append(rec)
+                continue
+            # Some legacy English instructional fields are untagged.
+            if rec_track is None and wanted_track == "en" and field in (
+                "text", "explanation", "rule", "analysis", "context", "note", "why"
+            ):
+                compact.append(rec)
+    return compact
+
+
 _LESSON_REVIEW_SYSTEM = """You are AulaAI's independent publication editor.
 The course was authored by another model. Your job is to find and correct
 learner-visible errors, not to praise or rewrite stylistically.
@@ -944,7 +973,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             "topics": [{
                 "topic_id": str(topic["id"]),
                 "title": str(topic.get("title") or ""),
-                "records": _review_records(topic["content"]),
+                "records": _assessment_evidence_records(topic["content"], track=track),
                 "deterministic_blockers": _findings_payload(findings),
                 "render_contract_blockers": _topic_render_blockers(topic["content"]),
             }],
@@ -1269,7 +1298,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     }
     data = _call_review(
         model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
-        max_tokens=2200, effort="low", budget=budget,
+        max_tokens=1600, effort="low", budget=budget,
         stage=f"review_assessment:{unit_title}",
         response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
     )
