@@ -459,8 +459,26 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             except Exception as gen_err:
                 _log(f"[TOPIC-TASK] generate_full_lesson failed for '{t_title}': {gen_err}")
 
+            if isinstance(lesson, dict) and lesson.get("_review_required"):
+                _log(
+                    f"[TOPIC-TASK] Topic '{t_title}' reached review-notice state; "
+                    "retrying this topic once before persistence."
+                )
+                try:
+                    retry = generate_full_lesson(
+                        t_title, t_type, language, 5, level,
+                        source_text=source_text, material_language=material_language,
+                        unit_index=unit_index, unit_total=unit_total,
+                        topics_completed=topics_completed,
+                        unit_title=unit_title, unit_topics=unit_topics,
+                    )
+                    if isinstance(retry, dict) and not retry.get("_review_required"):
+                        lesson = retry
+                except Exception as retry_err:
+                    _log(f"[TOPIC-TASK] targeted retry failed for '{t_title}': {retry_err}")
+
             if not lesson or not isinstance(lesson, dict) or not _is_substantive_lesson(lesson):
-                _log(f"[TOPIC-TASK] Topic '{t_title}' produced empty/non-substantive lesson. Generating guaranteed substantive fallback...")
+                _log(f"[TOPIC-TASK] Topic '{t_title}' produced empty/non-substantive lesson. Keeping explicit review notice; publication gate will not serve it.")
                 lesson = synthesize_substantive_lesson(t_title, t_type, language, level, source_text=source_text, material_language=material_language)
 
             return {"content": lesson, "t_id": t_id, "t_title": t_title}
