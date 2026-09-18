@@ -50,7 +50,8 @@ VERIFICATION_STEPS = [
     "scripts/test_publication_state.py",
     # Provider-free orchestration proof: a deterministic renderer blocker missed
     # by Gemini is handed to one bounded targeted Gemini repair before publication.
-    "scripts/test_assessment_render_repair.py",\n    "scripts/test_assessment_generation_render_filter.py",
+    "scripts/test_assessment_render_repair.py",
+    "scripts/test_assessment_generation_render_filter.py",
     "scripts/test_review_schema_provider_compat.py",
     "scripts/test_gemini_no_reasoning.py",
     "scripts/test_unit_assessment_rescue.py",
