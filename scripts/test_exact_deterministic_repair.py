@@ -24,7 +24,7 @@ topic = {
                 "title_tr": "Aile",
                 "items": [{
                     "target": "at the start of a word",
-                    "translation_en": "position note",
+                    "translation": "position note",
                     "translation_tr": "konum notu",
                 }],
             },
