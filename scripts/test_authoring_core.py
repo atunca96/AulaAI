@@ -400,20 +400,20 @@ def test_curriculum_draft_shape_and_model():
 
 def test_budget():
     print("\n[5] the sixty-cent ceiling")
-    check(B.MODEL == "openai/gpt-5.6-terra", f"the model is pinned ({B.MODEL})")
+    check(B.MODEL == "google/gemini-3.8-flash", f"the bulk authoring model is pinned ({B.MODEL})")
 
-    # Live Terra is $2/$12. The planner is capped at nine lessons because
-    # ten passed the nominal projection but failed the real end-to-end fixture
-    # after assessment/retry reservations were accounted for.
-    for lessons, units in ((6, 3), (8, 4), (BP.MAX_LESSONS, 4)):
+    # Bulk authoring is Gemini 3.8 Flash again; a 30-topic 6x5 classroom must
+    # fit the product ceiling rather than paying Terra rates thirty times.
+    for lessons, units in ((6, 3), (12, 4), (30, 6)):
         projected = B.project_classroom_cost(lessons=lessons, units=units)
         check(projected["total"] <= B.CLASSROOM_CEILING_USD,
               f"{lessons} lessons / {units} units projects "
               f"${projected['total']:.3f} <= ${B.CLASSROOM_CEILING_USD:.2f}")
 
-    oversized = B.project_classroom_cost(lessons=BP.MAX_LESSONS + 1, units=4)
-    check(oversized["total"] > 0,
-          "the budget model can price a course above the structural lesson cap")
+    thirty = B.project_classroom_cost(lessons=30, units=6)
+    check(thirty["total"] <= B.CLASSROOM_CEILING_USD,
+          f"the target 6x5 classroom projects ${thirty['total']:.3f} <= "
+          f"${B.CLASSROOM_CEILING_USD:.2f}")
 
     ledger = B.BuildLedger(0.05, label="tiny")
     ledger.record(stage="lesson", input_tokens=3000, output_tokens=8000)
