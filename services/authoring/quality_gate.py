@@ -363,7 +363,12 @@ For every question check:
   h is silent);
 - the stem is grammatical, natural, unambiguous and CEFR-appropriate;
 - distractors are plausible learner errors, not nonsense giveaways;
-- the item tests taught material and does not require outside knowledge.
+- the item tests taught material and does not require outside knowledge;
+- compare each assessment item with ALL lesson MCQs/evidence in the unit. A repeated
+  or paraphrased question may never contradict the answer taught earlier. If the
+  same fact was asked earlier, preserve the taught fact and repair the assessment;
+- check the answer explanation too: an answer key that contradicts the lesson is
+  a blocking factual defect even when the options are structurally valid.
 
 Return JSON only:
 {"checked_questions":[1,2,3,4,5,6,7,8,9,10],
@@ -387,8 +392,13 @@ publication professionally unacceptable.
 You MUST independently verify:
 1) every grammar/usage rule for truth, scope, exceptions and regional variety;
 2) every IPA pair against the written form and declared variety;
-3) every MCQ for exactly one correct answer, correct key, natural stem and
-   defensible distractors.
+3) every MCQ in BOTH lessons and unit assessments for exactly one correct
+   answer, correct key, natural stem and defensible distractors;
+4) cross-item consistency: repeated/paraphrased questions about the same taught
+   fact must never carry incompatible answers, and answer explanations must agree
+   with the evidence;
+5) Turkish/English paired rule fields must remain semantically equivalent after
+   any repair.
 
 Return JSON only:
 {"coverage":{"rules":N,"phonetics":N,"assessments":N},
@@ -608,11 +618,24 @@ def _risk_ledger(units: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dic
                 elif field in _RISK_RULE_FIELDS and any(str(p) == "rules" for p in path):
                     include, kind = True, "rule"
                     counts["rules"] += 1
-                elif is_assessment and field in _ASSESSMENT_FIELDS:
-                    include, kind = True, "assessment"
-                    # Count once per prompt/stem/question, not per field.
-                    if field in ("prompt", "question", "stem"):
-                        counts["assessments"] += 1
+                elif field in _ASSESSMENT_FIELDS:
+                    # Final verification covers lesson checks as well as the
+                    # synthetic unit assessment. The shipped PDF contained two
+                    # paraphrases of the same restaurant question with different
+                    # answers; limiting Terra to synthetic assessments made that
+                    # contradiction invisible.
+                    rec_path = rec.get("path") or []
+                    is_mcq = False
+                    if len(rec_path) >= 2 and rec_path[0] == "pages" and isinstance(rec_path[1], int):
+                        pages = topic.get("content", {}).get("pages") or []
+                        page_index = rec_path[1]
+                        if 0 <= page_index < len(pages) and isinstance(pages[page_index], dict):
+                            is_mcq = str(pages[page_index].get("type") or "").casefold() == "mcq"
+                    if is_mcq:
+                        include, kind = True, "assessment"
+                        # Count once per question, not once per answer/option field.
+                        if field in ("prompt", "question", "stem"):
+                            counts["assessments"] += 1
                 if include:
                     ledger.append({
                         "topic_id": tid, "unit": unit.get("title"), "title": topic.get("title"),
