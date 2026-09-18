@@ -864,16 +864,10 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         )
         db.commit()
 
-    terra_patches = Q.final_terra_verify(
-        units=reviewed_units,
-        language=language, level=level, track=material_language, budget=budget,
-    )
-
-    # Final verification may expose a repairable renderer/bilingual defect that
-    # the broad editors did not touch, or may itself change a field in a way that
-    # creates one. The publication boundary must not merely report that defect
-    # and throw away the whole build. Repair the exact named blocker once, then
-    # prove the complete contract. Structural defects still fail closed.
+    # There is no second semantic verifier. Luna already reviewed every unit;
+    # deterministic publication integrity is the authority. If it can name a
+    # repairable learner-visible blocker, give that exact blocker one bounded
+    # Luna repair pass, then prove the contract again.
     final_repair_patches = Q.repair_final_publication_blockers(
         units=reviewed_units,
         language=language, level=level, track=material_language, budget=budget,
@@ -928,14 +922,13 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         pass
     _log(
         f"[QUALITY-GATE] PASS lesson_patches={lesson_patches} "
-        f"assessment_patches={assessment_patches} terra_patches={terra_patches} "
+        f"assessment_patches={assessment_patches} "
         f"final_repair_patches={final_repair_patches}; "
         + Q.gate_summary(budget)
     )
     return {
         "lesson_patches": lesson_patches,
         "assessment_patches": assessment_patches,
-        "terra_patches": terra_patches,
         "final_repair_patches": final_repair_patches,
         "review_cost": budget.spent,
     }
