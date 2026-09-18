@@ -930,17 +930,18 @@ def provider_preflight() -> List[Dict[str, Any]]:
 
     This is deliberately stronger than a connectivity ping. Before a user pays
     for a thirty-lesson regeneration, both review models must independently
-    recognize the actual failures that motivated this gate, while leaving a
-    clean control alone. It is opt-in at deploy time and normally disabled after
-    one successful production canary.
+    recognize the semantic failures that motivated this gate, while leaving
+    clean controls alone. Unicode look-alike IPA is intentionally excluded here
+    because the deterministic auditor, not model judgment, owns that defect.
+    It is opt-in at deploy time and normally disabled after one successful canary.
     """
     properties = {
-        "greek_lookalike_ipa_error": {"type": "boolean"},
         "desayunar_ipa_error": {"type": "boolean"},
         "adjective_overgeneralization_error": {"type": "boolean"},
         "translation_tense_error": {"type": "boolean"},
         "silent_h_mcq_multiple_correct": {"type": "boolean"},
         "clean_control_error": {"type": "boolean"},
+        "clean_ipa_control_error": {"type": "boolean"},
     }
     schema = {
         "type": "object",
@@ -949,12 +950,12 @@ def provider_preflight() -> List[Dict[str, Any]]:
         "required": list(properties),
     }
     expected = {
-        "greek_lookalike_ipa_error": True,
         "desayunar_ipa_error": True,
         "adjective_overgeneralization_error": True,
         "translation_tense_error": True,
         "silent_h_mcq_multiple_correct": True,
         "clean_control_error": False,
+        "clean_ipa_control_error": False,
     }
     challenge = {
         "language": "European (Castilian) Spanish",
@@ -963,9 +964,6 @@ def provider_preflight() -> List[Dict[str, Any]]:
             "professionally unacceptable. Evaluate linguistic truth, not JSON shape."
         ),
         "checks": {
-            "greek_lookalike_ipa_error": {
-                "term": "la reserva", "phonetic": "[la reˈseɾβα]"
-            },
             "desayunar_ipa_error": {
                 "term": "desayunar", "phonetic": "[desawˈnaɾ]"
             },
@@ -983,6 +981,9 @@ def provider_preflight() -> List[Dict[str, Any]]:
             },
             "clean_control_error": {
                 "claim": "Many adjectives ending in -e, such as amable, are gender-invariable."
+            },
+            "clean_ipa_control_error": {
+                "term": "la reserva", "phonetic": "[la reˈseɾβa]"
             },
         },
     }
