@@ -1842,6 +1842,9 @@ table.vt td { padding: 4px 6px; }
                 elif stage == "finalizing":
                     percentage = 94
                     if not message: message = "Finalizing bilingual translations..."
+                elif stage == "quality_review":
+                    percentage = 96
+                    if not message: message = "Publication quality review in progress..."
                 else:
                     raw = int((progress / total) * 100) if total > 0 else 3
                     percentage = min(92, max(3, raw))
