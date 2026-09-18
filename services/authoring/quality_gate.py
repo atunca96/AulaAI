@@ -25,6 +25,8 @@ from __future__ import annotations
 import copy
 import json
 import math
+import re
+import unicodedata
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from services.authoring import audit as A
@@ -324,12 +326,16 @@ Review EVERY supplied topic. Be adversarial and conservative. Check:
 - factual grammar/lexis/usage claims and overgeneralizations; narrow absolute
   rules when standard counterexamples exist;
 - naturalness and correctness of target-language examples/dialogue;
-- English and Turkish instructional fields for semantic equivalence and natural
-  phrasing;
+- English and Turkish instructional fields for exact semantic equivalence and
+  natural phrasing. Treat a change of tense, aspect, person, number, polarity,
+  register or factual relation as an error even when the rough meaning survives;
 - every IPA transcription against the exact written term AND the declared
   regional variety; IPA-looking Unicode is not enough;
 - internal contradictions, invented forms, impossible examples and CEFR-level
   leakage;
+- every absolute pedagogical claim containing meanings such as always, never,
+  every, only, must or impossible. Keep it absolute only if it is genuinely
+  exceptionless in the declared standard variety; otherwise scope it precisely;
 - lesson MCQs for exactly one defensible answer and plausible distractors.
 
 Return JSON only:
@@ -342,6 +348,8 @@ Return JSON only:
 
 Contract:
 - Return exactly one entry for EVERY topic_id supplied.
+- Any supplied English/Turkish counterpart whose value is empty is a blocking
+  completeness defect. Fill it from its non-empty semantic pair.
 - Use only paths that appear in the supplied records.
 - Copy old exactly, byte for byte.
 - Patch only genuine correctness/naturalness problems. No cosmetic rewrites.
@@ -378,8 +386,10 @@ Return JSON only:
  ]}
 
 The overview is pages[0]; assessment question 1 is pages[1], question 10 is
-pages[10]. Use only supplied paths, copy old exactly, and make the smallest
-correction that yields one unambiguously correct answer. Keep answer/options/
+pages[10]. Any supplied English/Turkish counterpart whose value is empty must
+be filled from the non-empty semantic pair. Use only supplied paths, copy old
+exactly, and make the smallest correction that yields one unambiguously correct
+answer. Keep answer/options/
 distractors mutually consistent. No cosmetic rewrites.
 """
 
@@ -390,7 +400,9 @@ Inspect the compact high-risk ledger and look only for defects that still make
 publication professionally unacceptable.
 
 You MUST independently verify:
-1) every grammar/usage rule for truth, scope, exceptions and regional variety;
+1) every grammar/usage rule for truth, scope, exceptions and regional variety,
+   with special suspicion for absolute claims equivalent to always/never/every/
+   only/must/impossible;
 2) every IPA pair against the written form and declared variety;
 3) every MCQ in BOTH lessons and unit assessments for exactly one correct
    answer, correct key, natural stem and defensible distractors;
@@ -398,7 +410,11 @@ You MUST independently verify:
    fact must never carry incompatible answers, and answer explanations must agree
    with the evidence;
 5) Turkish/English paired rule fields must remain semantically equivalent after
-   any repair.
+   any repair;
+6) exact or near-duplicate MCQ stems are a publication defect even when their
+   answer is the same. Keep the learning objective but make repeated items test
+   a genuinely different application, context or contrast. Do not let a unit
+   assessment simply copy a lesson check verbatim.
 
 Return JSON only:
 {"coverage":{"rules":N,"phonetics":N,"assessments":N},
@@ -445,7 +461,10 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         return 0
     by_id = {str(t["id"]): t for t in topics}
     payload_topics = []
+    canonical = S.canonical_language(language)
     for topic in topics:
+        if canonical not in ("English", "Turkish"):
+            _ensure_bilingual_slots(topic.get("content"))
         findings = _audit_topic(topic, language=language, track=track)
         payload_topics.append({
             "topic_id": str(topic["id"]),
@@ -549,6 +568,8 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     content = assessment_topic.get("content")
     if not isinstance(content, dict):
         raise QualityGateError(f"{unit_title}: assessment has no content")
+    if S.canonical_language(language) not in ("English", "Turkish"):
+        _ensure_bilingual_slots(content)
     pages = content.get("pages")
     mcq_pages = [p for p in (pages or []) if isinstance(p, dict) and
                  str(p.get("type") or "").casefold() == "mcq"]
@@ -695,38 +716,302 @@ def final_terra_verify(*, units: List[Dict[str, Any]], language: str, level: str
     return applied
 
 
-def provider_preflight() -> List[Dict[str, Any]]:
-    """Tiny live contract check for the two publication-review providers.
 
-    This is opt-in at deploy time. It spends only a few hundred output-token
-    ceiling per model but exercises the exact structured-output transport that
-    a classroom will later use, so a routing/schema incompatibility is found
-    before a user pays to regenerate thirty lessons.
+_BILINGUAL_PAIRS = (
+    ("title", "title_tr"),
+    ("rule", "rule_tr"),
+    ("explanation", "explanation_tr"),
+    ("context", "context_tr"),
+    ("note", "note_tr"),
+    ("translation", "translation_tr"),
+    ("example_en", "example_tr"),
+    ("line_en", "line_tr"),
+    ("why", "why_tr"),
+)
+
+
+def _stem_text(page: Dict[str, Any]) -> str:
+    for key in ("prompt", "question", "stem", "prompt_tr", "question_tr", "stem_tr",
+                "prompt_en", "question_en", "stem_en"):
+        value = page.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _stem_key(text: str) -> str:
+    """Normalize formatting, not linguistic contrasts, for exact-duplicate checks."""
+    text = unicodedata.normalize("NFC", str(text or "")).casefold()
+    chars = []
+    for ch in text:
+        cat = unicodedata.category(ch)
+        chars.append(ch if (ch.isalnum() or cat.startswith("M")) else " ")
+    return re.sub(r"\s+", " ", "".join(chars)).strip()
+
+
+def _ensure_bilingual_slots(node: Any, *, page_level: bool = False) -> None:
+    """Create only missing counterpart slots so a reviewer can repair them.
+
+    The semantic model is still forbidden to invent arbitrary structure. This
+    deterministic preparation adds an empty key only when its paired EN/TR key
+    already exists with content, giving the reviewer an exact path and an exact
+    old value to patch.
     """
+    if isinstance(node, dict):
+        pairs = list(_BILINGUAL_PAIRS)
+        if page_level or "type" in node:
+            pairs.append(("text", "text_tr"))
+        for left, right in pairs:
+            left_present = left in node and bool(str(node.get(left) or "").strip())
+            right_present = right in node and bool(str(node.get(right) or "").strip())
+            if left_present and right not in node:
+                node[right] = ""
+            elif right_present and left not in node:
+                node[left] = ""
+        for key, value in list(node.items()):
+            if isinstance(value, (dict, list)):
+                _ensure_bilingual_slots(value, page_level=(key == "pages"))
+    elif isinstance(node, list):
+        for value in node:
+            _ensure_bilingual_slots(value, page_level=page_level)
+
+
+def _missing_bilingual_pairs(node: Any, *, path: Tuple[Any, ...] = (),
+                             page_level: bool = False) -> List[str]:
+    """Pairs that would make EN/TR reader modes contain different material.
+
+    Only a present field creates an obligation for its counterpart; genuinely
+    optional notes may be absent in both languages. text/text_tr is checked
+    only on page objects because dialogue text is the taught-language utterance,
+    not English instructional prose.
+    """
+    missing: List[str] = []
+    if isinstance(node, dict):
+        pairs = list(_BILINGUAL_PAIRS)
+        if page_level or "type" in node:
+            pairs.append(("text", "text_tr"))
+        for left, right in pairs:
+            left_present = left in node and bool(str(node.get(left) or "").strip())
+            right_present = right in node and bool(str(node.get(right) or "").strip())
+            if left_present != right_present:
+                absent = right if left_present else left
+                missing.append(".".join(map(str, path + (absent,))))
+        for key, value in node.items():
+            if isinstance(value, (dict, list)):
+                missing.extend(_missing_bilingual_pairs(
+                    value, path=path + (key,),
+                    page_level=(key == "pages"),
+                ))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            missing.extend(_missing_bilingual_pairs(
+                value, path=path + (index,), page_level=page_level
+            ))
+    return missing
+
+
+def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str,
+                                   track: str) -> Dict[str, int]:
+    """Last deterministic proof that the renderer cannot silently degrade a course.
+
+    Semantic reviewers can say a course is correct while a later renderer drops
+    an item for a legacy invariant. That produced a real shipped unit with only
+    six of its ten assessment questions. This validator checks the exact
+    post-review objects against both publication boundaries before any of them
+    are persisted or the course can become READY.
+    """
+    from services.authoring import publish as P
+    try:
+        from services.authoring.legacy_text import _v57_unsafe_mcq
+    except Exception as exc:
+        raise QualityGateError(f"cannot load renderer integrity predicate: {exc}")
+
+    canonical = S.canonical_language(language)
+    duplicate_stems: Dict[str, List[str]] = {}
+    topic_count = 0
+    mcq_count = 0
+    assessment_count = 0
+
+    for unit_index, unit in enumerate(units, 1):
+        topics = unit.get("topics") or []
+        assessment_topics = [t for t in topics if t.get("is_assessment")]
+        if len(assessment_topics) != 1:
+            raise QualityGateError(
+                f"unit {unit_index} {unit.get('title')!r}: expected exactly one "
+                f"unit assessment, got {len(assessment_topics)}"
+            )
+
+        assessment = assessment_topics[0]
+        assessment_pages = assessment.get("content", {}).get("pages") or []
+        assessment_mcqs = [
+            p for p in assessment_pages
+            if isinstance(p, dict) and str(p.get("type") or "").casefold() == "mcq"
+        ]
+        if len(assessment_mcqs) != 10:
+            raise QualityGateError(
+                f"{unit.get('title')}: post-review assessment has "
+                f"{len(assessment_mcqs)}/10 questions"
+            )
+        assessment_count += len(assessment_mcqs)
+
+        for topic in topics:
+            topic_count += 1
+            content = topic.get("content")
+            if not isinstance(content, dict):
+                raise QualityGateError(f"{topic.get('title')}: content is not an object")
+
+            blockers = A.blocking(_audit_topic(topic, language=language, track=track))
+            if blockers:
+                raise QualityGateError(
+                    f"{topic.get('title')}: deterministic blockers remain at "
+                    f"publication integrity: {A.summarise(blockers)}"
+                )
+
+            before_pages = content.get("pages") or []
+            published = P.load_publishable_content(
+                copy.deepcopy(content), language=language, material_language=track,
+                topic=str(topic.get("title") or ""),
+            )
+            if published.get("_dropped_items"):
+                raise QualityGateError(
+                    f"{topic.get('title')}: publication boundary would drop "
+                    f"{published.get('_dropped_items')}"
+                )
+            after_pages = published.get("pages") or []
+            if len(after_pages) != len(before_pages):
+                raise QualityGateError(
+                    f"{topic.get('title')}: publication boundary changes page count "
+                    f"{len(before_pages)} -> {len(after_pages)}"
+                )
+
+            if canonical not in ("English", "Turkish"):
+                missing_pairs = _missing_bilingual_pairs(content)
+                if missing_pairs:
+                    raise QualityGateError(
+                        f"{topic.get('title')}: incomplete EN/TR field pairs: "
+                        + ", ".join(missing_pairs[:8])
+                    )
+
+            for page_index, page in enumerate(before_pages):
+                if not isinstance(page, dict):
+                    continue
+                if str(page.get("type") or "").casefold() != "mcq":
+                    continue
+                mcq_count += 1
+                if _v57_unsafe_mcq(page):
+                    raise QualityGateError(
+                        f"{topic.get('title')} page {page_index + 1}: legacy renderer "
+                        "would silently remove this MCQ"
+                    )
+                stem = _stem_text(page)
+                key = _stem_key(stem)
+                if key:
+                    duplicate_stems.setdefault(key, []).append(
+                        f"{unit.get('title')} / {topic.get('title')} / {stem}"
+                    )
+
+    duplicates = [rows for rows in duplicate_stems.values() if len(rows) > 1]
+    if duplicates:
+        examples = [" <> ".join(rows[:2]) for rows in duplicates[:4]]
+        raise QualityGateError(
+            "exact duplicate MCQ stems remain after semantic review: "
+            + " | ".join(examples)
+        )
+
+    return {
+        "topics": topic_count,
+        "mcqs": mcq_count,
+        "unit_assessment_questions": assessment_count,
+    }
+
+
+def provider_preflight() -> List[Dict[str, Any]]:
+    """Live semantic canary for the exact defect classes that reached a real PDF.
+
+    This is deliberately stronger than a connectivity ping. Before a user pays
+    for a thirty-lesson regeneration, both review models must independently
+    recognize the actual failures that motivated this gate, while leaving a
+    clean control alone. It is opt-in at deploy time and normally disabled after
+    one successful production canary.
+    """
+    properties = {
+        "greek_lookalike_ipa_error": {"type": "boolean"},
+        "desayunar_ipa_error": {"type": "boolean"},
+        "adjective_overgeneralization_error": {"type": "boolean"},
+        "translation_tense_error": {"type": "boolean"},
+        "silent_h_mcq_multiple_correct": {"type": "boolean"},
+        "clean_control_error": {"type": "boolean"},
+    }
     schema = {
         "type": "object",
         "additionalProperties": False,
-        "properties": {"ok": {"type": "boolean"}},
-        "required": ["ok"],
+        "properties": properties,
+        "required": list(properties),
+    }
+    expected = {
+        "greek_lookalike_ipa_error": True,
+        "desayunar_ipa_error": True,
+        "adjective_overgeneralization_error": True,
+        "translation_tense_error": True,
+        "silent_h_mcq_multiple_correct": True,
+        "clean_control_error": False,
+    }
+    challenge = {
+        "language": "European (Castilian) Spanish",
+        "task": (
+            "For each named check, set true only when the supplied material is "
+            "professionally unacceptable. Evaluate linguistic truth, not JSON shape."
+        ),
+        "checks": {
+            "greek_lookalike_ipa_error": {
+                "term": "la reserva", "phonetic": "[la reˈseɾβα]"
+            },
+            "desayunar_ipa_error": {
+                "term": "desayunar", "phonetic": "[desawˈnaɾ]"
+            },
+            "adjective_overgeneralization_error": {
+                "claim": "Adjectives ending in -e or a consonant never change for gender."
+            },
+            "translation_tense_error": {
+                "source": "Yo soy español, de Madrid.",
+                "turkish": "Ben İspanyoldum, Madridliyim."
+            },
+            "silent_h_mcq_multiple_correct": {
+                "stem": "¿Qué palabra contiene una h que no se pronuncia?",
+                "options": ["hotel", "huevo", "hielo", "hacer"],
+                "key": "hotel"
+            },
+            "clean_control_error": {
+                "claim": "Many adjectives ending in -e, such as amable, are gender-invariable."
+            },
+        },
     }
     rows = []
     for model, effort, name in (
-        (LUNA_REVIEW_MODEL, "high", "luna_pro_preflight"),
-        (TERRA_VERIFY_MODEL, "low", "terra_preflight"),
+        (LUNA_REVIEW_MODEL, "high", "luna_pro_semantic_canary"),
+        (TERRA_VERIFY_MODEL, "high", "terra_semantic_canary"),
     ):
         response = T.call_model(
             [
-                {"role": "system", "content": "Return the requested structured health result only."},
-                {"role": "user", "content": "Set ok to true."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a strict professional language-textbook fact-checker. "
+                        "Return only the requested structured booleans. A false positive "
+                        "on the clean control is a failure."
+                    ),
+                },
+                {"role": "user", "content": json.dumps(challenge, ensure_ascii=False)},
             ],
-            max_tokens=500, temperature=0.0, model=model, cache_system=False,
-            timeout=90, attempts=2, reasoning_effort=effort,
+            max_tokens=900, temperature=0.0, model=model, cache_system=False,
+            timeout=120, attempts=2, reasoning_effort=effort,
             response_schema=schema, response_name=name,
         )
-        if not response.ok or response.data != {"ok": True}:
+        if not response.ok or response.data != expected:
             raise QualityGateError(
-                f"provider preflight failed on {model}: "
-                f"{response.error or repr(response.data)}"
+                f"semantic provider preflight failed on {model}: "
+                f"got {response.data!r}; expected {expected!r}; "
+                f"transport={response.error or 'ok'}"
             )
         rows.append({
             "model": model, "seconds": response.seconds,

@@ -794,9 +794,23 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             track=material_language, budget=budget,
         )
 
+    reviewed_units = [{"title": u["title"], "topics": u["topics"]} for u in units]
     terra_patches = Q.final_terra_verify(
-        units=[{"title": u["title"], "topics": u["topics"]} for u in units],
+        units=reviewed_units,
         language=language, level=level, track=material_language, budget=budget,
+    )
+
+    # Terra is the last semantic editor, not the last boundary. Prove that the
+    # exact post-review objects still contain ten questions per unit, complete
+    # EN/TR pairs, no duplicate MCQ stems, and nothing either renderer would
+    # silently discard. Only then may the database ever reach READY.
+    integrity = Q.validate_publication_integrity(
+        units=reviewed_units, language=language, track=material_language,
+    )
+    _log(
+        f"[QUALITY-INTEGRITY] PASS topics={integrity['topics']} "
+        f"mcqs={integrity['mcqs']} "
+        f"unit_assessment_questions={integrity['unit_assessment_questions']}"
     )
 
     # Persist only after the entire gate passes. If any reviewer fails, no

@@ -317,12 +317,144 @@ def test_terra_final_coverage_is_mandatory():
     check(captured.get("effort") == "high", "Terra uses high reasoning effort")
 
 
+
+def clean_integrity_fixture():
+    lesson = {"id": "t1", "title": "Reviewed lesson",
+              "content": lesson_fixture(), "is_assessment": False}
+    lesson["content"]["pages"][0]["items"][0]["phonetic"] = "[ˈonθe]"
+    lesson["content"]["pages"][1]["rules"][0]["rule"] = (
+        "Many -e adjectives are gender-invariable; consonant-final adjectives vary by lexical class."
+    )
+    lesson["content"]["pages"][1]["rules"][0]["rule_tr"] = (
+        "-e ile biten birçok sıfat değişmez; ünsüzle biten sıfatlar sözcüğe göre değişebilir."
+    )
+    assessment = {"id": "a1", "title": "Assessment",
+                  "content": assessment_fixture(), "is_assessment": True}
+    assessment["content"]["pages"][1]["options"] = ["hotel", "gato", "mesa", "casa"]
+    assessment["content"]["pages"][1]["distractors"] = ["gato", "mesa", "casa"]
+    return [{"title": "Unit 1", "topics": [lesson, assessment]}]
+
+
+def test_publication_integrity_keeps_ten_questions():
+    print("\n[Q5] post-review integrity proves the renderer keeps all ten questions")
+    units = clean_integrity_fixture()
+    result = Q.validate_publication_integrity(
+        units=units, language="Spanish", track="tr")
+    check(result["unit_assessment_questions"] == 10,
+          "a clean unit reaches publication with exactly ten assessment questions")
+
+    broken = copy.deepcopy(units)
+    broken[0]["topics"][1]["content"]["pages"].pop()
+    try:
+        Q.validate_publication_integrity(
+            units=broken, language="Spanish", track="tr")
+    except Q.QualityGateError as exc:
+        check("9/10" in str(exc),
+              "a nine-question assessment fails closed instead of shipping short")
+    else:
+        check(False, "a nine-question assessment must never pass publication integrity")
+
+
+def test_publication_integrity_catches_renderer_silent_drop():
+    print("\n[Q6] a legacy renderer rejection fails the build instead of hiding a question")
+    units = clean_integrity_fixture()
+    page = units[0]["topics"][1]["content"]["pages"][2]
+    page["prompt"] = "Marco vive en Madrid. ¿Cuál es su nacionalidad?"
+    page["answer"] = "española"
+    page["options"] = ["española", "italiana", "francesa", "turca"]
+    page["distractors"] = ["italiana", "francesa", "turca"]
+    page["explanation"] = "The nationality is Spanish."
+    page["explanation_tr"] = "Doğru milliyet İspanyoldur."
+    try:
+        Q.validate_publication_integrity(
+            units=units, language="Spanish", track="tr")
+    except Q.QualityGateError as exc:
+        check("silently remove this MCQ" in str(exc),
+              "the old hidden-world renderer filter is surfaced as a build failure")
+    else:
+        check(False, "a question the renderer would silently drop must fail the build")
+
+
+def test_publication_integrity_rejects_duplicates_and_missing_english():
+    print("\n[Q7] duplicate questions and incomplete bilingual material cannot publish")
+    duplicated = clean_integrity_fixture()
+    pages = duplicated[0]["topics"][1]["content"]["pages"]
+    pages[3]["prompt"] = pages[2]["prompt"]
+    try:
+        Q.validate_publication_integrity(
+            units=duplicated, language="Spanish", track="tr")
+    except Q.QualityGateError as exc:
+        check("duplicate MCQ stems" in str(exc),
+              "verbatim repeated MCQs are blocked after semantic review")
+    else:
+        check(False, "duplicate MCQ stems must not publish")
+
+    monolingual = clean_integrity_fixture()
+    del monolingual[0]["topics"][0]["content"]["pages"][0]["title_tr"]
+    try:
+        Q.validate_publication_integrity(
+            units=monolingual, language="Spanish", track="tr")
+    except Q.QualityGateError as exc:
+        check("incomplete EN/TR field pairs" in str(exc),
+              "a missing English/Turkish counterpart fails closed")
+    else:
+        check(False, "one-language-only lesson fields must not publish")
+
+
+
+def test_luna_can_fill_a_missing_bilingual_counterpart():
+    print("\n[Q8] missing bilingual fields are made patchable before semantic review")
+    units = clean_integrity_fixture()
+    topic = units[0]["topics"][0]
+    del topic["content"]["pages"][0]["title_tr"]
+    original = Q.T.call_model
+    saw_empty_slot = {"value": False}
+
+    def provider(messages, **kwargs):
+        payload = json.loads(messages[-1]["content"])
+        records = payload["topics"][0]["records"]
+        saw_empty_slot["value"] = any(
+            rec.get("path") == ["pages", 0, "title_tr"] and rec.get("value") == ""
+            for rec in records
+        )
+        return T.Response(
+            data={"topics": [{
+                "topic_id": "t1", "verdict": "fix",
+                "patches": [{
+                    "path": ["pages", 0, "title_tr"],
+                    "old": "", "value": "Sayılar",
+                    "reason": "Restore the missing Turkish counterpart.",
+                }],
+            }]},
+            input_tokens=2500, output_tokens=200, cost=0.001,
+            model=kwargs.get("model", ""),
+        )
+
+    try:
+        Q.T.call_model = provider
+        budget = Q.ReviewBudget(0.05)
+        applied = Q.review_unit_lessons(
+            unit_title="Unit 1", topics=[topic], language="Spanish",
+            level="A1", track="tr", budget=budget)
+    finally:
+        Q.T.call_model = original
+
+    check(saw_empty_slot["value"],
+          "the missing counterpart is exposed as an exact empty patch path")
+    check(applied == 1 and topic["content"]["pages"][0]["title_tr"] == "Sayılar",
+          "Luna can repair the missing bilingual field without inventing structure")
+
+
 def main():
     test_transport_strict_schema_and_content_blocks()
     test_non_ipa_fails_closed()
     test_luna_lesson_review_repairs_pdf_defects()
     test_luna_assessment_review_removes_multi_correct_item()
     test_terra_final_coverage_is_mandatory()
+    test_publication_integrity_keeps_ten_questions()
+    test_publication_integrity_catches_renderer_silent_drop()
+    test_publication_integrity_rejects_duplicates_and_missing_english()
+    test_luna_can_fill_a_missing_bilingual_counterpart()
     print(f"\n=== {len(FAILS)} quality-gate failing checks ===")
     for failure in FAILS:
         print("  -", failure)
