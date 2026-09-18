@@ -154,7 +154,7 @@ def test_transport_strict_schema_and_content_blocks():
     check(provider.get("require_parameters") is True,
           "routing refuses providers that cannot honor structured output")
     check(Q.REVIEW_MODEL == "google/gemini-3.7-flash",
-          "semantic editor is pinned to Luna Pro")
+          "semantic editor is pinned to Gemini 3.7 Flash")
 
 
 def test_non_ipa_fails_closed():
