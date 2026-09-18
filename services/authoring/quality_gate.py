@@ -34,7 +34,7 @@ from services.authoring import schema as S
 from services.authoring import transport as T
 
 
-LUNA_REVIEW_MODEL = "openai/gpt-5.6-luna"
+LUNA_REVIEW_MODEL = "openai/gpt-5.6-luna-pro"
 TERRA_VERIFY_MODEL = "openai/gpt-5.6-terra"
 QUALITY_REVIEW_CEILING_USD = 0.13
 
@@ -62,6 +62,92 @@ _ASSESSMENT_FIELDS = frozenset({
     "prompt", "question", "stem", "answer", "options", "choices", "distractors",
     "why", "why_tr", "explanation", "explanation_tr",
 })
+
+
+_PATCH_SCALAR_OR_LIST = {
+    "oneOf": [
+        {"type": "string"},
+        {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    ]
+}
+_PATCH_PATH = {
+    "type": "array",
+    "items": {"oneOf": [{"type": "string"}, {"type": "integer"}]},
+    "minItems": 1,
+}
+_NESTED_PATCH_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "path": _PATCH_PATH,
+        "old": _PATCH_SCALAR_OR_LIST,
+        "value": _PATCH_SCALAR_OR_LIST,
+        "reason": {"type": "string"},
+    },
+    "required": ["path", "old", "value", "reason"],
+}
+_TOP_LEVEL_PATCH_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "topic_id": {"type": "string"},
+        "path": _PATCH_PATH,
+        "old": _PATCH_SCALAR_OR_LIST,
+        "value": _PATCH_SCALAR_OR_LIST,
+        "reason": {"type": "string"},
+    },
+    "required": ["topic_id", "path", "old", "value", "reason"],
+}
+_LESSON_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "topics": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "topic_id": {"type": "string"},
+                    "verdict": {"type": "string", "enum": ["ok", "fix"]},
+                    "patches": {"type": "array", "items": _NESTED_PATCH_SCHEMA},
+                },
+                "required": ["topic_id", "verdict", "patches"],
+            },
+        },
+    },
+    "required": ["topics"],
+}
+_ASSESSMENT_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "checked_questions": {
+            "type": "array", "items": {"type": "integer"},
+            "minItems": 10, "maxItems": 10, "uniqueItems": True,
+        },
+        "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
+    },
+    "required": ["checked_questions", "patches"],
+}
+_TERRA_VERIFY_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "coverage": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "rules": {"type": "integer"},
+                "phonetics": {"type": "integer"},
+                "assessments": {"type": "integer"},
+            },
+            "required": ["rules", "phonetics", "assessments"],
+        },
+        "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
+    },
+    "required": ["coverage", "patches"],
+}
 
 
 class QualityGateError(RuntimeError):
@@ -325,7 +411,8 @@ tracks continue to teach the same claim.
 
 def _call_review(*, model: str, system: str, payload: Dict[str, Any],
                  max_tokens: int, effort: str, budget: ReviewBudget,
-                 stage: str) -> Dict[str, Any]:
+                 stage: str, response_schema: Dict[str, Any],
+                 response_name: str) -> Dict[str, Any]:
     user = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     budget.require(model=model, input_chars=len(system) + len(user),
                    output_tokens=max_tokens, stage=stage)
@@ -333,6 +420,7 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
         max_tokens=max_tokens, temperature=0.0, model=model, cache_system=True,
         timeout=180, attempts=2, reasoning_effort=effort,
+        response_schema=response_schema, response_name=response_name,
     )
     budget.record(response, model=model, stage=stage)
     if not response.ok or not isinstance(response.data, dict):
@@ -364,8 +452,9 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
     }
     data = _call_review(
         model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=payload,
-        max_tokens=2600, effort="high", budget=budget,
+        max_tokens=4800, effort="high", budget=budget,
         stage=f"luna_lessons:{unit_title}",
+        response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_review",
     )
     rows = data.get("topics")
     if not isinstance(rows, list):
@@ -417,8 +506,9 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         }
         retry = _call_review(
             model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-            max_tokens=1800, effort="high", budget=budget,
+            max_tokens=2600, effort="high", budget=budget,
             stage=f"luna_blocker_retry:{topic.get('title')}",
+            response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_blocker_repair",
         )
         rows2 = retry.get("topics")
         if not isinstance(rows2, list) or len(rows2) != 1 or                 str(rows2[0].get("topic_id") or "") != str(topic["id"]):
@@ -473,8 +563,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     }
     data = _call_review(
         model=LUNA_REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
-        max_tokens=2200, effort="high", budget=budget,
+        max_tokens=3400, effort="high", budget=budget,
         stage=f"luna_assessment:{unit_title}",
+        response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
     )
     checked = data.get("checked_questions")
     try:
@@ -543,8 +634,9 @@ def final_terra_verify(*, units: List[Dict[str, Any]], language: str, level: str
     }
     data = _call_review(
         model=TERRA_VERIFY_MODEL, system=_TERRA_VERIFY_SYSTEM, payload=payload,
-        max_tokens=2600, effort="high", budget=budget,
+        max_tokens=3200, effort="high", budget=budget,
         stage="terra_final_verify",
+        response_schema=_TERRA_VERIFY_SCHEMA, response_name="final_verification",
     )
     coverage = data.get("coverage")
     try:
