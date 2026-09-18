@@ -847,7 +847,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
 
     # A renderer-contract blocker is deterministic but not necessarily an
     # audit.py blocker. The fresh production classroom exposed exactly that
-    # gap: Luna reviewed all ten items, then the final boundary correctly
+    # gap: DeepSeek reviewed all ten items, then the final boundary correctly
     # refused one hidden-world inference. Give the exact rejected item and
     # reason one bounded targeted DeepSeek repair pass while the full unit evidence
     # is still available. Fail closed if it cannot make all ten renderable.
