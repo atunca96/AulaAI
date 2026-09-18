@@ -849,8 +849,8 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     # audit.py blocker. The fresh production classroom exposed exactly that
     # gap: Luna reviewed all ten items, then the final boundary correctly
     # refused one hidden-world inference. Give the exact rejected item and
-    # reason one bounded Terra repair pass while the full unit evidence is still
-    # available. Fail closed if it cannot make all ten renderable.
+    # reason one bounded targeted Luna repair pass while the full unit evidence
+    # is still available. Fail closed if it cannot make all ten renderable.
     render_blockers = _assessment_render_blockers(content)
     if render_blockers:
         retry_payload = {
