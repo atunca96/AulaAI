@@ -449,7 +449,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             
             return full_text[:8000]
  
-        def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None, material_language="en", unit_index=None, unit_total=None, topics_completed=0):
+        def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None, material_language="en", unit_index=None, unit_total=None, topics_completed=0, unit_title="", unit_topics=()):
             from services.ai_engine import generate_full_lesson, _is_substantive_lesson, synthesize_substantive_lesson
             try:
                 with db_connection() as db:
@@ -459,8 +459,13 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             except Exception: pass
             lesson = None
             try:
-                lesson = generate_full_lesson(t_title, t_type, language, 5, level, source_text=source_text, material_language=material_language,
-                                              unit_index=unit_index, unit_total=unit_total, topics_completed=topics_completed)
+                lesson = generate_full_lesson(
+                    t_title, t_type, language, 5, level,
+                    source_text=source_text, material_language=material_language,
+                    unit_index=unit_index, unit_total=unit_total,
+                    topics_completed=topics_completed,
+                    unit_title=unit_title, unit_topics=unit_topics,
+                )
             except Exception as gen_err:
                 _log(f"[TOPIC-TASK] generate_full_lesson failed for '{t_title}': {gen_err}")
 
@@ -477,6 +482,11 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         _unit_total = len(chapters_data)
         _seen = 0
         for _u_idx, ch in enumerate(chapters_data, 1):
+            _unit_title = str(ch.get("title") or "")
+            _unit_topics = tuple(
+                str(t.get("title") or "") for t in (ch.get("topics") or [])
+                if isinstance(t, dict) and str(t.get("title") or "").strip()
+            )
             for topic in ch.get("topics", []):
                 if len(queued) >= MAX_TOTAL_TOPICS:
                     break
@@ -485,8 +495,10 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 # is what the assessment language budget needs: a lesson early in
                 # unit 1 may only phrase its questions out of what unit 1 has
                 # taught by then.
-                queued.append((topic.get("id"), topic.get("title"), topic.get("type"), stext,
-                               _u_idx, _unit_total, _seen))
+                queued.append((
+                    topic.get("id"), topic.get("title"), topic.get("type"), stext,
+                    _u_idx, _unit_total, _seen, _unit_title, _unit_topics,
+                ))
                 _seen += 1
         topic_count = len(queued)
 
@@ -510,10 +522,16 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             future_to_topic = {}
 
             def _submit(entry):
-                t_id, t_title, t_type, stext, u_idx, u_total, done_before = entry
-                fut = executor.submit(process_topic_task, t_id, t_title, t_type, language, level, course_id,
-                                      source_text=stext, material_language=material_language,
-                                      unit_index=u_idx, unit_total=u_total, topics_completed=done_before)
+                (
+                    t_id, t_title, t_type, stext, u_idx, u_total, done_before,
+                    unit_title, unit_topics,
+                ) = entry
+                fut = executor.submit(
+                    process_topic_task, t_id, t_title, t_type, language, level, course_id,
+                    source_text=stext, material_language=material_language,
+                    unit_index=u_idx, unit_total=u_total, topics_completed=done_before,
+                    unit_title=unit_title, unit_topics=unit_topics,
+                )
                 future_to_topic[fut] = t_title
                 return fut
 
