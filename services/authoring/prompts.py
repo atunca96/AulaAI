@@ -212,8 +212,9 @@ def _honesty_block(language: str) -> str:
 def _assessment_rules(language: str, level: str) -> str:
     return f"""── ASSESSMENT ITEMS ──
 - Exactly four options: one defensible answer and three distinct distractors. The whole
-  item — stem, options, key — is in {language}. The explanation is in the instructional
-  language. Never a translation question, at any level: not 'what does X mean', not 'how
+  item — stem, options, key — is in {language}. Reference glosses and answer-key
+  explanations are supplied in BOTH English and Turkish instructional fields. Never a
+  translation question, at any level: not 'what does X mean', not 'how
   do you say X'. At {level} that is a reason to ask a SIMPLER {language} question, never a
   reason to fall back on translation.
 - SYMMETRIC SCRUTINY: examine the key exactly as hard as the distractors, and first. It
