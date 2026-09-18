@@ -54,6 +54,7 @@ RATES: Dict[str, Dict[str, float]] = {
     "openai/gpt-5.6-terra": {"input": 2.00, "output": 12.00, "cache_read": 0.20},
     "openai/gpt-5.6-luna": {"input": 0.20, "output": 1.20, "cache_read": 0.02},
     "openai/gpt-5.6-luna-pro": {"input": 0.20, "output": 1.20, "cache_read": 0.02},
+    "deepseek/deepseek-v4.1-flash": {"input": 0.15, "output": 0.60, "cache_read": 0.015},
     "google/gemini-3.8-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.1875},
     "google/gemini-3.7-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.1875},
     "google/gemini-3.5-flash": {"input": 1.50, "output": 9.00, "cache_read": 0.375},
