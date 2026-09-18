@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publication review must stay DeepSeek-only; Luna/Terra are not runtime dependencies."""
+"""Publication review must stay Gemini-only; Luna/Terra/DeepSeek are not runtime dependencies."""
 
 from __future__ import annotations
 from pathlib import Path
@@ -15,4 +15,5 @@ for path in targets:
     assert "terra_verify_model" not in src, f"Terra runtime symbol re-entered publication path: {path}"
     assert "terra_" not in src, f"Terra stage/function re-entered publication path: {path}"
     assert "gpt-5.6-luna-pro" not in src, f"Luna Pro re-entered publication path: {path}"
-print("[REVIEW-MODEL] publication review path is DeepSeek-only")
+    assert "deepseek/deepseek-v4.1-flash" not in src, f"DeepSeek re-entered publication path: {path}"
+print("[REVIEW-MODEL] publication review path is Gemini 3.7 Flash only")
