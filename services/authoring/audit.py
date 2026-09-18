@@ -485,9 +485,13 @@ def _audit_typed_strings(node: Any, *, language: str, track: str,
         if spec.role == S.NOTATION:
             stray = S.stray_ipa_codepoints(text)
             if stray:
-                repairable = all(ch in S.GREEK_TO_IPA for ch in stray)
+                # A look-alike Unicode character is not safely repairable from
+                # shape alone. Greek epsilon might have been intended as [e] or
+                # [ɛ], for example; silently choosing one can create a valid-IPA
+                # string that is linguistically false. Block it and let the
+                # semantic reviewer correct the transcription from the word.
                 out.append(Finding(
-                    "non_ipa_in_transcription", REPAIR if repairable else BLOCK,
+                    "non_ipa_in_transcription", BLOCK,
                     path=path, field=field, role=spec.role,
                     detail="not IPA: " + " ".join(f"U+{ord(c):04X} {c!r}" for c in stray),
                     value=text))
