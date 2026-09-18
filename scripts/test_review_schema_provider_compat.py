@@ -28,6 +28,7 @@ for name, schema in (
     ("assessment_review", Q._ASSESSMENT_REVIEW_SCHEMA),
     ("exact_target_repair", Q._EXACT_TARGET_REPAIR_SCHEMA),
     ("mcq_option_set_repair", Q._MCQ_OPTION_SET_REPAIR_SCHEMA),
+    ("name_gender_page_repair", Q._NAME_GENDER_PAGE_REPAIR_SCHEMA),
 ):
     assert not any("oneOf" in obj for obj in walk(schema)), (
         f"{name} contains oneOf, rejected by OpenAI Structured Outputs"

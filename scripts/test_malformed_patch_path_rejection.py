@@ -178,8 +178,16 @@ def fake_call(**kwargs):
         }]}
     if stage.endswith("Talking About My Family"):
         return {"topics": [{"topic_id": "family", "verdict": "ok", "patches": []}]}
-    if stage == "review_render_exact:Talking About My Family:pages.4.prompt":
-        return {"value": FAMILY_GOOD, "reason": "Ask from an explicit stated relation."}
+    if stage == "review_render_name_gender:Talking About My Family:pages.4.prompt":
+        # The personal-name→gender class is repaired at page level: the stem and
+        # both rationales move together, because the renderer reads the refusal
+        # off their combination.
+        return {
+            "stem": FAMILY_GOOD,
+            "explanation_en": "The stem states that María is Ana's mother.",
+            "explanation_tr": "Soruda María'nın Ana'nın annesi olduğu belirtiliyor.",
+            "reason": "Ask from an explicit stated relation.",
+        }
     if stage == ("review_render_exact:Numbers 0 to 30 and Contact Information"
                  ":pages.0.prompt"):
         return {"value": NUMBERS_GOOD, "reason": "Ask a self-contained arithmetic stem."}
@@ -233,7 +241,7 @@ assert calls == [
     "review_render_exact:Numbers 0 to 30 and Contact Information:pages.0.prompt",
     "review_lesson:Everyday Basics:Talking About My Family",
     "review_blocker_retry:Talking About My Family",
-    "review_render_exact:Talking About My Family:pages.4.prompt",
+    "review_render_name_gender:Talking About My Family:pages.4.prompt",
 ], calls
 assert resumed == [], resumed
 

@@ -99,6 +99,37 @@ def _fold(text: Any) -> str:
 _GENDER_WORDS = re.compile(r"\b(kadin|erkek|disil|eril|female|male|woman|man)\b")
 _NAME_WORDS = re.compile(r"\b(isim|ismi|adi|adinin|name)\b")
 
+# The one refusal an item cannot argue with: the rationale says the personal
+# name is what tells the learner the gender. Named once so the gate can route
+# this blocker to the repair that can actually clear it.
+NAME_GENDER_REASON = "answer depends on gender inferred from a personal name"
+
+# A rationale is one statement. "Ana is a feminine name" is the reasoning this
+# rule exists to refuse; "the visible noun is feminine" and "the question names
+# the noun" are two ordinary statements that happen to use the same two words.
+#
+# Scoping to a statement is what makes the defect repairable at all. The escape
+# below asks the STEM for an explicit gender word, and that list can only ever
+# cover a few languages — a Spanish item whose stem says `mujer` does not match
+# it, and never will without a brittle per-language lexicon. So the only route
+# out is the explanation, and an adjective-agreement item's corrected
+# explanation MUST say "feminine"/"disil" because that is the grammar it
+# teaches. Matching those two words anywhere in the same field meant any
+# innocent use of "name"/"ad" put the page straight back into the same refusal
+# with no edit available that could clear it. Requiring them in one statement
+# keeps the unsafe rationale refused and lets a corrected one through.
+_STATEMENT_SPLIT = re.compile(r"[.!?;:\n\r…]+")
+
+
+def _name_gender_rationale(folded: str, name_words: "re.Pattern[str]",
+                           gender_words: "re.Pattern[str]") -> bool:
+    """Whether one statement justifies the gender BY the personal name."""
+    for statement in _STATEMENT_SPLIT.split(folded or ""):
+        if name_words.search(statement) and gender_words.search(statement):
+            return True
+    return False
+
+
 _BIOGRAPHY = ("dogdu", "dogmus", "yasiyor", "yasadi", "calisiyor", "born", "lives",
               "works", "resides", "родил", "жив", "работ", "nacio", "vive",
               "trabaja", "geboren", "lebt", "arbeitet", "habite", "travaille")
@@ -147,8 +178,8 @@ def unsafe_reason(page: Dict[str, Any], stem: str, is_tr: bool) -> str:
     prompt, expl = _fold(stem), _fold(explanation)
 
     explicit_gender = bool(_GENDER_WORDS.search(prompt))
-    if _NAME_WORDS.search(expl) and _GENDER_WORDS.search(expl) and not explicit_gender:
-        return "answer depends on gender inferred from a personal name"
+    if _name_gender_rationale(expl, _NAME_WORDS, _GENDER_WORDS) and not explicit_gender:
+        return NAME_GENDER_REASON
 
     if _has_biography_marker(prompt, _BIOGRAPHY) and _IDENTITY.search(expl):
         return "answer depends on an identity fact inferred from a biographical one"
@@ -233,9 +264,14 @@ def hidden_world_reason(page: Dict[str, Any]) -> str:
 
     explicit_gender = bool(_V57_GENDER_WORDS.search(prompt)) or \
         any(noun in prompt for noun in _V57_GENDER_NOUNS)
-    if _V57_NAME_WORDS.search(expl) and _V57_GENDER_WORDS.search(expl) \
-            and not explicit_gender:
-        return "answer depends on gender inferred from a personal name"
+    # Per explanation field, not over their concatenation: each locale's reader
+    # sees only their own rationale, and joining them let a name word in one
+    # locale pair with a grammar word in the other and refuse both exports.
+    if not explicit_gender and any(
+        _name_gender_rationale(_fold(page.get(key)), _V57_NAME_WORDS, _V57_GENDER_WORDS)
+        for key in _V57_EXPLANATION_KEYS
+    ):
+        return NAME_GENDER_REASON
 
     if _has_biography_marker(prompt, _V57_BIOGRAPHY) and _V57_IDENTITY.search(expl):
         return "answer depends on an identity fact inferred from a biographical one"

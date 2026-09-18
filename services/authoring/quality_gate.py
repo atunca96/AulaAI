@@ -1156,6 +1156,8 @@ def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
     patching the exact stem is sufficient and avoids a terminal refusal after a
     successful model call.
     """
+    from services.authoring import render_contract as RC
+
     content = topic.get("content")
     pages = content.get("pages") if isinstance(content, dict) else None
     if not isinstance(pages, list):
@@ -1178,6 +1180,18 @@ def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
             continue
         page = pages[page_index]
         if not isinstance(page, dict):
+            continue
+
+        # The personal-name→gender refusal is read off the STEM AND the
+        # explanation together, so rewriting the stem alone cannot clear it.
+        # That page gets the atomic repair instead of this stem-only one.
+        if any(str(row.get("why") or "") == RC.NAME_GENDER_REASON
+               for row in page_blockers):
+            applied += _repair_name_gender_page_exact(
+                topic=topic, page=page, page_index=page_index,
+                language=language, level=level, budget=budget,
+                blockers=page_blockers,
+            )
             continue
 
         stem_key = next(
@@ -1239,6 +1253,171 @@ def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
         applied += 1
 
     return applied
+
+
+# The renderer reads the personal-name→gender refusal off the stem AND the
+# rationale together, so the two must be repaired as one page-level edit. A
+# stem-only rewrite left the rationale saying "this name is feminine" and the
+# page was refused again on the next audit — in production this looped through
+# review_lesson → review_blocker_retry → review_render_exact and a whole unit
+# retry without ever being able to converge, on `Adjective Agreement and
+# Physical Description` and on `A Family Photograph` before it.
+#
+# The item's answer, options and distractors are immutable here: this defect is
+# about how the learner is asked and how the answer is justified, never about
+# what the answer is.
+_NAME_GENDER_PAGE_REPAIR_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "stem": {"type": "string", "minLength": 1},
+        "explanation_en": {"type": "string", "minLength": 1},
+        "explanation_tr": {"type": "string", "minLength": 1},
+        "reason": {"type": "string"},
+    },
+    "required": ["stem", "explanation_en", "explanation_tr", "reason"],
+}
+
+_NAME_GENDER_PAGE_REPAIR_SYSTEM = """You repair exactly ONE multiple-choice item
+that AulaAI's renderer refuses because its answer can only be reached by
+guessing a person's gender from their personal name.
+
+You return three learner-visible strings and nothing else. The item's answer,
+options and distractors are FIXED — they are given to you as immutable context
+and your rewrite must keep exactly that answer correct.
+
+Hard contract:
+- `stem`: the question, in the taught language named by `taught_language`. It
+  must carry the evidence the answer needs ON ITS FACE — a stated noun, a
+  stated article, a stated relationship, a stated form. A learner who has never
+  heard the personal name must be able to answer it. Prefer replacing the
+  person with the grammatical evidence itself (for example a stated noun with
+  its article) over keeping a name and adding a hint.
+- Do not require the learner to infer gender, nationality, profession or any
+  other identity fact from a name, a birthplace, a residence, a job or a
+  biography.
+- `explanation_en` (English) and `explanation_tr` (Turkish) are the same
+  rationale in the two locales. Each MUST explain the answer ONLY from what the
+  new stem states. NEVER write that a name is feminine, masculine, a woman's
+  name or a man's name, and never reason from the name at all — if the name is
+  gone from the stem, do not mention it.
+- Naming the grammatical category is expected and correct: say which stated
+  word the answer agrees with and why. The forbidden move is grounding that in
+  a person's name, not using grammatical vocabulary.
+- Keep the CEFR level, the pedagogical point and the register. Do not add
+  labels, commentary, markdown or alternatives.
+- Return JSON only: {"stem":"...","explanation_en":"...",
+  "explanation_tr":"...","reason":"brief reason"}.
+"""
+
+# Which page field each returned locale is written into. Only a key the page
+# ALREADY carries with content is written; nothing new is invented.
+_NAME_GENDER_EN_KEYS = ("explanation_en", "explanation", "analysis_en", "analysis")
+_NAME_GENDER_TR_KEYS = ("explanation_tr", "analysis_tr")
+
+
+def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any],
+                                   page_index: int, language: str, level: str,
+                                   budget: ReviewBudget,
+                                   blockers: Sequence[Dict[str, Any]]) -> int:
+    """Repair one page's stem and rationale together, or refuse the page.
+
+    Bounded and page-scoped: one call, one page, and only the stem plus the
+    explanation fields the page already carries. The result is accepted only
+    when the renderer contract passes for BOTH export locales on the page as it
+    would look after the write, and when the answer, options and distractors
+    come through untouched.
+    """
+    from services.authoring import render_contract as RC
+
+    stem_key = next(
+        (key for key in ("prompt", "question", "stem")
+         if isinstance(page.get(key), str) and page.get(key).strip()),
+        None,
+    )
+    if not stem_key:
+        return 0
+
+    before_stem = str(page[stem_key]).strip()
+    en_keys = [k for k in _NAME_GENDER_EN_KEYS
+               if isinstance(page.get(k), str) and page.get(k).strip()]
+    tr_keys = [k for k in _NAME_GENDER_TR_KEYS
+               if isinstance(page.get(k), str) and page.get(k).strip()]
+
+    profile = S.profile_for_language(language)
+    immutable = {}
+    for key in ("type", "title", "title_tr", "answer", "options", "choices",
+                "distractors", "term", "word", "target", "translation",
+                "translation_tr"):
+        value = page.get(key)
+        if value not in (None, "", []):
+            immutable[key] = value
+
+    data = _call_review(
+        model=REPAIR_MODEL,
+        system=_NAME_GENDER_PAGE_REPAIR_SYSTEM,
+        payload={
+            "taught_language": language,
+            "level": level,
+            "regional_variety": profile.variety if profile else "",
+            "topic_title": str(topic.get("title") or ""),
+            "path": ["pages", page_index],
+            "stem_field": stem_key,
+            "current_stem": before_stem,
+            "current_explanation_en": page.get(en_keys[0]) if en_keys else "",
+            "current_explanation_tr": page.get(tr_keys[0]) if tr_keys else "",
+            "renderer_contract_blockers": list(blockers),
+            "immutable_page_context": immutable,
+        },
+        max_tokens=900,
+        effort="low",
+        budget=budget,
+        stage=(
+            f"review_render_name_gender:{topic.get('title')}:"
+            f"pages.{page_index}.{stem_key}"
+        ),
+        response_schema=_NAME_GENDER_PAGE_REPAIR_SCHEMA,
+        response_name="lesson_name_gender_page_repair",
+    )
+
+    stem = data.get("stem") if isinstance(data, dict) else None
+    explanation_en = data.get("explanation_en") if isinstance(data, dict) else None
+    explanation_tr = data.get("explanation_tr") if isinstance(data, dict) else None
+    if not all(isinstance(v, str) and v.strip()
+               for v in (stem, explanation_en, explanation_tr)):
+        raise QualityGateError(
+            f"{topic.get('title')}: name/gender page repair returned an empty "
+            f"field for page {page_index}"
+        )
+
+    updates: Dict[str, Any] = {stem_key: stem.strip()}
+    for key in en_keys:
+        updates[key] = explanation_en.strip()
+    for key in tr_keys:
+        updates[key] = explanation_tr.strip()
+
+    # Prove it on the page as it would look after the write, in both export
+    # locales, before anything is written.
+    probe = dict(page)
+    probe.update(updates)
+    for is_tr in RC.EXPORT_LOCALES:
+        ok, why = RC.page_is_renderable(probe, is_tr)
+        if not ok:
+            raise QualityGateError(
+                f"{topic.get('title')}: name/gender page repair still refused in "
+                f"the {'tr' if is_tr else 'en'} export for page {page_index}: {why}"
+            )
+    for key in ("answer", "options", "choices", "distractors"):
+        if probe.get(key) != page.get(key):
+            raise QualityGateError(
+                f"{topic.get('title')}: name/gender page repair changed {key!r} "
+                f"on page {page_index}; the keyed answer is immutable here"
+            )
+
+    if all(page.get(key) == value for key, value in updates.items()):
+        return 0
+    page.update(updates)
+    return 1
 
 
 # One MCQ's key, its option list and its stored distractors are a single
