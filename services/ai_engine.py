@@ -377,11 +377,52 @@ def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
             continue
         questions.append(candidate)
 
+    # If the bulk author model and deterministic lesson-MCQ reuse still leave
+    # a unit incomplete, make one bounded rescue attempt with the independent
+    # semantic model. This is not a publication bypass: every rescued item goes
+    # through the same _clean_item -> repair -> audit path inside
+    # ai_generate_questions, and the publication gate later rechecks the exact
+    # persisted 10/10 snapshot. The rescue exists only to avoid throwing away an
+    # otherwise complete classroom because one unit's cheap author returned no
+    # usable assessment JSON.
     if len(questions) < count:
-        _log(f"[UNIT-ASSESS] '{unit_title}' still short after lesson-MCQ completion: "
-             f"{len(questions)}/{count}")
+        shortfall = count - len(questions)
+        rescue_model = "openai/gpt-5.6-luna-pro"
+        _log(f"[UNIT-ASSESS] '{unit_title}' requesting bounded semantic rescue "
+             f"for {shortfall} missing item(s) via {rescue_model}")
+        rescue = ai_generate_questions(
+            unit_title, "review",
+            {"_preassembled_content_str": "\n\n".join(parts)[:9000]},
+            language, count=shortfall, level=level,
+            material_language=material_language,
+            existing_questions=questions,
+            model_override=rescue_model,
+            timing_ctx=timing_ctx, ledger=ledger,
+            allow_partial=True,
+        )
+        for candidate in rescue:
+            if len(questions) >= count:
+                break
+            if any(_engine._same_target(candidate, existing) for existing in questions):
+                continue
+            questions.append(candidate)
+
+    # A rescue may itself return only a partial set. Give already-published,
+    # independently audited lesson MCQs one final chance to close the exact
+    # remaining slots; never invent deterministic fallback questions.
+    if len(questions) < count:
+        for candidate in lesson_mcqs:
+            if len(questions) >= count:
+                break
+            if any(_engine._same_target(candidate, existing) for existing in questions):
+                continue
+            questions.append(candidate)
+
+    if len(questions) < count:
+        _log(f"[UNIT-ASSESS] '{unit_title}' still short after semantic rescue and "
+             f"lesson-MCQ completion: {len(questions)}/{count}")
     else:
-        _log(f"[UNIT-ASSESS] '{unit_title}' completed to {count} with validated lesson MCQs")
+        _log(f"[UNIT-ASSESS] '{unit_title}' completed to {count} after bounded completion")
     return questions[:count]
 
 
