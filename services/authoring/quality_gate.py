@@ -26,6 +26,7 @@ import copy
 import json
 import math
 import re
+import threading
 import unicodedata
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -165,6 +166,8 @@ class ReviewBudget:
         self.ceiling = float(ceiling)
         self.spent = 0.0
         self.calls: List[Dict[str, Any]] = []
+        self._reserved = 0.0
+        self._lock = threading.RLock()
 
     def _estimate(self, model: str, input_chars: int, output_tokens: int) -> float:
         return B.price(
@@ -175,13 +178,30 @@ class ReviewBudget:
 
     def require(self, *, model: str, input_chars: int, output_tokens: int, stage: str) -> None:
         worst = self._estimate(model, input_chars, output_tokens)
-        if self.spent + worst > self.ceiling:
-            raise QualityGateError(
-                f"quality review budget: {stage} could require ${worst:.4f}; "
-                f"${self.ceiling - self.spent:.4f} remains of ${self.ceiling:.2f}"
-            )
+        with self._lock:
+            if self.spent + self._reserved + worst > self.ceiling:
+                raise QualityGateError(
+                    f"quality review budget: {stage} could require ${worst:.4f}; "
+                    f"${self.ceiling - self.spent - self._reserved:.4f} remains of ${self.ceiling:.2f}"
+                )
 
-    def record(self, response: T.Response, *, model: str, stage: str) -> float:
+    def reserve(self, *, model: str, input_chars: int, output_tokens: int, stage: str) -> float:
+        worst = self._estimate(model, input_chars, output_tokens)
+        with self._lock:
+            if self.spent + self._reserved + worst > self.ceiling:
+                raise QualityGateError(
+                    f"quality review budget: {stage} could require ${worst:.4f}; "
+                    f"${self.ceiling - self.spent - self._reserved:.4f} remains of ${self.ceiling:.2f}"
+                )
+            self._reserved += worst
+        return worst
+
+    def release(self, reservation: float) -> None:
+        with self._lock:
+            self._reserved = max(0.0, self._reserved - max(0.0, float(reservation or 0.0)))
+
+    def record(self, response: T.Response, *, model: str, stage: str,
+               reservation: float = 0.0) -> float:
         if response.cost is not None:
             cost = float(response.cost)
         else:
@@ -191,19 +211,23 @@ class ReviewBudget:
                 output_tokens=response.output_tokens,
                 cached_tokens=response.cached_tokens,
             )
-        self.spent += cost
-        self.calls.append({
-            "stage": stage,
-            "model": model,
-            "cost": cost,
-            "input_tokens": response.input_tokens,
-            "output_tokens": response.output_tokens,
-            "seconds": response.seconds,
-        })
-        if self.spent > self.ceiling + 1e-9:
-            raise QualityGateError(
-                f"quality review spent ${self.spent:.4f}, over ${self.ceiling:.2f}"
+        with self._lock:
+            self._reserved = max(
+                0.0, self._reserved - max(0.0, float(reservation or 0.0))
             )
+            self.spent += cost
+            self.calls.append({
+                "stage": stage,
+                "model": model,
+                "cost": cost,
+                "input_tokens": response.input_tokens,
+                "output_tokens": response.output_tokens,
+                "seconds": response.seconds,
+            })
+            if self.spent > self.ceiling + 1e-9:
+                raise QualityGateError(
+                    f"quality review spent ${self.spent:.4f}, over ${self.ceiling:.2f}"
+                )
         return cost
 
 
@@ -504,15 +528,32 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
                  stage: str, response_schema: Dict[str, Any],
                  response_name: str) -> Dict[str, Any]:
     user = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    budget.require(model=model, input_chars=len(system) + len(user),
-                   output_tokens=max_tokens, stage=stage)
-    response = T.call_model(
-        [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        max_tokens=max_tokens, temperature=0.0, model=model, cache_system=True,
-        timeout=180, attempts=2, reasoning_effort=effort,
-        response_schema=response_schema, response_name=response_name,
+    reservation = budget.reserve(
+        model=model, input_chars=len(system) + len(user),
+        output_tokens=max_tokens, stage=stage,
     )
-    budget.record(response, model=model, stage=stage)
+    print(
+        f"[QUALITY-CALL] START {stage} model={model} "
+        f"payload_chars={len(user)} max_tokens={max_tokens}",
+        flush=True,
+    )
+    try:
+        response = T.call_model(
+            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            max_tokens=max_tokens, temperature=0.0, model=model, cache_system=True,
+            timeout=180, attempts=2, reasoning_effort=effort,
+            response_schema=response_schema, response_name=response_name,
+        )
+    except Exception:
+        budget.release(reservation)
+        raise
+    budget.record(response, model=model, stage=stage, reservation=reservation)
+    print(
+        f"[QUALITY-CALL] END {stage} ok={response.ok} "
+        f"seconds={response.seconds:.2f} cost=${float(response.cost or 0.0):.4f} "
+        f"error={response.error or '-'}",
+        flush=True,
+    )
     if not response.ok or not isinstance(response.data, dict):
         raise QualityGateError(f"{stage} failed on {model}: {response.error or 'invalid JSON'}")
     return response.data
@@ -914,6 +955,159 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             raise QualityGateError(
                 f"{unit_title}: renderer-contract blockers remain after targeted repair — {detail}"
             )
+    return applied
+
+
+def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
+                                      language: str, level: str, track: str,
+                                      budget: ReviewBudget) -> int:
+    """Repair deterministic publication blockers found after semantic review.
+
+    The final integrity boundary is a proof step, not a dead end. If it can name
+    a repairable learner-visible defect, repair that exact topic/question once
+    and re-prove it. Structural defects (missing units/questions, duplicate
+    assessment cardinality, unreadable content) still fail closed.
+    """
+    applied = 0
+    canonical = S.canonical_language(language)
+    profile = S.profile_for_language(language)
+
+    for unit in units:
+        topics = unit.get("topics") or []
+        lessons = [t for t in topics if not t.get("is_assessment")]
+        evidence = [
+            {
+                "topic_id": str(t["id"]),
+                "title": str(t.get("title") or ""),
+                "records": _review_records(t.get("content") or {}),
+            }
+            for t in lessons
+        ]
+
+        for topic in topics:
+            content = topic.get("content")
+            if not isinstance(content, dict):
+                continue
+
+            if canonical not in ("English", "Turkish"):
+                _ensure_bilingual_slots(content)
+            missing_pairs = (
+                _missing_bilingual_pairs(content)
+                if canonical not in ("English", "Turkish") else []
+            )
+
+            if topic.get("is_assessment"):
+                render_blockers = _assessment_render_blockers(content)
+                if not render_blockers and not missing_pairs:
+                    continue
+                payload = {
+                    "language": language, "level": level, "unit": unit.get("title"),
+                    "regional_variety": profile.variety if profile else "",
+                    "instruction_track": track,
+                    "assessment_topic_id": str(topic["id"]),
+                    "assessment_records": _review_records(content),
+                    "unit_evidence": evidence,
+                    "render_contract_blockers": render_blockers,
+                    "missing_bilingual_pairs": missing_pairs,
+                    "instruction": (
+                        "This is the final publication repair. Fix every listed "
+                        "renderer-contract blocker and missing bilingual counterpart. "
+                        "Preserve exactly ten questions and all numbering. Make only "
+                        "the smallest evidence-grounded patches needed for both export modes."
+                    ),
+                }
+                data = _call_review(
+                    model=TERRA_VERIFY_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+                    payload=payload, max_tokens=4200, effort="medium", budget=budget,
+                    stage=f"terra_final_repair:{unit.get('title')}:assessment",
+                    response_schema=_ASSESSMENT_REVIEW_SCHEMA,
+                    response_name="final_assessment_repair",
+                )
+                _checked_all_ten(
+                    data, unit_title=str(unit.get("title") or ""),
+                    stage="final assessment repair",
+                )
+                applied += _apply_patches(
+                    {str(topic["id"]): topic}, data.get("patches") or []
+                )
+            else:
+                render_blockers = _topic_render_blockers(content)
+                findings = A.blocking(_audit_topic(topic, language=language, track=track))
+                if not render_blockers and not findings and not missing_pairs:
+                    continue
+                records = (
+                    _records_for_render_blockers(content, render_blockers)
+                    if render_blockers and not findings and not missing_pairs
+                    else _review_records(content)
+                )
+                payload = {
+                    "language": language, "level": level, "unit": unit.get("title"),
+                    "regional_variety": profile.variety if profile else "",
+                    "instruction_track": track,
+                    "topics": [{
+                        "topic_id": str(topic["id"]),
+                        "title": str(topic.get("title") or ""),
+                        "records": records,
+                        "deterministic_blockers": _findings_payload(findings),
+                        "render_contract_blockers": render_blockers,
+                        "missing_bilingual_pairs": missing_pairs,
+                    }],
+                    "instruction": (
+                        "This is the final publication repair. Fix every listed "
+                        "deterministic, renderer-contract, and bilingual blocker. "
+                        "Patch only existing learner-visible fields and make the "
+                        "smallest evidence-grounded correction."
+                    ),
+                }
+                data = _call_review(
+                    model=TERRA_VERIFY_MODEL, system=_LESSON_REVIEW_SYSTEM,
+                    payload=payload, max_tokens=3600, effort="medium", budget=budget,
+                    stage=f"terra_final_repair:{topic.get('title')}",
+                    response_schema=_LESSON_REVIEW_SCHEMA,
+                    response_name="final_lesson_repair",
+                )
+                rows = data.get("topics")
+                if not isinstance(rows, list) or len(rows) != 1 or \
+                        str(rows[0].get("topic_id") or "") != str(topic["id"]):
+                    raise QualityGateError(
+                        f"final repair coverage failed for {topic.get('title')}"
+                    )
+                patches = []
+                for patch in (rows[0].get("patches") or []):
+                    if not isinstance(patch, dict):
+                        raise QualityGateError("final repair patch is not an object")
+                    patch = dict(patch)
+                    patch["topic_id"] = str(topic["id"])
+                    patches.append(patch)
+                applied += _apply_patches({str(topic["id"]): topic}, patches)
+
+            R.repair_lesson(content, language=language)
+
+            post = A.blocking(_audit_topic(topic, language=language, track=track))
+            if post:
+                raise QualityGateError(
+                    f"{topic.get('title')}: deterministic blockers remain after final repair: "
+                    f"{A.summarise(post)}"
+                )
+            if topic.get("is_assessment"):
+                remaining_render = _assessment_render_blockers(content)
+            else:
+                remaining_render = _topic_render_blockers(content)
+            if remaining_render:
+                detail = "; ".join(
+                    f"{row.get('locale')}: {row.get('why')}"
+                    for row in remaining_render[:4]
+                )
+                raise QualityGateError(
+                    f"{topic.get('title')}: renderer blockers remain after final repair — {detail}"
+                )
+            if canonical not in ("English", "Turkish"):
+                remaining_pairs = _missing_bilingual_pairs(content)
+                if remaining_pairs:
+                    raise QualityGateError(
+                        f"{topic.get('title')}: bilingual gaps remain after final repair: "
+                        + ", ".join(remaining_pairs[:8])
+                    )
     return applied
 
 
