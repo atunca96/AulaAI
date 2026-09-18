@@ -378,8 +378,82 @@ def _audit_topic(topic: Dict[str, Any], *, language: str, track: str) -> List[A.
     return A.audit_lesson(content, language=language, track=track)
 
 
-def _findings_payload(findings: Iterable[A.Finding]) -> List[Dict[str, str]]:
+def _findings_payload(findings: Iterable[A.Finding]) -> List[Dict[str, Any]]:
     return [f.as_dict() for f in findings if f.severity == A.BLOCK]
+
+
+def _finding_path_prefix(path: str) -> List[Any]:
+    """Turn audit paths such as pages[3].items[1] into review-record segments."""
+    out: List[Any] = []
+    for name, index in re.findall(r"(?:^|\.)([^.\[]+)|\[([0-9]+)\]", str(path or "")):
+        if name:
+            out.append(name)
+        elif index:
+            out.append(int(index))
+    return out
+
+
+def _repair_paths_for_finding(content: Dict[str, Any], finding: A.Finding) -> List[List[Any]]:
+    """Resolve an audit finding back to exact patchable learner-visible paths.
+
+    The auditor historically reported a field/value and sometimes only a page
+    prefix. That was enough to refuse publication but too vague for a semantic
+    repair model, which could fix adjacent prose and leave the actual bad field
+    untouched. Resolve the finding against the exact review records before
+    asking the model to edit anything.
+    """
+    records = _review_records(content)
+    prefix = _finding_path_prefix(finding.path)
+    candidates: List[List[Any]] = []
+    for rec in records:
+        path = rec.get("path")
+        if not isinstance(path, list):
+            continue
+        if finding.field and str(rec.get("field") or "") != str(finding.field):
+            continue
+        if prefix and path[:len(prefix)] != prefix:
+            continue
+        if finding.value:
+            value = rec.get("value")
+            if isinstance(value, str) and value != finding.value:
+                continue
+            if isinstance(value, list) and finding.value not in value:
+                continue
+        candidates.append(list(path))
+
+    # A value-bearing finding identifies the learner-visible string itself, so
+    # every exact match is relevant. A value-less finding is safe to resolve
+    # only when the field/prefix identifies one unique record.
+    if finding.value:
+        return candidates
+    return candidates if len(candidates) == 1 else []
+
+
+def _findings_with_repair_paths(content: Dict[str, Any],
+                                findings: Iterable[A.Finding]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for finding in findings:
+        if finding.severity != A.BLOCK:
+            continue
+        row: Dict[str, Any] = finding.as_dict()
+        row["repair_paths"] = _repair_paths_for_finding(content, finding)
+        out.append(row)
+    return out
+
+
+def _records_for_findings(content: Dict[str, Any],
+                          findings: Iterable[A.Finding]) -> List[Dict[str, Any]]:
+    wanted = {
+        tuple(path)
+        for finding in findings
+        for path in _repair_paths_for_finding(content, finding)
+    }
+    if not wanted:
+        return []
+    return [
+        rec for rec in _review_records(content)
+        if isinstance(rec.get("path"), list) and tuple(rec["path"]) in wanted
+    ]
 
 
 _LESSON_REVIEW_SYSTEM = """You are AulaAI's independent publication editor.
@@ -627,6 +701,18 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         blockers = A.blocking(_audit_topic(topic, language=language, track=track))
         render_blockers = _topic_render_blockers(topic.get("content"))
         if blockers or render_blockers:
+            blocker_records = _records_for_findings(topic["content"], blockers)
+            render_records = (
+                _records_for_render_blockers(topic["content"], render_blockers)
+                if render_blockers else []
+            )
+            exact_records = []
+            seen_record_paths = set()
+            for rec in blocker_records + render_records:
+                marker = tuple(rec.get("path") or [])
+                if marker and marker not in seen_record_paths:
+                    seen_record_paths.add(marker)
+                    exact_records.append(rec)
             targeted = {
                 "language": language, "level": level, "unit": unit_title,
                 "regional_variety": profile.variety if profile else "",
@@ -634,19 +720,20 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 "topics": [{
                     "topic_id": str(topic["id"]),
                     "title": str(topic.get("title") or ""),
-                    "records": (
-                        _records_for_render_blockers(topic["content"], render_blockers)
-                        if render_blockers and not blockers
-                        else _review_records(topic["content"])
+                    "records": exact_records or _review_records(topic["content"]),
+                    "deterministic_blockers": _findings_with_repair_paths(
+                        topic["content"], blockers
                     ),
-                    "deterministic_blockers": _findings_payload(blockers),
                     "render_contract_blockers": render_blockers,
                 }],
                 "instruction": (
-                    "Fix every deterministic and renderer-contract blocker. For any MCQ "
-                    "whose answer depends on an unstated identity/biographical inference, "
-                    "rewrite the smallest learner-visible fields so exactly one answer is "
-                    "derivable from explicit stem or taught evidence. Return this one topic only."
+                    "Fix every deterministic and renderer-contract blocker. "
+                    "Each deterministic blocker may contain repair_paths resolved from the "
+                    "auditor to exact learner-visible fields. Every listed repair_path is "
+                    "mandatory: patch that exact path, not a nearby field. For any MCQ whose "
+                    "answer depends on an unstated identity/biographical inference, rewrite "
+                    "the smallest learner-visible fields so exactly one answer is derivable "
+                    "from explicit stem or taught evidence. Return this one topic only."
                 ),
             }
             retry = _call_review(
@@ -676,10 +763,71 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
 
             still = A.blocking(_audit_topic(topic, language=language, track=track))
             if still:
-                raise QualityGateError(
-                    f"{topic.get('title')}: deterministic blockers remain after semantic repair: "
-                    f"{A.summarise(still)}"
-                )
+                # The first semantic pass may repair most blockers but miss one
+                # exact field. Do not turn a repairable path into a publication
+                # refusal. Give only the still-bad exact records one final bounded
+                # pass, then fail closed if the deterministic auditor still objects.
+                remaining_records = _records_for_findings(topic["content"], still)
+                remaining_payload = _findings_with_repair_paths(topic["content"], still)
+                if remaining_records and any(row.get("repair_paths") for row in remaining_payload):
+                    exact_retry_payload = {
+                        "language": language, "level": level, "unit": unit_title,
+                        "regional_variety": profile.variety if profile else "",
+                        "instruction_track": track,
+                        "topics": [{
+                            "topic_id": str(topic["id"]),
+                            "title": str(topic.get("title") or ""),
+                            "records": remaining_records,
+                            "deterministic_blockers": remaining_payload,
+                            "render_contract_blockers": [],
+                        }],
+                        "instruction": (
+                            "The previous repair left these deterministic blockers. "
+                            "Patch EVERY listed repair_path exactly. Do not edit unrelated "
+                            "fields. Return this one topic only."
+                        ),
+                    }
+                    exact_retry = _call_review(
+                        model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
+                        payload=exact_retry_payload,
+                        max_tokens=1800, effort="medium", budget=budget,
+                        stage=f"review_exact_blocker_retry:{topic.get('title')}",
+                        response_schema=_LESSON_REVIEW_SCHEMA,
+                        response_name="lesson_exact_blocker_repair",
+                    )
+                    exact_rows = exact_retry.get("topics")
+                    if not isinstance(exact_rows, list) or len(exact_rows) != 1 or \
+                            str(exact_rows[0].get("topic_id") or "") != str(topic["id"]):
+                        raise QualityGateError(
+                            f"exact blocker retry coverage failed for {topic.get('title')}"
+                        )
+                    exact_patches = []
+                    for patch in (exact_rows[0].get("patches") or []):
+                        if not isinstance(patch, dict):
+                            raise QualityGateError("exact blocker retry patch is not an object")
+                        patch = dict(patch)
+                        patch["topic_id"] = str(topic["id"])
+                        exact_patches.append(patch)
+                    applied += _apply_patches(by_id, exact_patches)
+                    still = A.blocking(
+                        _audit_topic(topic, language=language, track=track)
+                    )
+                if still:
+                    detail = [
+                        {
+                            "code": f.code,
+                            "path": f.path,
+                            "field": f.field,
+                            "repair_paths": _repair_paths_for_finding(
+                                topic["content"], f
+                            ),
+                        }
+                        for f in still[:8]
+                    ]
+                    raise QualityGateError(
+                        f"{topic.get('title')}: deterministic blockers remain after exact repair: "
+                        f"{A.summarise(still)}; unresolved={detail}"
+                    )
             still_render = _topic_render_blockers(topic.get("content"))
             if still_render:
                 detail = "; ".join(
