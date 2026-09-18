@@ -9,7 +9,7 @@ if str(ROOT) not in sys.path:
 
 # Source is frozen: the former patch-application step is a no-op here.
 
-import services.material_quality_guard as guard
+import services.authoring.legacy_text as guard
 # The V55 test imports this module before V56 compat rewrites its source on disk.
 # Reload it so the regression test exercises the actual patched runtime code.
 guard = importlib.reload(guard)

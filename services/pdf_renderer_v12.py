@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import fitz
 
 from database import db_connection
-from services.material_quality_guard import safe_unicode_normalize, sanitize_dialogue_speaker
+from services.authoring.legacy_text import safe_unicode_normalize, sanitize_dialogue_speaker
 
 
 CSS = r'''
@@ -412,7 +412,7 @@ def _publication_invariants(content, language=None, material_language="tr"):
     unchanged.
     """
     try:
-        from services.publication_invariants import load_publishable_content
+        from services.authoring.publish import load_publishable_content
         return load_publishable_content(content, language=language, material_language=material_language)
     except Exception:
         return content if isinstance(content, dict) else {}
@@ -1217,7 +1217,7 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
 
 
 # AULAAI_RELEASE_HARDENING_V50
-from services.material_quality_guard import safe_unicode_normalize as _v50_unicode_normalize
+from services.authoring.legacy_text import safe_unicode_normalize as _v50_unicode_normalize
 
 _v50_original_normalize_content = _normalize_content
 
@@ -1262,7 +1262,7 @@ def _pick(obj, en_key, tr_key, is_tr):
 
 
 # AULAAI_RELEASE_HARDENING_V52
-from services.material_quality_guard import sanitize_instructional_metalanguage as _v52_meta
+from services.authoring.legacy_text import sanitize_instructional_metalanguage as _v52_meta
 _v52_pick = _pick
 _v52_mcq_prompt = _mcq_prompt
 _v52_vocab_meaning = _vocab_meaning
@@ -1449,7 +1449,7 @@ def _v54_pdf_unsafe_mcq(page, prompt, is_tr):
 
 
 # AULAAI_RELEASE_CLEANUP_V56
-from services.material_quality_guard import _v56_release_cleanup as _v56_publication_cleanup
+from services.authoring.legacy_text import _v56_release_cleanup as _v56_publication_cleanup
 _v56_previous_normalize_content = _normalize_content
 
 def _normalize_content(raw, language=None, material_language="tr"):
@@ -1599,7 +1599,7 @@ def _v57_is_grapheme_inventory(items):
 
 def _v57_renderer_unsafe_mcq(page):
     try:
-        from services.material_quality_guard import _v57_unsafe_mcq
+        from services.authoring.legacy_text import _v57_unsafe_mcq
         return bool(_v57_unsafe_mcq(page))
     except Exception:
         return False
@@ -1612,7 +1612,7 @@ def _normalize_pages(content):
     return [page for page in pages if not _v57_renderer_unsafe_mcq(page)]
 
 # AULAAI_MICRO_QUALITY_POLISH
-from services.material_quality_guard import (
+from services.authoring.legacy_text import (
     safe_unicode_normalize as _v58_safe_unicode,
     sanitize_instructional_shorthand as _v58_shorthand,
     deduplicate_morphological_parentheticals as _v58_dedup,

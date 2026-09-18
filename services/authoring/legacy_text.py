@@ -1,3 +1,28 @@
+"""QUARANTINE: render-time repair of material generated before this rebuild.
+
+This file is not part of the new authoring core and nothing in it was written
+for it. It is the old `material_quality_guard`, moved here under a name that
+says what it now is, and it exists for exactly one reason: the database holds
+years of lessons carrying defect classes the new generator cannot produce, and
+those lessons still have to render.
+
+It is deliberately NOT rewritten. Rewriting it would have meant rewriting the
+PDF renderer that depends on it, which works and which nobody asked for; and
+every hour spent restoring these repairs is an hour spent on content that the
+auditor now prevents at source. Its own structure says why it was replaced
+rather than extended — `validate_mcq` and `safe_unicode_normalize` are each
+defined several times in here, later definitions wrapping earlier ones through
+`_v50_previous_*` and `_v58_previous_*` chains, so the behaviour of the module
+is the sum of five historical opinions and no single place states the rules.
+
+New content never reaches these functions with anything for them to fix:
+`audit.py` blocks the defects at generation and `publish.py` repairs what is
+safely repairable at the boundary. When the last pre-rebuild lesson has been
+regenerated, this file can be deleted whole.
+
+Nothing new may import from here. Add the rule to `audit.py` instead.
+"""
+
 from copy import deepcopy
 import re
 import unicodedata
@@ -1392,7 +1417,7 @@ def _v50_clean_tree(node, language=None, material_language="tr"):
         cleaned = safe_unicode_normalize(node, language=language)
         if material_language and str(material_language).strip().casefold() not in ("en", "english", "ingilizce"):
             try:
-                from services.material_quality_guard import sanitize_instructional_shorthand
+                from services.authoring.legacy_text import sanitize_instructional_shorthand
                 cleaned = sanitize_instructional_shorthand(cleaned, instructional_language=str(material_language).strip().casefold())
             except Exception:
                 pass

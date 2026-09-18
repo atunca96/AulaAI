@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.material_quality_guard import _v57_unsafe_mcq, enforce_material_integrity
+from services.authoring.legacy_text import _v57_unsafe_mcq, enforce_material_integrity
 from services import pdf_renderer_v12 as renderer
 
 

@@ -27,7 +27,7 @@ import fitz
 from services.cefr_reference import LANGUAGE_CEFR_STANDARDS
 from services.pdf_renderer_v12 import render_course_pdf
 from services.pdf_text_layer import audit_text_layer
-from services.publication_evidence import _outside_ipa_repertoire
+from services.authoring.schema import stray_ipa_codepoints as _outside_ipa_repertoire
 
 # Per-language representative material in the real schema. Target-language content
 # is genuine; instructional prose is written in the track under test by the driver.

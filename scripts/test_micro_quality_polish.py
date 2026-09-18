@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 # Source is frozen: the former patch-application step is a no-op here.
 
-from services.material_quality_guard import (
+from services.authoring.legacy_text import (
     detect_grammar_shorthand_leakage,
     sanitize_instructional_shorthand,
     sanitize_instructional_metalanguage,

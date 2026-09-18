@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 # Source is frozen: the former patch-application step is a no-op here.
 # Source is frozen: the former patch-application step is a no-op here.
 
-import services.material_quality_guard as guard
+import services.authoring.legacy_text as guard
 guard = importlib.reload(guard)
 
 

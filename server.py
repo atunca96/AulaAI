@@ -1335,7 +1335,7 @@ table.vt td { padding: 4px 6px; }
                         # code, so every invariant fixed in the primary renderer was
                         # simply absent here.
                         try:
-                            from services.publication_invariants import load_publishable_content
+                            from services.authoring.publish import load_publishable_content
                             content_obj = load_publishable_content(
                                 top_content_str, language=course_lang,
                                 material_language=lang, topic=top_title or "",
