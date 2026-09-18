@@ -38,8 +38,8 @@ topic={
          "answer":"peruana",
          "options":["peruana","española","francesa","alemana"],
          "distractors":["española","francesa","alemana"],
-         "explanation":"The explicit statement determines the answer.",
-         "explanation_tr":"Açık ifade cevabı belirler."}
+         "explanation":"Her nationality is inferred from the biographical information.",
+         "explanation_tr":"Milliyeti biyografik bilgiden çıkarılır."}
     ]}
 }
 
