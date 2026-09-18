@@ -518,6 +518,32 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
     return response.data
 
 
+def _records_for_render_blockers(content: Dict[str, Any],
+                                 blockers: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Only the records needed to repair the pages the renderer rejects.
+
+    Targeted retries previously resent an entire five-page lesson to Terra.
+    That made a one-field repair spend its completion budget on reasoning over
+    unrelated material and could finish with reason=length before emitting any
+    JSON. Keep exact patch paths, but send only the affected page records.
+    """
+    indexes = {
+        int(row.get("page_index"))
+        for row in (blockers or [])
+        if isinstance(row, dict) and str(row.get("page_index", "")).isdigit()
+    }
+    records = _review_records(content)
+    if not indexes:
+        return records
+    return [
+        rec for rec in records
+        if isinstance(rec.get("path"), list)
+        and len(rec["path"]) >= 2
+        and rec["path"][0] == "pages"
+        and rec["path"][1] in indexes
+    ]
+
+
 def _topic_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Deterministic renderer-contract failures for learner-visible MCQ pages."""
     from services.authoring import render_contract as RC
@@ -617,7 +643,11 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             "topics": [{
                 "topic_id": str(topic["id"]),
                 "title": str(topic.get("title") or ""),
-                "records": _review_records(topic["content"]),
+                "records": (
+                    _records_for_render_blockers(topic["content"], render_blockers)
+                    if render_blockers and not blockers
+                    else _review_records(topic["content"])
+                ),
                 "deterministic_blockers": _findings_payload(blockers),
                 "render_contract_blockers": render_blockers,
             }],
@@ -633,7 +663,11 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             # demonstrably missed something. Escalate that one topic to Terra
             # rather than asking the same model to reconsider its own miss.
             model=TERRA_VERIFY_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-            max_tokens=2600, effort="high", budget=budget,
+            # This is a narrow repair of explicitly identified fields, not the
+            # final independent verification pass. Medium reasoning plus more
+            # output headroom prevents reasoning tokens from consuming the whole
+            # completion before strict JSON is emitted.
+            max_tokens=4200, effort="medium", budget=budget,
             stage=f"terra_blocker_retry:{topic.get('title')}",
             response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_blocker_repair",
         )
@@ -695,7 +729,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             }
             retry = _call_review(
                 model=TERRA_VERIFY_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-                max_tokens=2200, effort="high", budget=budget,
+                max_tokens=3600, effort="medium", budget=budget,
                 stage=f"terra_bilingual_retry:{topic.get('title')}",
                 response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_bilingual_repair",
             )
@@ -854,7 +888,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         }
         retry = _call_review(
             model=TERRA_VERIFY_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
-            payload=retry_payload, max_tokens=2600, effort="high", budget=budget,
+            payload=retry_payload, max_tokens=4200, effort="medium", budget=budget,
             stage=f"terra_assessment_render_retry:{unit_title}",
             response_schema=_ASSESSMENT_REVIEW_SCHEMA,
             response_name="assessment_render_repair",
