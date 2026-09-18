@@ -45,6 +45,7 @@ __all__ = [
 # The model, in one place. Overridable per deployment, but the default is the
 # model this system was designed, priced and tested against.
 MODEL = os.getenv("AULAAI_MODEL", _budget.MODEL)
+TERRA_REVIEW_MODEL = "openai/gpt-5.6-terra"
 
 _LOG = "pipeline.log"
 
@@ -106,6 +107,20 @@ def generate_full_lesson(topic, topic_type, language, count=6, level="A1", sourc
         level=str(level or "A1"), track=str(material_language or "tr"),
         ledger=ledger, source_text=str(source_text or ""), taught_so_far=taught_so_far,
         pages=max(3, min(8, int(count or 5))), model=MODEL)
+
+    # Terra is intentionally NOT the bulk generator. At 30 topics it measured
+    # about $2/classroom by itself. Use it only as a narrow rescue path when the
+    # cheap primary model cannot produce a clean lesson after its bounded retry.
+    # That preserves the quality escape hatch without paying Terra rates thirty
+    # times on every classroom.
+    if _audit.blocking(result.findings) and not result.lesson:
+        rescue = _engine.generate_lesson(
+            topic=str(topic), topic_type=str(topic_type or "vocabulary"), language=str(language),
+            level=str(level or "A1"), track=str(material_language or "tr"),
+            ledger=None, source_text=str(source_text or ""), taught_so_far=taught_so_far,
+            pages=max(3, min(8, int(count or 5))), model=TERRA_REVIEW_MODEL)
+        if rescue.lesson and not _audit.blocking(rescue.findings):
+            result = rescue
 
     blocking = _audit.blocking(result.findings)
     _log(f"[LESSON] '{topic}' attempts={result.attempts} cost=${result.cost:.4f} "
