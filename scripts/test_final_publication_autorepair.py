@@ -39,7 +39,7 @@ calls=[]
 
 def fake_call(**kwargs):
     calls.append(kwargs["stage"])
-    assert kwargs["stage"]=="luna_final_repair:Countries and Nationalities"
+    assert kwargs["stage"]=="review_final_repair:Countries and Nationalities"
     payload=kwargs["payload"]
     assert payload["topics"][0]["render_contract_blockers"]
     return {"topics":[{
@@ -72,15 +72,15 @@ finally:
 assert applied==1, applied
 assert topic["content"]["pages"][0]["prompt"]==good
 assert not Q._topic_render_blockers(topic["content"])
-assert calls==["luna_final_repair:Countries and Nationalities"], calls
+assert calls==["review_final_repair:Countries and Nationalities"], calls
 
 # Parallel review accounting must reserve worst-case spend before provider calls
 # start, so concurrency cannot spend beyond the ceiling.
 budget=Q.ReviewBudget(0.01)
-r1=budget.reserve(model=Q.LUNA_REVIEW_MODEL,input_chars=1000,output_tokens=1000,stage="a")
+r1=budget.reserve(model=Q.REVIEW_MODEL,input_chars=1000,output_tokens=1000,stage="a")
 try:
     try:
-        budget.reserve(model=Q.LUNA_REVIEW_MODEL,input_chars=1000,output_tokens=8000,stage="b")
+        budget.reserve(model=Q.REVIEW_MODEL,input_chars=1000,output_tokens=8000,stage="b")
     except Q.QualityGateError:
         pass
     else:
