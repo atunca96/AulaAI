@@ -201,14 +201,11 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
         payload["provider"] = {"order": ["Google AI Studio", "Google"], "allow_fallbacks": True}
         payload["reasoning"] = {"effort": "low"}
     elif target == "openai/gpt-5.6-terra":
-        # Terra's Flex endpoint is currently the only endpoint at or below this
-        # price. Pin by price rather than by an endpoint display name: OpenRouter
-        # guarantees max_price as a hard routing ceiling, so a provider rename
-        # cannot silently move this workload onto the 2x-priced standard route.
-        payload["provider"] = {
-            "sort": "throughput",
-            "max_price": {"prompt": 1.0, "completion": 6.0},
-        }
+        # Use Terra's live synchronous endpoint. The 50%-off $1/$6 listing is
+        # the asynchronous batch route and cannot satisfy this request/response
+        # classroom path; capping online calls at that price filters every live
+        # endpoint and forces the curriculum skeleton fallback.
+        payload["provider"] = {"sort": "throughput"}
         payload["reasoning"] = {"effort": "low"}
     else:
         payload["temperature"] = float(temperature)

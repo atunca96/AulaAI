@@ -364,18 +364,17 @@ def test_budget():
     print("\n[5] the sixty-cent ceiling")
     check(B.MODEL == "openai/gpt-5.6-terra", f"the model is pinned ({B.MODEL})")
 
-    # Terra Flex remains under the classroom ceiling at the course sizes
-    # the architect actually emits. The structural MAX_LESSONS cap is intentionally
-    # larger than the economic cap; an oversized plan is refused before spending.
-    for lessons, units in ((14, 6), (20, 8), (24, 8)):
+    # Live Terra is $2/$12. The planner is therefore capped at twelve
+    # lessons; anything larger would make the sixty-cent promise dishonest.
+    for lessons, units in ((6, 3), (9, 3), (BP.MAX_LESSONS, BP.MAX_UNITS)):
         projected = B.project_classroom_cost(lessons=lessons, units=units)
         check(projected["total"] <= B.CLASSROOM_CEILING_USD,
               f"{lessons} lessons / {units} units projects "
               f"${projected['total']:.3f} <= ${B.CLASSROOM_CEILING_USD:.2f}")
 
-    oversized = B.project_classroom_cost(lessons=BP.MAX_LESSONS, units=BP.MAX_UNITS)
+    oversized = B.project_classroom_cost(lessons=BP.MAX_LESSONS + 2, units=BP.MAX_UNITS)
     check(oversized["total"] > B.CLASSROOM_CEILING_USD,
-          "a structurally legal but economically oversized Terra plan is detected before build")
+          "a Terra course above the structural lesson cap would exceed the budget")
 
     ledger = B.BuildLedger(0.05, label="tiny")
     ledger.record(stage="lesson", input_tokens=3000, output_tokens=8000)
