@@ -350,7 +350,84 @@ def _set_path(root: Any, path: Sequence[Any], value: Any, *, old: Any) -> None:
     parent[key] = value
 
 
+def _slash_alternative_variants(value: Any) -> List[str]:
+    """Expand one inline slash alternative into concrete candidate strings.
+
+    Reviewers sometimes emit editorial alternatives such as
+    "İspanyoldur/İspanyolum" in one patch and a single resolved form in another.
+    Treat that as a resolvable duplicate only when the clean candidate exactly
+    matches one concrete branch of the slash form. Anything less exact remains
+    a conflicting semantic patch and fails closed.
+    """
+    if not isinstance(value, str) or "/" not in value:
+        return []
+    tokens = value.split()
+    out: List[str] = []
+    for i, token in enumerate(tokens):
+        if "/" not in token:
+            continue
+        prefix = ""
+        suffix = ""
+        core = token
+        while core and not core[0].isalnum():
+            prefix += core[0]
+            core = core[1:]
+        while core and not core[-1].isalnum():
+            suffix = core[-1] + suffix
+            core = core[:-1]
+        parts = [p for p in core.split("/") if p]
+        if len(parts) < 2:
+            continue
+        for part in parts:
+            candidate = list(tokens)
+            candidate[i] = prefix + part + suffix
+            out.append(" ".join(candidate))
+    return out
+
+
 def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[Any]) -> int:
+    # Normalize duplicates before mutating content, so an ambiguous first
+    # proposal cannot be written and then make the concrete duplicate stale.
+    normalized: List[Any] = []
+    index_by_marker: Dict[Tuple[str, str], int] = {}
+    for raw in patches or []:
+        if not isinstance(raw, dict):
+            normalized.append(raw)
+            continue
+        topic_id = str(raw.get("topic_id") or "").strip()
+        path = raw.get("path")
+        if topic_id not in topics_by_id or not isinstance(path, list):
+            normalized.append(raw)
+            continue
+        try:
+            content = topics_by_id[topic_id]["content"]
+            coerced = _coerce_patch_path(content, path)
+        except Exception:
+            normalized.append(raw)
+            continue
+        marker = (topic_id, json.dumps(coerced, ensure_ascii=False))
+        if marker not in index_by_marker:
+            index_by_marker[marker] = len(normalized)
+            normalized.append(raw)
+            continue
+        prev_i = index_by_marker[marker]
+        previous = normalized[prev_i]
+        if not isinstance(previous, dict):
+            normalized.append(raw)
+            continue
+        prev_value = previous.get("value")
+        new_value = raw.get("value")
+        if prev_value == new_value:
+            continue
+        if isinstance(prev_value, str) and isinstance(new_value, str):
+            if new_value in _slash_alternative_variants(prev_value):
+                normalized[prev_i] = raw
+                continue
+            if prev_value in _slash_alternative_variants(new_value):
+                continue
+        normalized.append(raw)
+
+    patches = normalized
     # Structured reviewers occasionally emit the same exact patch path twice in
     # one response (commonly when bilingual/dialogue checks converge on the same
     # learner-visible field). Identical duplicate proposals are harmless and
@@ -378,11 +455,38 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
                     flush=True,
                 )
                 continue
-            raise QualityGateError(
-                f"conflicting semantic patches for {topic_id} {path!r}: "
-                f"{previous!r} vs {proposed!r}"
-            )
-        seen[marker] = proposed
+
+            # If one proposal literally contains editorial slash alternatives
+            # and the other is exactly one concrete branch, prefer the resolved
+            # branch. This is not arbitrary conflict resolution: the accepted
+            # value must be an exact expansion of the ambiguous proposal.
+            resolved = None
+            if isinstance(previous, str) and isinstance(proposed, str):
+                if proposed in _slash_alternative_variants(previous):
+                    resolved = proposed
+                elif previous in _slash_alternative_variants(proposed):
+                    resolved = previous
+            if resolved is not None:
+                print(
+                    f"[QUALITY-PATCH] RESOLVE slash-alternative duplicate at "
+                    f"{topic_id} {list(path)!r} -> {resolved!r}",
+                    flush=True,
+                )
+                # If the already-seen proposal was the ambiguous one, update
+                # the remembered winner so any further duplicate is compared
+                # against the concrete value.
+                seen[marker] = resolved
+                if proposed != resolved:
+                    continue
+                # proposed is the concrete winner; let it continue below and
+                # replace the earlier ambiguous value before application.
+            else:
+                raise QualityGateError(
+                    f"conflicting semantic patches for {topic_id} {path!r}: "
+                    f"{previous!r} vs {proposed!r}"
+                )
+        else:
+            seen[marker] = proposed
         current = _get_path(content, path)
         old = raw.get("old")
 
