@@ -359,7 +359,8 @@ def lesson_schema_block(language: str, track: str = "tr") -> str:
 def build_lesson_user(*, topic: str, topic_type: str = "vocabulary",
                       source_text: str = "", taught_so_far: Sequence[str] = (),
                       page_target: int = 5, item_budget: int = 0,
-                      track: str = "tr", language: str = "", request_id: str = "") -> str:
+                      track: str = "tr", language: str = "", request_id: str = "",
+                      unit_title: str = "", unit_topics: Sequence[str] = ()) -> str:
     """The per-request half: everything that varies between lessons."""
     source = ""
     if source_text:
@@ -371,6 +372,16 @@ def build_lesson_user(*, topic: str, topic_type: str = "vocabulary",
         prior = (f"\n\nALREADY TAUGHT in this course, in order: {listed}.\n"
                  f"Build on it and do not re-teach it. Everything you use must be either "
                  f"taught here or present in that list.\n")
+    unit = ""
+    if unit_title or unit_topics:
+        sibling_text = "; ".join(str(t) for t in unit_topics if str(t).strip())
+        unit = (
+            f"\n\nCURRENT UNIT: {unit_title or '(untitled unit)'}\n"
+            f"UNIT TOPICS, in curriculum order: {sibling_text or topic}.\n"
+            "The lesson MUST stay inside this unit. A review/recap topic must review "
+            "THIS unit's topics only; never substitute material from another unit or "
+            "from a generic textbook sequence.\n"
+        )
     assessment = ""
     if item_budget > 0:
         assessment = (f"\n- Close the lesson with exactly {item_budget} 'mcq' page(s) assessing "
@@ -378,7 +389,7 @@ def build_lesson_user(*, topic: str, topic_type: str = "vocabulary",
     return f"""Write the lesson for:
 <topic>{topic}</topic>
 <focus>{topic_type}</focus>
-{source}{prior}
+{source}{prior}{unit}
 SHAPE:
 - About {page_target} pages, sequenced so each is readable with only what precedes it.{assessment}
 
