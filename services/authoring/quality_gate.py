@@ -1179,6 +1179,35 @@ _EXPLANATION_GROUNDING_REASON = (
     "explanation introduces a person the question does not show"
 )
 
+
+_EXPLANATION_GROUNDING_REPAIR_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "explanation_en": {"type": "string", "minLength": 1},
+        "explanation_tr": {"type": "string", "minLength": 1},
+        "reason": {"type": "string"},
+    },
+    "required": ["explanation_en", "explanation_tr", "reason"],
+}
+
+_EXPLANATION_GROUNDING_REPAIR_SYSTEM = """You repair exactly ONE MCQ answer-key
+rationale pair. The question itself is already valid and MUST NOT change.
+
+Hard contract:
+- Keep the stem, keyed answer, options and distractors unchanged.
+- Rewrite only explanation_en and explanation_tr.
+- Both explanations must justify the keyed answer using only evidence visible
+  in the supplied stem/options or the grammatical fact directly tested there.
+- Do not introduce a person, place, biography or fact the question does not
+  show. If a personal name is absent from the question, do not mention one.
+- Do not infer gender, nationality, profession or identity from a personal name.
+- The English and Turkish explanations must express the same rationale.
+- Keep the explanation concise and CEFR-appropriate.
+- Return JSON only:
+  {"explanation_en":"...","explanation_tr":"...","reason":"brief reason"}.
+"""
+
 _GROUNDED_EVIDENCE_KEYS = (
     "answer", "options", "choices", "distractors", "term", "word", "target",
     "translation", "translation_tr", "translation_en", "title", "title_tr",
@@ -2397,7 +2426,7 @@ def _detect_topic_blockers(topic: Dict[str, Any], *, language: str, track: str,
             "strategies": (
                 ["render_name_gender", "render_stem"]
                 if why == _name_gender_reason()
-                else ["render_name_gender"]
+                else ["explanation_grounding"]
                 if why == _EXPLANATION_GROUNDING_REASON else ["render_stem"]
             ),
         })
@@ -2449,6 +2478,93 @@ def _strategy_bilingual_counterpart(*, topic, blocker, language, level, track,
         level=level, track=track, budget=budget, unit_title=unit_title,
         profile=S.profile_for_language(language),
     )
+
+
+def _strategy_explanation_grounding(*, topic, blocker, language, level, track,
+                                    budget, unit_title):
+    """Rewrite only the answer-key rationale for an otherwise valid MCQ."""
+    from services.authoring import render_contract as RC
+
+    rows = blocker.get("render_rows") or []
+    pages = (topic.get("content") or {}).get("pages")
+    try:
+        page_index = int(rows[0].get("page_index"))
+    except (IndexError, TypeError, ValueError, AttributeError):
+        return 0
+    if not isinstance(pages, list) or not 0 <= page_index < len(pages):
+        return 0
+    page = pages[page_index]
+    if not isinstance(page, dict):
+        return 0
+
+    en_key = next(
+        (k for k in _NAME_GENDER_EN_KEYS
+         if isinstance(page.get(k), str) and page.get(k).strip()),
+        None,
+    )
+    tr_key = next(
+        (k for k in _NAME_GENDER_TR_KEYS
+         if isinstance(page.get(k), str) and page.get(k).strip()),
+        None,
+    )
+    if not en_key or not tr_key:
+        return 0
+
+    immutable = {}
+    for key in ("prompt", "question", "stem", "answer", "options", "choices",
+                "distractors", "term", "word", "target"):
+        value = page.get(key)
+        if value not in (None, "", []):
+            immutable[key] = value
+
+    profile = S.profile_for_language(language)
+    data = _call_review(
+        model=REPAIR_MODEL,
+        system=_EXPLANATION_GROUNDING_REPAIR_SYSTEM,
+        payload={
+            "taught_language": language,
+            "level": level,
+            "regional_variety": profile.variety if profile else "",
+            "topic_title": str(topic.get("title") or ""),
+            "immutable_page_context": immutable,
+            "current_explanation_en": page[en_key],
+            "current_explanation_tr": page[tr_key],
+            "blocker": _EXPLANATION_GROUNDING_REASON,
+        },
+        max_tokens=700,
+        effort="low",
+        budget=budget,
+        stage=f"review_explanation_grounding:{topic.get('title')}:pages.{page_index}",
+        response_schema=_EXPLANATION_GROUNDING_REPAIR_SCHEMA,
+        response_name="mcq_explanation_grounding_repair",
+    )
+    new_en = str(data.get("explanation_en") or "").strip()
+    new_tr = str(data.get("explanation_tr") or "").strip()
+    if not new_en or not new_tr:
+        return 0
+
+    candidate = copy.deepcopy(page)
+    candidate[en_key] = new_en
+    candidate[tr_key] = new_tr
+
+    # Accept only a candidate that clears both the grounding proof and the
+    # actual renderer contract; otherwise leave the original page untouched so
+    # the convergence controller can report honest non-progress.
+    if _explanation_grounding_blockers({"pages": [candidate]}):
+        return 0
+    for is_tr in RC.EXPORT_LOCALES:
+        ok, _why = RC.page_is_renderable(candidate, is_tr)
+        if not ok:
+            return 0
+
+    changed = 0
+    if new_en != page[en_key]:
+        page[en_key] = new_en
+        changed += 1
+    if new_tr != page[tr_key]:
+        page[tr_key] = new_tr
+        changed += 1
+    return changed
 
 
 def _strategy_render_name_gender(*, topic, blocker, language, level, track,
@@ -2535,6 +2651,7 @@ def _strategy_exact_field(*, topic, blocker, language, level, track, budget,
 _REPAIR_STRATEGIES = {
     "mcq_structural": _strategy_mcq_structural,
     "bilingual_counterpart": _strategy_bilingual_counterpart,
+    "explanation_grounding": _strategy_explanation_grounding,
     "render_name_gender": _strategy_render_name_gender,
     "render_stem": _strategy_render_stem,
     "exact_field": _strategy_exact_field,
