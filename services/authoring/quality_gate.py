@@ -926,37 +926,92 @@ def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str
 
 
 def provider_preflight() -> List[Dict[str, Any]]:
-    """Tiny live contract check for the two publication-review providers.
+    """Live semantic canary for the exact defect classes that reached a real PDF.
 
-    This is opt-in at deploy time. It spends only a few hundred output-token
-    ceiling per model but exercises the exact structured-output transport that
-    a classroom will later use, so a routing/schema incompatibility is found
-    before a user pays to regenerate thirty lessons.
+    This is deliberately stronger than a connectivity ping. Before a user pays
+    for a thirty-lesson regeneration, both review models must independently
+    recognize the actual failures that motivated this gate, while leaving a
+    clean control alone. It is opt-in at deploy time and normally disabled after
+    one successful production canary.
     """
+    properties = {
+        "greek_lookalike_ipa_error": {"type": "boolean"},
+        "desayunar_ipa_error": {"type": "boolean"},
+        "adjective_overgeneralization_error": {"type": "boolean"},
+        "translation_tense_error": {"type": "boolean"},
+        "silent_h_mcq_multiple_correct": {"type": "boolean"},
+        "clean_control_error": {"type": "boolean"},
+    }
     schema = {
         "type": "object",
         "additionalProperties": False,
-        "properties": {"ok": {"type": "boolean"}},
-        "required": ["ok"],
+        "properties": properties,
+        "required": list(properties),
+    }
+    expected = {
+        "greek_lookalike_ipa_error": True,
+        "desayunar_ipa_error": True,
+        "adjective_overgeneralization_error": True,
+        "translation_tense_error": True,
+        "silent_h_mcq_multiple_correct": True,
+        "clean_control_error": False,
+    }
+    challenge = {
+        "language": "European (Castilian) Spanish",
+        "task": (
+            "For each named check, set true only when the supplied material is "
+            "professionally unacceptable. Evaluate linguistic truth, not JSON shape."
+        ),
+        "checks": {
+            "greek_lookalike_ipa_error": {
+                "term": "la reserva", "phonetic": "[la reˈseɾβα]"
+            },
+            "desayunar_ipa_error": {
+                "term": "desayunar", "phonetic": "[desawˈnaɾ]"
+            },
+            "adjective_overgeneralization_error": {
+                "claim": "Adjectives ending in -e or a consonant never change for gender."
+            },
+            "translation_tense_error": {
+                "source": "Yo soy español, de Madrid.",
+                "turkish": "Ben İspanyoldum, Madridliyim."
+            },
+            "silent_h_mcq_multiple_correct": {
+                "stem": "¿Qué palabra contiene una h que no se pronuncia?",
+                "options": ["hotel", "huevo", "hielo", "hacer"],
+                "key": "hotel"
+            },
+            "clean_control_error": {
+                "claim": "Many adjectives ending in -e, such as amable, are gender-invariable."
+            },
+        },
     }
     rows = []
     for model, effort, name in (
-        (LUNA_REVIEW_MODEL, "high", "luna_pro_preflight"),
-        (TERRA_VERIFY_MODEL, "low", "terra_preflight"),
+        (LUNA_REVIEW_MODEL, "high", "luna_pro_semantic_canary"),
+        (TERRA_VERIFY_MODEL, "high", "terra_semantic_canary"),
     ):
         response = T.call_model(
             [
-                {"role": "system", "content": "Return the requested structured health result only."},
-                {"role": "user", "content": "Set ok to true."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a strict professional language-textbook fact-checker. "
+                        "Return only the requested structured booleans. A false positive "
+                        "on the clean control is a failure."
+                    ),
+                },
+                {"role": "user", "content": json.dumps(challenge, ensure_ascii=False)},
             ],
-            max_tokens=500, temperature=0.0, model=model, cache_system=False,
-            timeout=90, attempts=2, reasoning_effort=effort,
+            max_tokens=900, temperature=0.0, model=model, cache_system=False,
+            timeout=120, attempts=2, reasoning_effort=effort,
             response_schema=schema, response_name=name,
         )
-        if not response.ok or response.data != {"ok": True}:
+        if not response.ok or response.data != expected:
             raise QualityGateError(
-                f"provider preflight failed on {model}: "
-                f"{response.error or repr(response.data)}"
+                f"semantic provider preflight failed on {model}: "
+                f"got {response.data!r}; expected {expected!r}; "
+                f"transport={response.error or 'ok'}"
             )
         rows.append({
             "model": model, "seconds": response.seconds,
