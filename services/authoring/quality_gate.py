@@ -386,6 +386,29 @@ def _slash_alternative_variants(value: Any) -> List[str]:
     return out
 
 
+def _editorial_slash_candidate(a: Any, b: Any) -> Optional[str]:
+    """Prefer the clean candidate when only one duplicate proposal contains an
+    inline alphabetic slash-alternative token such as oldur/olum.
+
+    The proposals may differ elsewhere; the exact same field has two complete
+    replacements, and learner-visible prose should not preserve an unresolved
+    editor-style lexical alternative when the competing proposal has none.
+    Ordinary slashes in dates, paths, fractions or spaced alternatives are not
+    treated as editorial markers.
+    """
+    if not isinstance(a, str) or not isinstance(b, str) or a == b:
+        return None
+
+    def has_editorial_slash(text: str) -> bool:
+        return bool(re.search(r"(?<=\w)[^\W\d_]+/[^\W\d_]+(?=\W|$)", text, re.UNICODE))
+
+    ah = has_editorial_slash(a)
+    bh = has_editorial_slash(b)
+    if ah == bh:
+        return None
+    return b if ah else a
+
+
 def _embedded_meta_insertion_cleaner(a: Any, b: Any) -> Optional[str]:
     """Return the clean candidate when one value is the other plus one
     suspicious CamelCase-style insertion inside an existing word.
@@ -535,6 +558,11 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
                 continue
             if prev_value in _slash_alternative_variants(new_value):
                 continue
+            editorial = _editorial_slash_candidate(prev_value, new_value)
+            if editorial is not None:
+                if editorial == new_value:
+                    normalized[prev_i] = raw
+                continue
             cleaned = _embedded_meta_insertion_cleaner(prev_value, new_value)
             if cleaned is None:
                 cleaned = _camel_hump_token_cleaner(prev_value, new_value)
@@ -587,7 +615,9 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
                 elif previous in _slash_alternative_variants(proposed):
                     resolved = previous
                 else:
-                    resolved = _embedded_meta_insertion_cleaner(previous, proposed)
+                    resolved = _editorial_slash_candidate(previous, proposed)
+                    if resolved is None:
+                        resolved = _embedded_meta_insertion_cleaner(previous, proposed)
                     if resolved is None:
                         resolved = _camel_hump_token_cleaner(previous, proposed)
                     if resolved is None:
