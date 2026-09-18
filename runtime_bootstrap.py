@@ -186,4 +186,13 @@ server_source = server_source.replace(quiz_parallel, "                if False a
 server_source = server_source.replace(quiz_single_count, "                        count=requested_count,\n", 1)
 server_path.write_text(server_source, encoding="utf-8")
 
+import os as _os
+if _os.getenv("AULAAI_QUALITY_PREFLIGHT", "").strip().lower() in ("1", "true", "on", "yes"):
+    from services.authoring.quality_gate import provider_preflight as _quality_provider_preflight
+    _rows = _quality_provider_preflight()
+    print("[QUALITY-PREFLIGHT] PASS " + " | ".join(
+        f"{row['model']} {row['seconds']:.2f}s ${row['cost']:.5f}"
+        for row in _rows
+    ))
+
 runpy.run_path(str(ROOT/"server.py"),run_name="__main__")
