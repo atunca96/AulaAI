@@ -53,11 +53,11 @@ orig_repair=Q.R.repair_lesson
 def fake_call(**kwargs):
     calls.append((kwargs["stage"], kwargs["payload"]))
     stage=kwargs["stage"]
-    if stage.startswith("luna_lessons:"):
+    if stage.startswith("review_lessons:"):
         payload=kwargs["payload"]
         assert payload["topics"][0]["render_contract_blockers"]
         return {"topics":[{"topic_id":"lesson-1","verdict":"ok","patches":[]}]}
-    if stage.startswith("luna_blocker_retry:"):
+    if stage.startswith("review_blocker_retry:"):
         payload=kwargs["payload"]
         assert payload["topics"][0]["render_contract_blockers"]
         return {"topics":[{"topic_id":"lesson-1","verdict":"fix","patches":[{
@@ -89,7 +89,7 @@ assert applied==1
 assert topic["content"]["pages"][1]["prompt"]==good_prompt
 assert not Q._topic_render_blockers(topic["content"])
 assert [stage for stage,_ in calls]==[
-    "luna_lessons:Professions and Family",
-    "luna_blocker_retry:Professions and Occupations",
+    "review_lessons:Professions and Family",
+    "review_blocker_retry:Professions and Occupations",
 ]
 print("[REVIEW-RECONCILE] nullable-old + lesson renderer repair regression PASSED")
