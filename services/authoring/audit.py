@@ -380,6 +380,20 @@ def audit_item(item: Dict[str, Any], *, language: str = "", track: str = "tr",
     if isinstance(options, list) and options and _normalise_option(answer) not in set(keys):
         add("answer_not_in_options", BLOCK, field="answer")
 
+    # When both wire representations exist they must describe the same three
+    # wrong choices. A semantic reviewer that changes options but forgets the
+    # stored distractors otherwise creates a page whose renderer and auditor can
+    # disagree about what the learner is answering.
+    if isinstance(options, list) and isinstance(raw_d, list) and answer:
+        option_wrong = sorted(
+            _normalise_option(o) for o in options
+            if str(o).strip() and _normalise_option(o) != _normalise_option(answer)
+        )
+        stored_wrong = sorted(_normalise_option(d) for d in distractors)
+        if option_wrong != stored_wrong:
+            add("option_distractor_mismatch", BLOCK, field="distractors",
+                detail="options minus the key do not equal stored distractors")
+
     # One option is another one misspelt, among otherwise distinct forms. A
     # healthy set is either ONE word in competing spellings (a spelling item) or
     # four genuinely different forms; anything between the two is a typo
@@ -485,9 +499,13 @@ def _audit_typed_strings(node: Any, *, language: str, track: str,
         if spec.role == S.NOTATION:
             stray = S.stray_ipa_codepoints(text)
             if stray:
-                repairable = all(ch in S.GREEK_TO_IPA for ch in stray)
+                # A look-alike Unicode character is not safely repairable from
+                # shape alone. Greek epsilon might have been intended as [e] or
+                # [ɛ], for example; silently choosing one can create a valid-IPA
+                # string that is linguistically false. Block it and let the
+                # semantic reviewer correct the transcription from the word.
                 out.append(Finding(
-                    "non_ipa_in_transcription", REPAIR if repairable else BLOCK,
+                    "non_ipa_in_transcription", BLOCK,
                     path=path, field=field, role=spec.role,
                     detail="not IPA: " + " ".join(f"U+{ord(c):04X} {c!r}" for c in stray),
                     value=text))

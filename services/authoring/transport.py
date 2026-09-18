@@ -173,7 +173,8 @@ def _usage_of(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
                temperature: float = 0.6, model: str = "", cache_system: bool = True,
-               timeout: Optional[int] = None, attempts: int = 3) -> Response:
+               timeout: Optional[int] = None, attempts: int = 3,
+               reasoning_effort: Optional[str] = None) -> Response:
     """One call. Returns a Response whatever happens — never raises for a bad answer."""
     target = model or _budget.MODEL
     key = os.getenv("OPENROUTER_API_KEY", "")
@@ -199,14 +200,13 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
     if "gemini" in target.lower() or "google" in target.lower():
         payload["temperature"] = float(temperature)
         payload["provider"] = {"order": ["Google AI Studio", "Google"], "allow_fallbacks": True}
-        payload["reasoning"] = {"effort": "low"}
-    elif target == "openai/gpt-5.6-terra":
-        # Use Terra's live synchronous endpoint. The 50%-off $1/$6 listing is
-        # the asynchronous batch route and cannot satisfy this request/response
-        # classroom path; capping online calls at that price filters every live
-        # endpoint and forces the curriculum skeleton fallback.
+        payload["reasoning"] = {"effort": reasoning_effort or "low"}
+    elif target.lower().startswith("openai/gpt-5.6-"):
+        # OpenAI reasoning models reject/ignore sampling controls in several
+        # provider paths. Keep the live route simple and let callers explicitly
+        # spend more reasoning only where quality review needs it.
         payload["provider"] = {"sort": "throughput"}
-        payload["reasoning"] = {"effort": "low"}
+        payload["reasoning"] = {"effort": reasoning_effort or "low"}
     else:
         payload["temperature"] = float(temperature)
 

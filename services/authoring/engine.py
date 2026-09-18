@@ -147,6 +147,7 @@ _EXPLAIN = {
     "distractor_count": "an item did not have exactly three distractors",
     "missing_stem": "an item had no question", "missing_answer": "an item had no answer",
     "answer_not_in_options": "the keyed answer was not among the options",
+    "option_distractor_mismatch": "stored options and distractors disagree",
 }
 
 

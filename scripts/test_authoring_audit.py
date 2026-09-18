@@ -46,7 +46,8 @@ def test_greek_inside_ipa():
         {"pages": [{"type": "vocabulary", "items": [{"term": "gente", "phonetic": "ˈxεnte"}]}]},
         language="Spanish")
     hit2 = [f for f in epsilon_only if f.code == "non_ipa_in_transcription"][0]
-    check(hit2.severity == A.REPAIR, "an unambiguous stray (ε -> ɛ) is marked repairable")
+    check(hit2.severity == A.BLOCK,
+          "a look-alike stray blocks because Unicode shape cannot prove the intended phoneme")
 
     clean = {"pages": [{"type": "vocabulary", "items": [
         {"term": "cena", "phonetic": "ˈθena", "translation_tr": "akşam yemeği"},

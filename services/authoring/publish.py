@@ -179,18 +179,22 @@ def load_publishable_content(raw: Any, language: Optional[str] = None,
         kept: List[Any] = []
         dropped: List[Dict[str, str]] = []
         for index, page in enumerate(pages):
-            if isinstance(page, dict) and \
-                    str(page.get("type") or "").strip().casefold() == "mcq":
-                blocking = A.blocking(A.audit_item(page, language=language or "",
-                                                   track=material_language))
-                # Only STRUCTURAL invalidity removes a page. A question whose
-                # rationale is missing a translation still teaches; one whose key
-                # is not among its options cannot be answered at all.
-                fatal = [f for f in blocking if f.code in _UNANSWERABLE]
-                if fatal:
-                    dropped.append({"index": str(index),
-                                    "why": ",".join(f.code for f in fatal)})
-                    continue
+            fatal = []
+            if isinstance(page, dict):
+                # Defence in depth. Fresh classrooms pass the semantic quality
+                # gate before READY, but old/stale stored material can still be
+                # rendered. Never print a page carrying provably corrupt IPA,
+                # invented forms or an unanswerable MCQ.
+                page_findings = A.blocking(A.audit_lesson(
+                    {"pages": [page]}, language=language or "",
+                    track=material_language,
+                ))
+                fatal = [f for f in page_findings if
+                         f.code in (_UNANSWERABLE | _NEVER_RENDER)]
+            if fatal:
+                dropped.append({"index": str(index),
+                                "why": ",".join(sorted({f.code for f in fatal}))})
+                continue
             kept.append(page)
         data["pages"] = kept
         if dropped:
@@ -204,6 +208,12 @@ def load_publishable_content(raw: Any, language: Optional[str] = None,
 _UNANSWERABLE = frozenset({
     "missing_stem", "missing_answer", "distractor_count", "duplicate_options",
     "empty_option", "answer_not_in_options", "not_an_object",
+})
+
+_NEVER_RENDER = frozenset({
+    "non_ipa_in_transcription", "respelling_in_notation", "unicode_corruption",
+    "self_contradicting_transcription", "partial_transcription_column",
+    "invented_form_taught",
 })
 
 

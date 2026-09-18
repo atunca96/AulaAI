@@ -554,10 +554,11 @@ def test_boundary():
         {"type": "mcq", "prompt": "Broken", "answer": "X", "options": ["X", "X"]},
     ]}, ensure_ascii=False)
     out = PUB.load_publishable_content(stored, language="Spanish", material_language="tr")
-    check(len(out["pages"]) == 2, "the unanswerable item is dropped")
-    check(out["pages"][0]["items"][0]["phonetic"] == "ˈxɛnte", "the transcription is repaired")
-    check(out["pages"][0]["items"][0]["example"] == "¿Qué comes?", "the example is repaired")
-    check(out["pages"][1]["prompt"] == "¿Cómo estás?", "the question opens correctly")
+    check(len(out["pages"]) == 1, "corrupt IPA and the unanswerable item are both dropped")
+    check(out["pages"][0]["prompt"] == "¿Cómo estás?", "the surviving question is safely repaired")
+    dropped = {row.get("why", "") for row in out.get("_dropped_items", [])}
+    check(any("non_ipa_in_transcription" in why for why in dropped),
+          "non-IPA look-alikes can never reach the renderer")
     check(PUB.load_publishable_content("")["pages"] == [], "empty input is safe")
     check(PUB.load_publishable_content("not json")["pages"] == [], "unparseable input is safe")
 

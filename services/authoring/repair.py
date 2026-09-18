@@ -127,21 +127,16 @@ def _clean_characters(text: str) -> str:
 
 
 def _repair_transcription(text: str) -> Tuple[str, bool]:
-    """Map unambiguous non-IPA Greek to the IPA character it stands for.
+    """Never guess a phoneme from a Unicode look-alike.
 
-    Returns ``(text, fully_repaired)``. When any stray has no unambiguous IPA
-    counterpart — Greek alpha, which could be `a` or `ɑ` — nothing is changed
-    and the caller is told, so the field is regenerated rather than guessed.
+    A Greek epsilon in a Spanish transcription can visually resemble either
+    intended [e] or [ɛ]; turning it into one deterministically makes the string
+    syntactically valid while potentially making the lesson factually wrong.
+    Mechanical repair therefore only accepts already-clean IPA. The semantic
+    quality gate owns corrections that require knowing the word and variety.
     """
     stray = S.stray_ipa_codepoints(text)
-    if not stray:
-        return text, True
-    if any(ch not in S.GREEK_TO_IPA for ch in stray):
-        return text, False
-    out = text
-    for ch in stray:
-        out = out.replace(ch, S.GREEK_TO_IPA[ch])
-    return out, not S.stray_ipa_codepoints(out)
+    return (text, not stray)
 
 
 def repair_text(text: str, spec: S.FieldSpec, profile: Optional[S.ScriptProfile]) -> str:
