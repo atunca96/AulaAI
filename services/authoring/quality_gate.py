@@ -907,6 +907,24 @@ Hard contract:
 - Return JSON only: {"value":"NON-EMPTY REPLACEMENT","reason":"brief reason"}.
 """
 
+_EXACT_DUPLICATE_STEM_REPAIR_SYSTEM = """You repair exactly ONE learner-visible
+MCQ stem because AulaAI's deterministic publication proof found the same
+normalized stem elsewhere in the classroom.
+
+Hard contract:
+- Return ONLY one replacement string for the existing stem field.
+- Write the stem in the taught language.
+- Preserve the keyed answer, options and distractors exactly.
+- Keep the same CEFR level and the same skill/fact being tested, but phrase the
+  question so it is genuinely distinct from every forbidden duplicate stem.
+- The replacement must still have exactly one defensible answer using only the
+  visible item context and taught material. Do not introduce outside knowledge.
+- Do not change structure, numbering, answer key or choices.
+- Do not use cosmetic blank-length changes, punctuation-only changes, or
+  underscore-count changes to fake uniqueness.
+- Return JSON only: {"value":"NON-EMPTY REPLACEMENT","reason":"brief reason"}.
+"""
+
 _ASSESSMENT_REVIEW_SYSTEM = """You are AulaAI's independent assessment examiner.
 The lesson material and a ten-question unit assessment were authored by another
 model. Verify ALL ten questions against the unit evidence.
@@ -2060,6 +2078,162 @@ def _missing_bilingual_pairs(node: Any, *, path: Tuple[Any, ...] = (),
                 value, path=path + (index,), page_level=page_level
             ))
     return missing
+
+
+def _duplicate_mcq_occurrences(units: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+    """Return exact cross-topic MCQ duplicate groups using publication stem normalization."""
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for unit in units:
+        for topic in unit.get("topics") or []:
+            content = topic.get("content")
+            pages = content.get("pages") if isinstance(content, dict) else None
+            for page_index, page in enumerate(pages or []):
+                if not isinstance(page, dict) or str(page.get("type") or "").casefold() != "mcq":
+                    continue
+                stem_key = next(
+                    (key for key in ("prompt", "question", "stem")
+                     if isinstance(page.get(key), str) and page.get(key).strip()),
+                    None,
+                )
+                if not stem_key:
+                    continue
+                stem = str(page[stem_key]).strip()
+                key = _stem_key(stem)
+                if not key:
+                    continue
+                groups.setdefault(key, []).append({
+                    "unit": str(unit.get("title") or ""),
+                    "topic": topic,
+                    "page_index": page_index,
+                    "page": page,
+                    "stem_key": stem_key,
+                    "stem": stem,
+                })
+    return [rows for rows in groups.values() if len(rows) > 1]
+
+
+def repair_duplicate_mcq_stems(*, units: List[Dict[str, Any]], language: str,
+                               level: str, track: str, budget: ReviewBudget) -> int:
+    """Repair exact cross-topic duplicate stems before final publication proof.
+
+    Broad review is local to one lesson/unit, so two individually valid MCQs can
+    still collide globally. Keep the first occurrence stable and repair later
+    occurrences one exact stem at a time, then re-run deterministic audit and
+    renderer checks. Structural or unresolved duplicates still fail closed.
+    """
+    profile = S.profile_for_language(language)
+    applied = 0
+
+    for _round in range(4):
+        duplicates = _duplicate_mcq_occurrences(units)
+        if not duplicates:
+            return applied
+
+        changed = 0
+        for group in duplicates:
+            forbidden = [row["stem"] for row in group]
+            for row in group[1:]:
+                topic = row["topic"]
+                page = row["page"]
+                page_index = row["page_index"]
+                stem_key = row["stem_key"]
+                before = str(page[stem_key]).strip()
+
+                context = {}
+                for key in (
+                    "type", "title", "title_tr", "prompt", "question", "stem",
+                    "answer", "options", "choices", "distractors",
+                    "why", "why_tr", "target", "term", "word", "example",
+                    "translation", "translation_tr",
+                ):
+                    value = page.get(key)
+                    if value not in (None, "", []):
+                        context[key] = value
+
+                payload = {
+                    "taught_language": language,
+                    "level": level,
+                    "regional_variety": profile.variety if profile else "",
+                    "unit": row["unit"],
+                    "topic_title": str(topic.get("title") or ""),
+                    "path": ["pages", page_index, stem_key],
+                    "field": stem_key,
+                    "current_value": before,
+                    "forbidden_duplicate_stems": forbidden,
+                    "immutable_page_context": context,
+                }
+                data = _call_review(
+                    model=REPAIR_MODEL,
+                    system=_EXACT_DUPLICATE_STEM_REPAIR_SYSTEM,
+                    payload=payload,
+                    max_tokens=700,
+                    effort="low",
+                    budget=budget,
+                    stage=(
+                        f"review_duplicate_stem:{topic.get('title')}:"
+                        f"pages.{page_index}.{stem_key}"
+                    ),
+                    response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+                    response_name="duplicate_stem_repair",
+                )
+                replacement = data.get("value")
+                if not isinstance(replacement, str) or not replacement.strip():
+                    raise QualityGateError(
+                        f"{topic.get('title')}: duplicate-stem repair returned empty value"
+                    )
+                replacement = replacement.strip()
+                if _stem_key(replacement) == _stem_key(before):
+                    raise QualityGateError(
+                        f"{topic.get('title')}: duplicate-stem repair made no semantic stem change"
+                    )
+
+                _set_path(
+                    topic["content"],
+                    ["pages", page_index, stem_key],
+                    replacement,
+                    old=before,
+                )
+                R.repair_lesson(topic["content"], language=language)
+
+                blockers = A.blocking(
+                    _audit_topic(topic, language=language, track=track)
+                )
+                if blockers:
+                    raise QualityGateError(
+                        f"{topic.get('title')}: duplicate-stem repair introduced blockers: "
+                        f"{A.summarise(blockers)}"
+                    )
+                render = _topic_render_blockers(topic["content"])
+                if render:
+                    detail = "; ".join(
+                        f"page {x['page_index']} {x['locale']}: {x['why']}"
+                        for x in render[:4]
+                    )
+                    raise QualityGateError(
+                        f"{topic.get('title')}: duplicate-stem repair broke renderer contract — "
+                        f"{detail}"
+                    )
+
+                applied += 1
+                changed += 1
+
+        if not changed:
+            break
+
+    remaining = _duplicate_mcq_occurrences(units)
+    if remaining:
+        examples = [
+            " <> ".join(
+                f"{r['unit']} / {r['topic'].get('title')} / {r['stem']}"
+                for r in group[:2]
+            )
+            for group in remaining[:4]
+        ]
+        raise QualityGateError(
+            "exact duplicate MCQ stems remain after targeted duplicate repair: "
+            + " | ".join(examples)
+        )
+    return applied
 
 
 def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str,

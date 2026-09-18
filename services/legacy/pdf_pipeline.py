@@ -912,6 +912,19 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     if final_repair_patches:
         _log(f"[QUALITY-GATE] final targeted repair applied {final_repair_patches} patch(es).")
 
+    duplicate_stem_patches = Q.repair_duplicate_mcq_stems(
+        units=reviewed_units,
+        language=language,
+        level=level,
+        track=material_language,
+        budget=budget,
+    )
+    if duplicate_stem_patches:
+        _log(
+            f"[QUALITY-GATE] duplicate-stem repair applied "
+            f"{duplicate_stem_patches} patch(es)."
+        )
+
     # Prove that the exact post-review objects still contain ten questions per
     # unit, complete EN/TR pairs, no duplicate MCQ stems, and nothing either
     # renderer would silently discard. Only then may the database ever reach READY.
@@ -960,13 +973,15 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     _log(
         f"[QUALITY-GATE] PASS lesson_patches={lesson_patches} "
         f"assessment_patches={assessment_patches} "
-        f"final_repair_patches={final_repair_patches}; "
+        f"final_repair_patches={final_repair_patches} "
+        f"duplicate_stem_patches={duplicate_stem_patches}; "
         + Q.gate_summary(budget)
     )
     return {
         "lesson_patches": lesson_patches,
         "assessment_patches": assessment_patches,
         "final_repair_patches": final_repair_patches,
+        "duplicate_stem_patches": duplicate_stem_patches,
         "review_cost": budget.spent,
     }
 
