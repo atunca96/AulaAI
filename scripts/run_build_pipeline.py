@@ -52,6 +52,7 @@ VERIFICATION_STEPS = [
     # by Gemini is handed to one bounded targeted Gemini repair before publication.
     "scripts/test_assessment_render_repair.py",
     "scripts/test_review_schema_provider_compat.py",
+    "scripts/test_gemini_no_reasoning.py",
     "scripts/test_unit_assessment_rescue.py",
     "scripts/test_semantic_patch_reconciliation.py",
     "scripts/test_review_reconciliation_v2.py",
