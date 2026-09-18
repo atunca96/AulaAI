@@ -600,6 +600,25 @@ Hard contract:
 - Return JSON only: {"value":"NON-EMPTY REPLACEMENT","reason":"brief reason"}.
 """
 
+_EXACT_RENDER_STEM_REPAIR_SYSTEM = """You repair exactly ONE MCQ stem that
+failed AulaAI's deterministic renderer contract.
+
+Hard contract:
+- Return ONLY one replacement string for the existing stem field.
+- Write the stem in the taught language.
+- Preserve the existing keyed answer, options and distractors.
+- The question must be answerable from the visible stem itself or from an
+  explicit country→nationality fact already present in the immutable page
+  context. Do NOT require the learner to infer nationality/identity from a
+  person's birthplace, residence, job, biography, name, or cultural background.
+- For a country/nationality item, prefer a direct vocabulary mapping question
+  (for example: country → nationality) instead of a biographical identity
+  question when that removes the inference.
+- Do not reveal the keyed answer verbatim unless the original task already does.
+- Keep the CEFR level and pedagogical intent.
+- Return JSON only: {"value":"NON-EMPTY REPLACEMENT","reason":"brief reason"}.
+"""
+
 _ASSESSMENT_REVIEW_SYSTEM = """You are AulaAI's independent assessment examiner.
 The lesson material and a ten-question unit assessment were authored by another
 model. Verify ALL ten questions against the unit evidence.
@@ -725,6 +744,101 @@ def _topic_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
             })
     return blockers
 
+
+
+def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
+                                      level: str, budget: ReviewBudget,
+                                      blockers: Sequence[Dict[str, Any]]) -> int:
+    """Repair residual MCQ renderer blockers one stem at a time.
+
+    Generic lesson review may understand the semantic issue yet still leave a
+    renderer-only invariant unresolved. For identity/biographical inference,
+    patching the exact stem is sufficient and avoids a terminal refusal after a
+    successful model call.
+    """
+    content = topic.get("content")
+    pages = content.get("pages") if isinstance(content, dict) else None
+    if not isinstance(pages, list):
+        return 0
+
+    profile = S.profile_for_language(language)
+    by_page: Dict[int, List[Dict[str, Any]]] = {}
+    for row in blockers or []:
+        if not isinstance(row, dict):
+            continue
+        try:
+            page_index = int(row.get("page_index"))
+        except (TypeError, ValueError):
+            continue
+        by_page.setdefault(page_index, []).append(row)
+
+    applied = 0
+    for page_index, page_blockers in sorted(by_page.items()):
+        if page_index < 0 or page_index >= len(pages):
+            continue
+        page = pages[page_index]
+        if not isinstance(page, dict):
+            continue
+
+        stem_key = next(
+            (key for key in ("prompt", "question", "stem")
+             if isinstance(page.get(key), str) and page.get(key).strip()),
+            None,
+        )
+        if not stem_key:
+            continue
+
+        before = str(page[stem_key]).strip()
+        context = {}
+        for key in (
+            "type", "title", "title_tr", "prompt", "question", "stem",
+            "answer", "options", "choices", "distractors",
+            "target", "term", "word", "example",
+            "translation", "translation_tr",
+        ):
+            value = page.get(key)
+            if value not in (None, "", []):
+                context[key] = value
+
+        payload = {
+            "taught_language": language,
+            "level": level,
+            "regional_variety": profile.variety if profile else "",
+            "topic_title": str(topic.get("title") or ""),
+            "path": ["pages", page_index, stem_key],
+            "field": stem_key,
+            "current_value": before,
+            "renderer_contract_blockers": list(page_blockers),
+            "immutable_page_context": context,
+        }
+        data = _call_review(
+            model=REPAIR_MODEL,
+            system=_EXACT_RENDER_STEM_REPAIR_SYSTEM,
+            payload=payload,
+            max_tokens=700,
+            effort="low",
+            budget=budget,
+            stage=(
+                f"review_render_exact:{topic.get('title')}:"
+                f"pages.{page_index}.{stem_key}"
+            ),
+            response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+            response_name="lesson_render_exact_stem_repair",
+        )
+        replacement = data.get("value")
+        if not isinstance(replacement, str) or not replacement.strip():
+            raise QualityGateError(
+                f"renderer exact repair returned empty stem for "
+                f"{topic.get('title')} page {page_index}"
+            )
+        replacement = replacement.strip()
+        if replacement == before:
+            continue
+
+        _set_path(content, ["pages", page_index, stem_key], replacement, old=before)
+        applied += 1
+
+    return applied
 
 def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                                    language: str, level: str, track: str,
@@ -1148,12 +1262,24 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                     )
             still_render = _topic_render_blockers(topic.get("content"))
             if still_render:
+                applied += _repair_topic_render_stems_exact(
+                    topic=topic,
+                    language=language,
+                    level=level,
+                    budget=budget,
+                    blockers=still_render,
+                )
+                R.repair_lesson(topic["content"], language=language)
+                still_render = _topic_render_blockers(topic.get("content"))
+
+            if still_render:
                 detail = "; ".join(
                     f"page {row['page_index']} {row['locale']}: {row['why']}"
                     for row in still_render[:4]
                 )
                 raise QualityGateError(
-                    f"{topic.get('title')}: renderer-contract blockers remain after semantic repair — {detail}"
+                    f"{topic.get('title')}: renderer-contract blockers remain after "
+                    f"dedicated exact stem repair — {detail}"
                 )
 
         # Bilingual completeness is a publication invariant but not every missing
