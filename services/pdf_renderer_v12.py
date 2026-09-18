@@ -1184,9 +1184,27 @@ def render_course_pdf(course_id: str, lang: str = 'en',
             chapter_prefix_pending = unit_html
             for _top_id, top_type, top_title, top_title_tr, content in parsed_topics:
                 display_top = _localized_title(top_title, is_tr, content, title_maps, top_title_tr)
+                topic_label = display_top or ("Konu" if is_tr else "Topic")
+                # An assessment topic is already named by its own title, so the
+                # generic kind label and a first page repeating that title print
+                # the same heading two or three times over. Presentation only:
+                # nothing stored is touched, numbering and pages are untouched,
+                # and ordinary topics keep every heading they had. Matching is
+                # normalized against the titles this topic actually carries, in
+                # either stored locale, rather than against any literal label.
+                _assessment_topic = 'assessment' in str(top_type or '').strip().lower()
+                _topic_title_keys = {
+                    _norm_key(value)
+                    for value in (topic_label, top_title, top_title_tr)
+                    if str(value or '').strip()
+                }
+                _kind_label = _kind(top_type, is_tr)
+                _kind_html = (
+                    '' if (_assessment_topic and _norm_key(_kind_label) in _topic_title_keys)
+                    else f'<div class="kind">{_e(_kind_label)}</div>'
+                )
                 topic_html = (
-                    f'<div class="topic">{_e(display_top or ("Konu" if is_tr else "Topic"))}</div>'
-                    f'<div class="kind">{_e(_kind(top_type, is_tr))}</div>'
+                    f'<div class="topic">{_e(topic_label)}</div>' + _kind_html
                 )
                 topic_prefix_pending = chapter_prefix_pending + topic_html
                 chapter_prefix_pending = ''
@@ -1223,6 +1241,12 @@ def render_course_pdf(course_id: str, lang: str = 'en',
                     else:
                         last_mcq_section = None
                         section = f'<div class="sec">{_e(title)}</div>' if title else ''
+                    # `topic_prefix_pending` is still set only on this topic's
+                    # first rendered page, which is the one that can repeat the
+                    # assessment heading immediately under it.
+                    if (_assessment_topic and topic_prefix_pending and section_key
+                            and section_key in _topic_title_keys):
+                        section = ''
                     prefix = topic_prefix_pending + section
                     topic_prefix_pending = ''
 

@@ -188,6 +188,10 @@ def _notation_block() -> str:
   'this one has no sound'.
 - Transcribe the same form the same way everywhere in the lesson. If one page says ⟨c⟩
   before e is [θ], no other page may name that letter [ˈse].
+- One convention for the whole course, not one per word. Inside the declared regional
+  variety, settle once on how you represent each phoneme distinction and hold to it
+  across every headword: do not mark a distinction in one word and drop it in the next,
+  and do not alternate between equivalent notations for the same phoneme.
 - If you are not confident of a transcription, omit the column from that table entirely
   rather than guessing at one row."""
 

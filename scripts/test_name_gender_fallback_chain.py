@@ -43,7 +43,12 @@ def check(condition, label):
 
 
 BAD_STEM = "Ana es ___. (profesor)"
-GOOD_STEM = "La mujer es ___. (profesor)"
+# A stem-only repair cannot touch the rationale, so it must not strand the
+# person there: a stem that drops "Ana" while the rationale still explains her
+# leaves the rationale citing someone the question no longer shows, which the
+# explanation-grounding safeguard then reports as its own blocker. The realistic
+# stem-only fix keeps the person and supplies the evidence explicitly.
+GOOD_STEM = "Ana es ___. (profesor) — the woman"
 
 
 def professions_topic():
@@ -136,8 +141,9 @@ check(seen.get("stem_payload") == BAD_STEM,
       f"({seen.get('stem_payload')!r})")
 
 print("\n[3] the fallback removed the dependency and the topic converged")
-check(page["prompt"] == GOOD_STEM, "the stem no longer introduces the person")
-check("Ana" not in page["prompt"], "the personal name is gone from the stem")
+check(page["prompt"] == GOOD_STEM, "the stem carries the explicit evidence")
+check(Q._ungrounded_explanation_names(page) == [],
+      "and the rationale is not left citing someone the stem dropped")
 for key in ("answer", "options", "distractors"):
     check(page[key] == page_before[key], f"{key} is unchanged")
 check(RC.page_is_renderable(page, True)[0] and RC.page_is_renderable(page, False)[0],

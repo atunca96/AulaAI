@@ -919,8 +919,17 @@ Check EVERY supplied rule/explanation/text record against the declared language
 and regional variety. In particular, actively search for standard
 counterexamples before accepting words such as always, never, only, every,
 must, cannot, asla, yalnızca, sadece, daima, değişmez or zorunlu. A broad rule
-that is true only for a subclass must be narrowed to that subclass. Preserve
-CEFR level and meaning. If one correction has paired English/Turkish fields,
+that is true only for a subclass must be narrowed to that subclass.
+
+Scope is a claim even when no absolute word appears. Read every statement for the
+set it quantifies over: a claim about a whole grammatical category asserts something
+about every member of it, so if it holds only for some forms, name that subset. Where
+exceptions materially exist, the claim must carry a qualifier (usually, often, most,
+in general) rather than reading as categorical. A sentence of the form "X does not
+depend on Y" is universal; if some members of X do depend on Y, it is wrong as
+written even though it contains no absolute word.
+
+Preserve CEFR level and meaning. If one correction has paired English/Turkish fields,
 patch both so they remain semantically equivalent.
 
 Return JSON only:
@@ -1152,6 +1161,108 @@ def _topic_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 
+# ── MCQ explanation grounding ────────────────────────────────────────────────
+# The answer key prints each stored rationale verbatim, so a rationale that
+# invents evidence teaches that evidence. Production shipped "Sara bir kadın
+# olduğu için…" under a stem that says only "Una mujer…", and "Lucía" under a
+# stem that names nobody at all.
+#
+# The deterministic half of that is small and needs no language knowledge: a
+# proper noun is spelled the same in every locale's rationale, while ordinary
+# words are not. A capitalised token that both rationales share, and that the
+# learner never sees in the stem, the options or the taught fields, is a person
+# the question does not show. The other half — a rationale that names someone
+# the stem DOES show and then claims their gender — is already
+# `render_contract`'s name/gender relation, and is left there rather than
+# re-implemented here.
+_EXPLANATION_GROUNDING_REASON = (
+    "explanation introduces a person the question does not show"
+)
+
+_GROUNDED_EVIDENCE_KEYS = (
+    "answer", "options", "choices", "distractors", "term", "word", "target",
+    "translation", "translation_tr", "translation_en", "title", "title_tr",
+)
+
+
+def _visible_evidence_tokens(page: Dict[str, Any]) -> set:
+    """Every token a learner can actually read on this item."""
+    from services.authoring import render_contract as RC
+
+    out: set = set()
+    for key in RC._V57_STEM_KEYS:
+        out |= set(RC._WORD_TOKEN.findall(RC._fold(page.get(key))))
+    for key in _GROUNDED_EVIDENCE_KEYS:
+        value = page.get(key)
+        if isinstance(value, dict):
+            value = list(value.values())
+        if not isinstance(value, (list, tuple)):
+            value = [value]
+        for item in value:
+            out |= set(RC._WORD_TOKEN.findall(RC._fold(item)))
+    return out
+
+
+def _ungrounded_explanation_names(page: Any) -> List[str]:
+    """Proper nouns a rationale introduces that the question never shows.
+
+    Cross-locale agreement is the lexicon-free test for "this is a name": the
+    same string appears in both rationales. "The"/"Soruda" do not survive it;
+    "Sara"/"Sara" do. An item carrying only one rationale cannot be judged this
+    way and is left alone.
+    """
+    from services.authoring import render_contract as RC
+
+    if not isinstance(page, dict) or not RC.mcq_like(page):
+        return []
+
+    per_locale = []
+    for keys in (_NAME_GENDER_EN_KEYS, _NAME_GENDER_TR_KEYS):
+        found: set = set()
+        present = False
+        for key in keys:
+            text = page.get(key)
+            if not isinstance(text, str) or not text.strip():
+                continue
+            present = True
+            quoted = RC._quoted_common_tokens(text)
+            for raw in RC._WORD_TOKEN.findall(text):
+                if len(raw) < 3 or not raw[:1].isupper() or raw.isupper():
+                    continue
+                folded = RC._fold(raw)
+                if folded and folded not in quoted:
+                    found.add(folded)
+        if present:
+            per_locale.append(found)
+    if len(per_locale) < 2:
+        return []
+
+    visible = _visible_evidence_tokens(page)
+    return sorted(t for t in set.intersection(*per_locale) if t not in visible)
+
+
+def _explanation_grounding_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Rows shaped like renderer blockers, so the existing plumbing carries them."""
+    from services.authoring import render_contract as RC
+
+    pages = content.get("pages") if isinstance(content, dict) else None
+    out: List[Dict[str, Any]] = []
+    for page_index, page in enumerate(pages or []):
+        names = _ungrounded_explanation_names(page)
+        if not names:
+            continue
+        out.append({
+            "page_index": page_index,
+            "title": str(page.get("title") or f"page {page_index}"),
+            "locale": "both",
+            "why": _EXPLANATION_GROUNDING_REASON,
+            "detail": ", ".join(names),
+            "stem": RC.resolve_stem(page, True) or RC.resolve_stem(page, False),
+            "answer": str(page.get("answer") or ""),
+        })
+    return out
+
+
 def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
                                       level: str, budget: ReviewBudget,
                                       blockers: Sequence[Dict[str, Any]],
@@ -1322,6 +1433,10 @@ Hard contract:
 - Naming the grammatical category is expected and correct: say which stated
   word the answer agrees with and why. The forbidden move is grounding that in
   a person's name, not using grammatical vocabulary.
+- Justify the answer ONLY from what the question shows: its stem, its options,
+  or vocabulary the lesson teaches. Never introduce a person, a place or any
+  other fact the learner cannot see — if the stem names nobody, your rationale
+  names nobody. This text is printed verbatim in the answer key.
 - Keep the CEFR level, the pedagogical point and the register. Do not add
   labels, commentary, markdown or alternatives.
 - Return JSON only: {"stem":"...","explanation_en":"...",
@@ -1438,6 +1553,13 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
                 f"{topic.get('title')}: name/gender page repair still refused in "
                 f"the {'tr' if is_tr else 'en'} export for page {page_index}: {why}"
             )
+    ungrounded = _ungrounded_explanation_names(probe)
+    if ungrounded:
+        return reject(
+            f"{topic.get('title')}: name/gender page repair left {ungrounded} "
+            f"in the rationale without showing it in the question on page "
+            f"{page_index}"
+        )
     for key in ("answer", "options", "choices", "distractors"):
         if probe.get(key) != page.get(key):
             return reject(
@@ -2198,6 +2320,9 @@ def _detect_topic_blockers(topic: Dict[str, Any], *, language: str, track: str,
     for row in _topic_render_blockers(content):
         grouped.setdefault((row.get("page_index"), str(row.get("why") or "")),
                            []).append(row)
+    for row in _explanation_grounding_blockers(content):
+        grouped.setdefault((row.get("page_index"), str(row.get("why") or "")),
+                           []).append(row)
     for (page_index, why), rows in grouped.items():
         render.append({
             "kind": "render",
@@ -2213,7 +2338,9 @@ def _detect_topic_blockers(topic: Dict[str, Any], *, language: str, track: str,
             # rather than a dead end when the page repair cannot converge.
             "strategies": (
                 ["render_name_gender", "render_stem"]
-                if why == _name_gender_reason() else ["render_stem"]
+                if why == _name_gender_reason()
+                else ["render_name_gender"]
+                if why == _EXPLANATION_GROUNDING_REASON else ["render_stem"]
             ),
         })
 
@@ -2846,6 +2973,14 @@ def _assessment_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]
                      page.get("explanation") or "")
                 ),
             })
+    # The answer key prints these rationales verbatim, so an ungrounded one is
+    # a publication defect the examiner must be told about, in the same shape.
+    for row in _explanation_grounding_blockers(content):
+        blockers.append(dict(row, question=1 + sum(
+            1 for i, p in enumerate(pages or [])
+            if i < row["page_index"] and isinstance(p, dict)
+            and str(p.get("type") or "").casefold() == "mcq"
+        )))
     return blockers
 
 

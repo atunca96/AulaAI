@@ -183,6 +183,26 @@ check(all(len(kw["payload"]["topics"]) == 1 for kw in CALL_KWARGS),
       "and each call still carries exactly one topic")
 
 
+# Scope is a claim even without an absolute word. The published course carried
+# "possessive adjectives do not depend on the possessor", which is universal
+# over a category while being true only of a subset — and contains none of the
+# absolute words the prompt already lists.
+SYSTEM = Q._RISK_REVIEW_SYSTEM
+check("Scope is a claim even when no absolute word appears" in SYSTEM,
+      "the risk prompt asks for scope to be challenged without absolute words")
+check("name that subset" in SYSTEM,
+      "and requires a category claim true of only some forms to be narrowed")
+check("qualifier" in SYSTEM and "usually" in SYSTEM,
+      "and requires a qualifier where exceptions materially exist")
+# The scope paragraph itself names no language, level or grammatical category.
+# (The prompt's pre-existing "paired English/Turkish fields" line is about the
+# bilingual field pair, not a taught-language branch.)
+SCOPE_PARAGRAPH = SYSTEM.split("Scope is a claim", 1)[1].split("\n\n", 1)[0]
+for token in ("Spanish", "Turkish", "English", "A1", "A2", "B1", "possessive"):
+    check(token not in SCOPE_PARAGRAPH,
+          f"no {token!r} in the new scope requirement")
+
+
 print("\n[4] a wrong or missing topic_id still fails closed")
 for label, response in (
     ("another topic's id", {"topics": [{"topic_id": "t9", "verdict": "ok",
