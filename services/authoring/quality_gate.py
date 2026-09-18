@@ -348,6 +348,8 @@ Return JSON only:
 
 Contract:
 - Return exactly one entry for EVERY topic_id supplied.
+- Any supplied English/Turkish counterpart whose value is empty is a blocking
+  completeness defect. Fill it from its non-empty semantic pair.
 - Use only paths that appear in the supplied records.
 - Copy old exactly, byte for byte.
 - Patch only genuine correctness/naturalness problems. No cosmetic rewrites.
@@ -384,8 +386,10 @@ Return JSON only:
  ]}
 
 The overview is pages[0]; assessment question 1 is pages[1], question 10 is
-pages[10]. Use only supplied paths, copy old exactly, and make the smallest
-correction that yields one unambiguously correct answer. Keep answer/options/
+pages[10]. Any supplied English/Turkish counterpart whose value is empty must
+be filled from the non-empty semantic pair. Use only supplied paths, copy old
+exactly, and make the smallest correction that yields one unambiguously correct
+answer. Keep answer/options/
 distractors mutually consistent. No cosmetic rewrites.
 """
 
@@ -457,7 +461,10 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         return 0
     by_id = {str(t["id"]): t for t in topics}
     payload_topics = []
+    canonical = S.canonical_language(language)
     for topic in topics:
+        if canonical not in ("English", "Turkish"):
+            _ensure_bilingual_slots(topic.get("content"))
         findings = _audit_topic(topic, language=language, track=track)
         payload_topics.append({
             "topic_id": str(topic["id"]),
@@ -561,6 +568,8 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     content = assessment_topic.get("content")
     if not isinstance(content, dict):
         raise QualityGateError(f"{unit_title}: assessment has no content")
+    if S.canonical_language(language) not in ("English", "Turkish"):
+        _ensure_bilingual_slots(content)
     pages = content.get("pages")
     mcq_pages = [p for p in (pages or []) if isinstance(p, dict) and
                  str(p.get("type") or "").casefold() == "mcq"]
@@ -738,6 +747,33 @@ def _stem_key(text: str) -> str:
         cat = unicodedata.category(ch)
         chars.append(ch if (ch.isalnum() or cat.startswith("M")) else " ")
     return re.sub(r"\s+", " ", "".join(chars)).strip()
+
+
+def _ensure_bilingual_slots(node: Any, *, page_level: bool = False) -> None:
+    """Create only missing counterpart slots so a reviewer can repair them.
+
+    The semantic model is still forbidden to invent arbitrary structure. This
+    deterministic preparation adds an empty key only when its paired EN/TR key
+    already exists with content, giving the reviewer an exact path and an exact
+    old value to patch.
+    """
+    if isinstance(node, dict):
+        pairs = list(_BILINGUAL_PAIRS)
+        if page_level or "type" in node:
+            pairs.append(("text", "text_tr"))
+        for left, right in pairs:
+            left_present = left in node and bool(str(node.get(left) or "").strip())
+            right_present = right in node and bool(str(node.get(right) or "").strip())
+            if left_present and right not in node:
+                node[right] = ""
+            elif right_present and left not in node:
+                node[left] = ""
+        for key, value in list(node.items()):
+            if isinstance(value, (dict, list)):
+                _ensure_bilingual_slots(value, page_level=(key == "pages"))
+    elif isinstance(node, list):
+        for value in node:
+            _ensure_bilingual_slots(value, page_level=page_level)
 
 
 def _missing_bilingual_pairs(node: Any, *, path: Tuple[Any, ...] = (),
