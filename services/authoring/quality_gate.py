@@ -358,6 +358,34 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
         current = _get_path(content, path)
         proposed = raw.get("value")
         old = raw.get("old")
+
+        # Structured reviewers occasionally emit an empty replacement for an
+        # existing learner-facing field. Treat that as a rejected no-op rather
+        # than aborting the entire review: deleting learner-visible content is
+        # never allowed, and the deterministic re-audit immediately after this
+        # pass will still surface any blocker the skipped patch was meant to fix.
+        # This preserves fail-closed publication while making harmless provider
+        # patch noise non-fatal.
+        if isinstance(current, str) and (
+            not isinstance(proposed, str) or not proposed.strip()
+        ):
+            print(
+                f"[QUALITY-PATCH] IGNORE empty/non-string replacement at "
+                f"{topic_id} {list(path)!r}",
+                flush=True,
+            )
+            continue
+        if isinstance(current, list) and all(isinstance(v, str) for v in current):
+            if not isinstance(proposed, list) or not proposed or not all(
+                isinstance(v, str) and v.strip() for v in proposed
+            ):
+                print(
+                    f"[QUALITY-PATCH] IGNORE empty/invalid list replacement at "
+                    f"{topic_id} {list(path)!r}",
+                    flush=True,
+                )
+                continue
+
         # Reviewers occasionally emit a patch for a field that deterministic
         # repair already filled after the review records were prepared. If the
         # proposed value is byte-for-byte the value already present, the patch is
