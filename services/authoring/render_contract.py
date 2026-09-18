@@ -119,6 +119,24 @@ _ABSOLUTE_FREQUENCY = ("nikogda", "vsegda", "never", "always", "niemals", "immer
                        "никогда", "всегда")
 
 
+def _has_biography_marker(text: str, markers: Sequence[str]) -> bool:
+    """Whether text actually states a biographical fact.
+
+    Most entries are deliberate stems (for example Russian работ-) and therefore
+    use substring matching. Spanish nació folds to nacio, though, and that byte
+    sequence is also the beginning of nacionalidad. Treat that marker as a whole
+    word so asking about nationality is not itself mistaken for a birthplace fact.
+    """
+    for marker in markers:
+        if marker == "nacio":
+            if re.search(r"(?<!\\w)nacio(?!\\w)", text):
+                return True
+            continue
+        if marker in text:
+            return True
+    return False
+
+
 def unsafe_reason(page: Dict[str, Any], stem: str, is_tr: bool) -> str:
     """Why the renderer would refuse this item, or '' if it would print it."""
     if not isinstance(page, dict):
@@ -132,7 +150,7 @@ def unsafe_reason(page: Dict[str, Any], stem: str, is_tr: bool) -> str:
     if _NAME_WORDS.search(expl) and _GENDER_WORDS.search(expl) and not explicit_gender:
         return "answer depends on gender inferred from a personal name"
 
-    if any(marker in prompt for marker in _BIOGRAPHY) and _IDENTITY.search(expl):
+    if _has_biography_marker(prompt, _BIOGRAPHY) and _IDENTITY.search(expl):
         return "answer depends on an identity fact inferred from a biographical one"
 
     options = page.get("options") or page.get("choices") or []
@@ -219,7 +237,7 @@ def hidden_world_reason(page: Dict[str, Any]) -> str:
             and not explicit_gender:
         return "answer depends on gender inferred from a personal name"
 
-    if any(marker in prompt for marker in _V57_BIOGRAPHY) and _V57_IDENTITY.search(expl):
+    if _has_biography_marker(prompt, _V57_BIOGRAPHY) and _V57_IDENTITY.search(expl):
         return "answer depends on an identity fact inferred from a biographical one"
     return ""
 
