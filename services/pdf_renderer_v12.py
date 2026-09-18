@@ -10,6 +10,7 @@ import fitz
 
 from database import db_connection
 from services.authoring.legacy_text import safe_unicode_normalize, sanitize_dialogue_speaker
+from services.authoring import render_contract as _render_contract
 
 
 CSS = r'''
@@ -1016,6 +1017,12 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
             ch_id, ch_num, ch_title = ch[0], ch[1], ch[2]
             ch_title_tr = ch[3] if ch_has_tr and len(ch) > 3 else ''
             display_ch = _localized_title(ch_title, is_tr, None, title_maps, ch_title_tr)
+            # The heading supplies its own "Ünite N:" / "Unit N:". Since the
+            # curriculum planner began writing bilingual unit titles, a model
+            # asked for one very reasonably answers "Ünite 1: İlk Kelimeler",
+            # and the two prefixes stacked into
+            # "Ünite 1: Ünite 1: İlk Kelimeler ve Selamlaşma".
+            display_ch = _render_contract.strip_unit_prefix(display_ch)
             unit_html = f'<div class="unit">{"Ünite" if is_tr else "Unit"} {_e(ch_num)}: {_e(display_ch)}</div>'
 
             top_select = 'id, type, title' + (', title_tr' if top_has_tr else '') + ', content'
@@ -1165,12 +1172,18 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                             paginator.place_html(lead, gap=3, keep=True)
 
                     elif ptype == 'mcq':
-                        prompt = _mcq_prompt(page, is_tr)
-                        if not prompt:
-                            continue
-                        if _v54_pdf_unsafe_mcq(page, prompt, is_tr):
+                        # The decision to drop an item belongs to ONE place, and
+                        # this is not it. The publication gate calls the same
+                        # function before a course may become READY, so an item
+                        # this refuses can no longer reach a published PDF — it
+                        # is a build failure instead of a silently shorter
+                        # assessment. A Unit 3 shipped with eight of its ten
+                        # questions because these two lines once decided alone.
+                        renderable, _why = _render_contract.page_is_renderable(page, is_tr)
+                        if not renderable:
                             last_mcq_section = None
                             continue
+                        prompt = _render_contract.resolve_stem(page, is_tr)
                         question_counter += 1
                         raw_options = page.get('options') or page.get('choices') or []
                         if isinstance(raw_options, dict): raw_options = list(raw_options.values())
@@ -1597,19 +1610,14 @@ def _v57_is_grapheme_inventory(items):
     return usable >= 5 and (compact / usable) >= 0.75 and ((paired / usable) >= 0.30 or usable >= 15)
 
 
-def _v57_renderer_unsafe_mcq(page):
-    try:
-        from services.authoring.legacy_text import _v57_unsafe_mcq
-        return bool(_v57_unsafe_mcq(page))
-    except Exception:
-        return False
-
-
-_v57_previous_normalize_pages = _normalize_pages
-
-def _normalize_pages(content):
-    pages = _v57_previous_normalize_pages(content)
-    return [page for page in pages if not _v57_renderer_unsafe_mcq(page)]
+# `_normalize_pages` used to filter pages through `legacy_text._v57_unsafe_mcq`
+# here, which was the renderer's SECOND silent drop point: it ran before the
+# render loop, so an item removed here never reached the loop's admission check
+# and never appeared in the gate's model of this renderer. Those rules now live
+# in `render_contract.hidden_world_reason`, which both the loop and the
+# publication gate consult, so an item they refuse fails the build instead of
+# quietly shortening an assessment. Nothing filters pages here any more — adding
+# a filter back re-creates the divergence this whole module was fixed for.
 
 # AULAAI_MICRO_QUALITY_POLISH
 from services.authoring.legacy_text import (

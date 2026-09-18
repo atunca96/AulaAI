@@ -750,8 +750,16 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             for row in rows:
                 try:
                     content = json.loads(row[3] or "{}") if isinstance(row[3], str) else (row[3] or {})
-                except Exception:
-                    content = {}
+                except Exception as parse_err:
+                    # Never substitute an empty lesson for one we cannot read.
+                    # An empty dict audits perfectly clean, passes every check
+                    # below, and is then written back over the real row by the
+                    # persist step at the end of this function — silently
+                    # emptying a topic and calling the course publishable.
+                    raise Q.QualityGateError(
+                        f"unreadable stored content for topic {row[0]!r} "
+                        f"({row[1]!r}): {parse_err}"
+                    )
                 topic = {
                     "id": row[0], "title": row[1], "type": row[2],
                     "content": content,

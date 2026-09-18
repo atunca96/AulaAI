@@ -47,6 +47,7 @@ __all__ = [
     "Role", "FieldSpec", "spec_for", "walk_fields", "declared_fields",
     "ScriptProfile", "profile_for_language", "canonical_language",
     "IPA_REPERTOIRE", "is_ipa_clean", "stray_ipa_codepoints",
+    "foreign_script_tokens", "alien_script_tokens",
     "TARGET", "INSTRUCTION", "NOTATION", "GLOSS", "META", "EVIDENCE", "NAME",
 ]
 
@@ -521,5 +522,50 @@ def foreign_script_tokens(text: str, profile: ScriptProfile) -> List[str]:
         # foreign one. A token entirely in a foreign script is a quotation or a
         # loanword and is judged elsewhere, with context this function lacks.
         if scripts & allowed and scripts - allowed and token not in bad:
+            bad.append(token)
+    return bad
+
+
+# The one script a learner-facing string may contain whatever the taught
+# language is: Latin carries both instructional tracks and every romanised
+# proper noun. Every other script has to be claimed by the language's own
+# profile — Japanese claims Han, Hiragana and Katakana there, Korean claims
+# Hangul and Han — so this set stays at exactly one entry.
+_ALWAYS_PERMITTED_SCRIPTS = frozenset({"Latin"})
+
+# Anything inside [ ] is a transcription, not prose, and is checked against the
+# IPA repertoire by `stray_ipa_codepoints` instead.
+_BRACKETED_SPAN = re.compile(r"\[[^\]\n]*\]")
+
+
+def alien_script_tokens(text: str, profile: ScriptProfile) -> List[str]:
+    """Words written WHOLLY in a script neither the course nor its reader uses.
+
+    `foreign_script_tokens` above answers a narrower question — is this single
+    word internally corrupted — and says so in its own comment: a token entirely
+    in a foreign script is "judged elsewhere". There was no elsewhere, and a
+    Spanish A1 PDF published `once [ˈονθε]`, `quince [ˈκινθε]` and
+    `cocinero [κοθiˈneɾo]`, in which whole tokens are Greek look-alikes of
+    Latin and IPA letters. Nothing flagged them, because each token is
+    uniformly Greek rather than mixed.
+
+    The Latin script is always permitted: it carries the English and Turkish
+    instructional tracks and every romanised name, so flagging it would fire on
+    every correct Russian or Japanese lesson. Everything else must belong to the
+    taught language's own writing system.
+
+    Bracketed spans are removed first. Prose legitimately quotes a transcription
+    inline — "the [θ] sound" — and the IPA borrows θ, β and χ at their Greek
+    codepoints, so a check that did not exempt `[...]` would condemn every
+    correct phonetics explanation ever written.
+    """
+    if not isinstance(text, str) or not text:
+        return []
+    allowed = set(profile.scripts) | _ALWAYS_PERMITTED_SCRIPTS
+    prose = _BRACKETED_SPAN.sub(" ", unicodedata.normalize("NFC", text))
+    bad: List[str] = []
+    for token in _WORD.findall(prose):
+        scripts = {s for s in (script_of(c) for c in token) if s}
+        if scripts and (scripts - allowed) and token not in bad:
             bad.append(token)
     return bad

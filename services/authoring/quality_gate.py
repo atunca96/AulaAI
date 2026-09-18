@@ -824,10 +824,7 @@ def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str
     are persisted or the course can become READY.
     """
     from services.authoring import publish as P
-    try:
-        from services.authoring.legacy_text import _v57_unsafe_mcq
-    except Exception as exc:
-        raise QualityGateError(f"cannot load renderer integrity predicate: {exc}")
+    from services.authoring import render_contract as RC
 
     canonical = S.canonical_language(language)
     duplicate_stems: Dict[str, List[str]] = {}
@@ -855,6 +852,23 @@ def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str
                 f"{unit.get('title')}: post-review assessment has "
                 f"{len(assessment_mcqs)}/10 questions"
             )
+
+        # Ten STORED questions is not the invariant anyone cares about; ten
+        # questions that reach the learner is. Unit 3 of a shipped Spanish A1
+        # classroom held ten here and printed eight, so the count is taken
+        # against what each export will actually publish.
+        for is_tr in RC.EXPORT_LOCALES:
+            survivors = [p for p in assessment_mcqs if RC.page_is_renderable(p, is_tr)[0]]
+            if len(survivors) != 10:
+                dropped = [
+                    f"{p.get('title') or 'untitled'}: {RC.page_is_renderable(p, is_tr)[1]}"
+                    for p in assessment_mcqs if not RC.page_is_renderable(p, is_tr)[0]
+                ]
+                raise QualityGateError(
+                    f"{unit.get('title')}: only {len(survivors)}/10 assessment questions "
+                    f"would reach the {'tr' if is_tr else 'en'} export — "
+                    + "; ".join(dropped[:4])
+                )
         assessment_count += len(assessment_mcqs)
 
         for topic in topics:
@@ -862,6 +876,15 @@ def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str
             content = topic.get("content")
             if not isinstance(content, dict):
                 raise QualityGateError(f"{topic.get('title')}: content is not an object")
+
+            # An empty lesson audits perfectly clean — no pages, no findings,
+            # no dropped items, page count unchanged at zero — and the persist
+            # step at the end of the gate then writes it back over whatever was
+            # really in the row. Emptiness has to be refused explicitly, because
+            # every other check here is a check on content that exists.
+            if not (content.get("pages") or []):
+                raise QualityGateError(
+                    f"{topic.get('title')}: no pages — an empty topic is not publishable")
 
             blockers = A.blocking(_audit_topic(topic, language=language, track=track))
             if blockers:
@@ -895,17 +918,29 @@ def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str
                         + ", ".join(missing_pairs[:8])
                     )
 
+            # Ask the renderer's OWN admission contract, not a second copy of
+            # it. The previous version imported `legacy_text._v57_unsafe_mcq`
+            # while the renderer used `_v54_pdf_unsafe_mcq`, whose later layer
+            # adds rules the gate never saw — so a Spanish jobs unit passed here
+            # and lost two questions on the page, and Unit 3 shipped 8/10 from a
+            # course this gate had declared complete. Both export locales are
+            # checked: a page that renders in Turkish and vanishes from English
+            # is the same divergence, one export later.
+            lost = RC.unrenderable_pages(content)
+            if lost:
+                raise QualityGateError(
+                    f"{topic.get('title')}: the renderer would silently drop "
+                    + "; ".join(
+                        f"page {row['index']} ({row.get('title') or 'untitled'}) "
+                        f"in {row['locale']}: {row['why']}" for row in lost[:4])
+                )
+
             for page_index, page in enumerate(before_pages):
                 if not isinstance(page, dict):
                     continue
                 if str(page.get("type") or "").casefold() != "mcq":
                     continue
                 mcq_count += 1
-                if _v57_unsafe_mcq(page):
-                    raise QualityGateError(
-                        f"{topic.get('title')} page {page_index + 1}: legacy renderer "
-                        "would silently remove this MCQ"
-                    )
                 stem = _stem_text(page)
                 key = _stem_key(stem)
                 if key:

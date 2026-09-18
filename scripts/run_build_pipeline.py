@@ -40,6 +40,11 @@ if hasattr(sys.stdout, "reconfigure"):
 VERIFICATION_STEPS = [
     "scripts/test_authoring_audit.py",
     "scripts/test_authoring_core.py",
+    "scripts/test_publication_divergence.py",
+    # Runs the real gate and the real renderer against a real SQLite database,
+    # on the image's own Python. It is the only step that proves READY and the
+    # exported PDF agree on the bytes a learner receives.
+    "scripts/verify_production_path.py",
     "scripts/test_quality_gate.py",
     "scripts/test_language_matrix.py",
     "scripts/smoke_test_pdf_renderer.py",
@@ -70,6 +75,7 @@ COMPILE_TARGETS = [
     "services/authoring/audit.py",
     "services/authoring/repair.py",
     "services/authoring/budget.py",
+    "services/authoring/render_contract.py",
     "services/authoring/publish.py",
     "services/authoring/quality_gate.py",
     "services/authoring/legacy_text.py",

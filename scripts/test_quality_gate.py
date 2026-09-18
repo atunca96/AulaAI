@@ -369,8 +369,12 @@ def test_publication_integrity_catches_renderer_silent_drop():
         Q.validate_publication_integrity(
             units=units, language="Spanish", track="tr")
     except Q.QualityGateError as exc:
-        check("silently remove this MCQ" in str(exc),
-              "the old hidden-world renderer filter is surfaced as a build failure")
+        # The gate now asks the renderer's own admission contract instead of a
+        # second copy of it, so the refusal names the question and the export
+        # that would lose it rather than citing a legacy predicate by name.
+        message = str(exc)
+        check("identity fact" in message and "10" in message,
+              f"the hidden-world renderer filter fails the build: {message[:80]}")
     else:
         check(False, "a question the renderer would silently drop must fail the build")
 

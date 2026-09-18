@@ -520,6 +520,10 @@ def _audit_typed_strings(node: Any, *, language: str, track: str,
                 if foreign:
                     out.append(Finding("mixed_script_token", BLOCK, path=path, field=field,
                                        role=spec.role, detail=", ".join(foreign[:3]), value=text))
+                alien = S.alien_script_tokens(text, profile)
+                if alien:
+                    out.append(Finding("alien_script_token", BLOCK, path=path, field=field,
+                                       role=spec.role, detail=", ".join(alien[:3]), value=text))
                 if profile.opens_questions and _unopened(text, "?", "¿"):
                     out.append(Finding("missing_opening_question_mark", REPAIR, path=path,
                                        field=field, role=spec.role, value=text))
@@ -542,6 +546,21 @@ def _audit_typed_strings(node: Any, *, language: str, track: str,
                 out.append(Finding("wrong_instructional_language", BLOCK, path=path, field=field,
                                    role=spec.role,
                                    detail=f"declared {expected}, reads as {detected}", value=text))
+            # Learner-facing prose had NO script check at all, so a Greek
+            # look-alike inside a gloss or an explanation passed everything —
+            # which is how `once [ˈονθε]` and `zumo [el ˈθυμο]` reached a
+            # published Spanish PDF.
+            if profile is not None:
+                alien = S.alien_script_tokens(text, profile)
+                if alien:
+                    out.append(Finding("alien_script_token", BLOCK, path=path, field=field,
+                                       role=spec.role, detail=", ".join(alien[:3]), value=text))
+            if spec.role == S.GLOSS and (spec.track or track) == "tr" \
+                    and english_number_gloss(text):
+                out.append(Finding("locale_leak_in_gloss", BLOCK, path=path, field=field,
+                                   role=spec.role,
+                                   detail="a Turkish gloss written in English number words",
+                                   value=text))
             for token in respelling_tokens(text):
                 out.append(Finding("second_pronunciation_system", BLOCK, path=path, field=field,
                                    role=spec.role,
@@ -552,6 +571,77 @@ def _audit_typed_strings(node: Any, *, language: str, track: str,
                                    detail="the lesson marks its own example as not a real word",
                                    value=text))
     return out
+
+
+# ── Locale leakage that is too short to identify by function words ───────────
+# A published Turkish Spanish-course vocabulary table glossed `veintinueve` as
+# "twenty-nine". `instructional_language_of` abstains there and should: two
+# tokens, neither a function word, is not enough evidence to call a language.
+# Two narrower checks catch it without guessing.
+
+# Every English number word. Numbers are a closed set, they are exactly where
+# this leak appears, and no Turkish gloss is ever spelled "twenty" — so this
+# costs nothing in false positives and catches the whole vocabulary class.
+_EN_NUMBER_WORDS = frozenset("""
+zero one two three four five six seven eight nine ten eleven twelve thirteen
+fourteen fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty
+sixty seventy eighty ninety hundred thousand million
+first second third fourth fifth sixth seventh eighth ninth tenth
+""".split())
+
+
+def english_number_gloss(text: str) -> bool:
+    """True when a gloss is written entirely as English number words."""
+    tokens = [t for t in _WORD_RE.findall(str(text or "").casefold()) if t]
+    if not tokens or len(tokens) > 4:
+        return False
+    return all(t in _EN_NUMBER_WORDS for t in tokens)
+
+
+# Pairs of fields that are the same content in the two instructional languages.
+_BILINGUAL_PAIRS = (
+    ("title", "title_tr"), ("text", "text_tr"), ("translation", "translation_tr"),
+    ("translation_en", "translation_tr"), ("example_en", "example_tr"),
+    ("explanation", "explanation_tr"), ("explanation_en", "explanation_tr"),
+    ("rule", "rule_tr"), ("analysis", "analysis_tr"), ("context", "context_tr"),
+    ("note", "note_tr"), ("line_en", "line_tr"), ("why", "why_tr"),
+)
+
+
+def identical_bilingual_glosses(node: Any) -> List[Tuple[str, str]]:
+    """English and Turkish fields holding the identical multi-word string.
+
+    One language copied into the other's slot. Restricted to values of two or
+    more words (or a hyphenated compound, which is how "twenty-nine" appears),
+    because a single token really can be the same in both — "pizza", "taksi" —
+    and flagging those would fire on every correct loanword in the product.
+    """
+    found: List[Tuple[str, str]] = []
+
+    def visit(entry: Any) -> None:
+        if isinstance(entry, dict):
+            for en_key, tr_key in _BILINGUAL_PAIRS:
+                en_value = str(entry.get(en_key) or "").strip()
+                tr_value = str(entry.get(tr_key) or "").strip()
+                if not en_value or en_value.casefold() != tr_value.casefold():
+                    continue
+                if not any(ch.islower() for ch in en_value):
+                    continue          # an acronym or a proper noun
+                words = _WORD_RE.findall(en_value)
+                if len(words) < 2 and "-" not in en_value:
+                    continue          # a plausible shared loanword
+                pair = (f"{en_key}/{tr_key}", en_value[:60])
+                if pair not in found:
+                    found.append(pair)
+            for value in entry.values():
+                if isinstance(value, (dict, list)):
+                    visit(value)
+        elif isinstance(entry, list):
+            for value in entry:
+                visit(value)
+
+    visit(node)
+    return found
 
 
 def _unopened(text: str, closer: str, opener: str) -> bool:
@@ -582,6 +672,10 @@ def audit_lesson(lesson: Any, *, language: str = "", track: str = "tr") -> List[
         out.append(Finding("self_contradicting_transcription", BLOCK, field="phonetic",
                            role=S.NOTATION, detail=f"{term!r} transcribed as " +
                            " and ".join(repr(f) for f in forms[:3])))
+
+    for fields, value in identical_bilingual_glosses(lesson):
+        out.append(Finding("locale_leak_in_gloss", BLOCK, field=fields, role=S.GLOSS,
+                           detail="one language copied into the other's field", value=value))
 
     pages = lesson.get("pages")
     if isinstance(pages, list):

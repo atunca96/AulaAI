@@ -73,8 +73,28 @@ def run():
     assert "feminine" not in html.lower()
     assert "eril" in html and "dişil" in html
 
-    normalized = renderer._normalize_pages({"pages": [name_gender, safe_explicit, birthplace_nationality]})
-    assert len(normalized) == 1 and normalized[0]["answer"] == "он"
+    # These two items must never reach a learner, and they no longer do it by
+    # being quietly pruned on the way to the page. `_normalize_pages` used to
+    # drop them with a predicate that neither the render loop nor the
+    # publication gate consulted, so a ten-question assessment could print as
+    # eight from a course the gate had passed. The render contract now owns the
+    # decision: `_normalize_pages` hands every stored page to the loop, and the
+    # gate refuses the course before it can become READY.
+    from services.authoring import render_contract as RC
+
+    normalized = renderer._normalize_pages(
+        {"pages": [name_gender, safe_explicit, birthplace_nationality]})
+    assert len(normalized) == 3
+    for is_tr in RC.EXPORT_LOCALES:
+        assert RC.page_is_renderable(name_gender, is_tr)[0] is False
+        assert RC.page_is_renderable(birthplace_nationality, is_tr)[0] is False
+    # The safe item is answerable, and the contract keeps it in the export it
+    # has a stem for. These fixtures carry `prompt_tr` only, so the English
+    # export has nothing to print — which is the locale-dependent stem loss the
+    # contract exists to surface, not a judgement about the question.
+    assert RC.page_is_renderable(safe_explicit, True)[0] is True
+    assert RC.page_is_renderable(safe_explicit, False) == (
+        False, "no stem resolves in the en export")
 
     source = (ROOT / "services" / "pdf_renderer_v12.py").read_text(encoding="utf-8")
     assert "Harf / İşaret" in source
