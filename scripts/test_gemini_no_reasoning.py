@@ -63,7 +63,7 @@ finally:
 
 assert response.ok and response.data == {"ok": True}
 payload = captured["payload"]
-assert "reasoning" not in payload, payload.get("reasoning")
+assert payload.get("reasoning") == {"max_tokens": 0}, payload.get("reasoning")
 assert payload["max_tokens"] == 2000
 assert payload["response_format"]["type"] == "json_schema"
 print("[GEMINI-NO-REASONING] targeted repair leaves completion budget for JSON")

@@ -799,7 +799,41 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             + ", ".join(missing)
         )
 
-    _log(f"[QUALITY-GATE] reviewing {len(units)} unit(s) with {Q.REVIEW_MODEL}.")
+    # Cheap fail-fast pass: deterministic lesson blockers are exact and known
+    # before broad semantic review. Repair them first, prove them clean, and
+    # persist that proven correction as a checkpoint. A provider failure here
+    # now costs one tiny repair call instead of repeating the full ~$0.12 review.
+    preflight_units = [{"title": u["title"], "topics": u["topics"]} for u in units]
+    preflight_patches = Q.repair_deterministic_preflight(
+        units=preflight_units,
+        language=language,
+        level=level,
+        track=material_language,
+        budget=budget,
+    )
+    if preflight_patches:
+        with db_connection() as db:
+            for unit in units:
+                for topic in unit["lessons"]:
+                    db.execute(
+                        "UPDATE topics SET content = ? WHERE id = ?",
+                        (json.dumps(topic["content"], ensure_ascii=False), topic["id"]),
+                    )
+            db.execute(
+                "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                ("Quality review: deterministic repairs checkpointed", course_id),
+            )
+            db.commit()
+        bump_version()
+        _log(
+            f"[QUALITY-GATE] preflight checkpoint persisted "
+            f"{preflight_patches} deterministic repair patch(es)."
+        )
+
+    _log(
+        f"[QUALITY-GATE] reviewing {len(units)} unit(s) with {Q.REVIEW_MODEL}; "
+        f"targeted repairs use {Q.REPAIR_MODEL}."
+    )
     lesson_patches = 0
     assessment_patches = 0
 

@@ -40,6 +40,7 @@ from services.authoring import transport as T
 
 
 REVIEW_MODEL = "google/gemini-3.7-flash"
+REPAIR_MODEL = "google/gemini-3.8-flash"
 QUALITY_REVIEW_CEILING_USD = 0.22
 
 # A reviewer may change learner-facing content, never ids, page types, ordering,
@@ -652,6 +653,102 @@ def _topic_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
     return blockers
 
 
+def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
+                                   language: str, level: str, track: str,
+                                   budget: ReviewBudget) -> int:
+    """Repair provable lesson blockers before paying for broad semantic review.
+
+    A review-only retry used to spend roughly the whole lesson-review bill and
+    only then hit the same Family Members blocker. This preflight does the
+    opposite: audit first, send only exact blocked records to the repair model,
+    re-audit, and stop immediately if repair is unreliable. Callers may persist
+    these proven repairs as a checkpoint before the expensive broad review.
+    """
+    applied = 0
+    profile = S.profile_for_language(language)
+
+    for unit in units:
+        for topic in unit.get("topics") or []:
+            if topic.get("is_assessment"):
+                continue
+            content = topic.get("content")
+            if not isinstance(content, dict):
+                continue
+
+            R.repair_lesson(content, language=language)
+            blockers = A.blocking(
+                _audit_topic(topic, language=language, track=track)
+            )
+            if not blockers:
+                continue
+
+            records = _records_for_findings(content, blockers)
+            blocker_rows = _findings_with_repair_paths(content, blockers)
+            if not records or not any(row.get("repair_paths") for row in blocker_rows):
+                raise QualityGateError(
+                    f"{topic.get('title')}: deterministic blocker has no exact repair path: "
+                    f"{A.summarise(blockers)}"
+                )
+
+            payload = {
+                "language": language,
+                "level": level,
+                "unit": unit.get("title"),
+                "regional_variety": profile.variety if profile else "",
+                "instruction_track": track,
+                "topics": [{
+                    "topic_id": str(topic["id"]),
+                    "title": str(topic.get("title") or ""),
+                    "records": records,
+                    "deterministic_blockers": blocker_rows,
+                    "render_contract_blockers": [],
+                }],
+                "instruction": (
+                    "Preflight repair. Patch EVERY listed repair_path exactly. "
+                    "Do not edit unrelated fields. Return this one topic only."
+                ),
+            }
+            data = _call_review(
+                model=REPAIR_MODEL,
+                system=_LESSON_REVIEW_SYSTEM,
+                payload=payload,
+                max_tokens=1600,
+                effort="none",
+                budget=budget,
+                stage=f"review_preflight_repair:{topic.get('title')}",
+                response_schema=_LESSON_REVIEW_SCHEMA,
+                response_name="lesson_preflight_repair",
+            )
+            rows = data.get("topics")
+            if not isinstance(rows, list) or len(rows) != 1 or \
+                    str(rows[0].get("topic_id") or "") != str(topic["id"]):
+                raise QualityGateError(
+                    f"preflight repair coverage failed for {topic.get('title')}"
+                )
+
+            patches = []
+            for patch in rows[0].get("patches") or []:
+                if not isinstance(patch, dict):
+                    raise QualityGateError("preflight repair patch is not an object")
+                patch = dict(patch)
+                patch["topic_id"] = str(topic["id"])
+                patches.append(patch)
+
+            applied += _apply_patches({str(topic["id"]): topic}, patches)
+            R.repair_lesson(content, language=language)
+
+            still = A.blocking(
+                _audit_topic(topic, language=language, track=track)
+            )
+            if still:
+                raise QualityGateError(
+                    f"{topic.get('title')}: deterministic blockers remain after "
+                    f"preflight repair: {A.summarise(still)}"
+                )
+
+    return applied
+
+
 def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         language: str, level: str, track: str,
                         budget: ReviewBudget) -> int:
@@ -765,7 +862,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 ),
             }
             retry = _call_review(
-                model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+                model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
                 max_tokens=2000, effort="none", budget=budget,
                 stage=f"review_blocker_retry:{topic.get('title')}",
                 response_schema=_LESSON_REVIEW_SCHEMA,
@@ -816,7 +913,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         ),
                     }
                     exact_retry = _call_review(
-                        model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
+                        model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM,
                         payload=exact_retry_payload,
                         max_tokens=1800, effort="none", budget=budget,
                         stage=f"review_exact_blocker_retry:{topic.get('title')}",
@@ -889,7 +986,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                     ),
                 }
                 retry = _call_review(
-                    model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+                    model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
                     max_tokens=1600, effort="none", budget=budget,
                     stage=f"review_bilingual_retry:{topic.get('title')}",
                     response_schema=_LESSON_REVIEW_SCHEMA,
@@ -1050,7 +1147,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             ),
         }
         retry = _call_review(
-            model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+            model=REPAIR_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
             payload=retry_payload, max_tokens=2400, effort="none", budget=budget,
             stage=f"review_assessment_render_retry:{unit_title}",
             response_schema=_ASSESSMENT_REVIEW_SCHEMA,
@@ -1139,7 +1236,7 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                     ),
                 }
                 data = _call_review(
-                    model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+                    model=REPAIR_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
                     payload=payload, max_tokens=2400, effort="none", budget=budget,
                     stage=f"review_final_repair:{unit.get('title')}:assessment",
                     response_schema=_ASSESSMENT_REVIEW_SCHEMA,
@@ -1157,11 +1254,20 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                 findings = A.blocking(_audit_topic(topic, language=language, track=track))
                 if not render_blockers and not findings and not missing_pairs:
                     continue
-                records = (
+                finding_records = _records_for_findings(content, findings)
+                render_records = (
                     _records_for_render_blockers(content, render_blockers)
-                    if render_blockers and not findings and not missing_pairs
-                    else _review_records(content)
+                    if render_blockers else []
                 )
+                records = []
+                seen_paths = set()
+                for rec in finding_records + render_records:
+                    marker = tuple(rec.get("path") or [])
+                    if marker and marker not in seen_paths:
+                        seen_paths.add(marker)
+                        records.append(rec)
+                if missing_pairs or not records:
+                    records = _review_records(content)
                 payload = {
                     "language": language, "level": level, "unit": unit.get("title"),
                     "regional_variety": profile.variety if profile else "",
@@ -1170,7 +1276,9 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                         "topic_id": str(topic["id"]),
                         "title": str(topic.get("title") or ""),
                         "records": records,
-                        "deterministic_blockers": _findings_payload(findings),
+                        "deterministic_blockers": _findings_with_repair_paths(
+                            content, findings
+                        ),
                         "render_contract_blockers": render_blockers,
                         "missing_bilingual_pairs": missing_pairs,
                     }],
@@ -1182,7 +1290,7 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                     ),
                 }
                 data = _call_review(
-                    model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
+                    model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM,
                     payload=payload, max_tokens=2200, effort="none", budget=budget,
                     stage=f"review_final_repair:{topic.get('title')}",
                     response_schema=_LESSON_REVIEW_SCHEMA,
