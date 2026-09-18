@@ -248,12 +248,20 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
         payload["reasoning"] = {"effort": reasoning_effort or "low"}
     elif target.lower().startswith("openai/gpt-5.6-"):
         # OpenAI reasoning models reject/ignore sampling controls in several
-        # provider paths. Luna Pro is already a model alias with pro reasoning
-        # pinned by the provider; do not overwrite that mode with an effort
-        # parameter. Standard GPT-5.6 routes still accept explicit effort.
+        # provider paths. Pro aliases have reasoning pinned by the provider.
         payload["provider"] = {"sort": "throughput"}
         if not target.lower().endswith("-pro"):
             payload["reasoning"] = {"effort": reasoning_effort or "low"}
+    elif target.lower().startswith("deepseek/"):
+        # DeepSeek V4.1 Flash supports low/high/max thinking effort on OpenRouter.
+        # Do not send sampling controls alongside thinking mode; keep provider
+        # routing broad so structured-output capable endpoints can fail over.
+        effort = (reasoning_effort or "low").lower()
+        if effort == "medium":
+            effort = "high"
+        if effort not in ("low", "high", "max"):
+            effort = "low"
+        payload["reasoning"] = {"effort": effort}
     else:
         payload["temperature"] = float(temperature)
 
