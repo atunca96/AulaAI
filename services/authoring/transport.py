@@ -197,6 +197,11 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
     if "gemini" in target.lower() or "google" in target.lower():
         payload["provider"] = {"order": ["Google AI Studio", "Google"], "allow_fallbacks": True}
         payload["reasoning"] = {"effort": "low"}
+    elif target == "openai/gpt-5.6-terra":
+        # Flex keeps Terra inside the classroom cost envelope. Do not silently
+        # fall through to the 2x-priced standard endpoint.
+        payload["provider"] = {"order": ["OpenAI Flex"], "allow_fallbacks": False}
+        payload["reasoning"] = {"effort": "low"}
 
     seconds = timeout or (180 if max_tokens > 8000 else (120 if max_tokens > 3000 else 60))
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
