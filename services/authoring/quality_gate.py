@@ -5,7 +5,7 @@ only where it has leverage: it reads finished material as an editor, patches
 specific fields, then refuses publication unless the deterministic auditor is
 clean. One semantic review layer is used:
 
-* GPT-5.6 Luna Pro reviews every unit's five lessons and its ten assessment
+* DeepSeek V4.1 Flash reviews every unit's five lessons and its ten assessment
   questions, and performs bounded targeted repairs when deterministic checks
   identify an exact learner-visible defect.
 * The final authority is deterministic publication integrity, not a second
@@ -39,8 +39,8 @@ from services.authoring import schema as S
 from services.authoring import transport as T
 
 
-LUNA_REVIEW_MODEL = "openai/gpt-5.6-luna-pro"
-QUALITY_REVIEW_CEILING_USD = 0.13
+REVIEW_MODEL = "deepseek/deepseek-v4.1-flash"
+QUALITY_REVIEW_CEILING_USD = 0.08
 
 # A reviewer may change learner-facing content, never ids, page types, ordering,
 # topic structure or bookkeeping.
@@ -577,9 +577,9 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         "topics": payload_topics,
     }
     data = _call_review(
-        model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=payload,
-        max_tokens=4800, effort="high", budget=budget,
-        stage=f"luna_lessons:{unit_title}",
+        model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=payload,
+        max_tokens=2600, effort="low", budget=budget,
+        stage=f"review_lessons:{unit_title}",
         response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_review",
     )
     rows = data.get("topics")
@@ -642,16 +642,16 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             ),
         }
         retry = _call_review(
-            # Deterministic blockers get one narrow Luna repair pass over only
+            # Deterministic blockers get one narrow DeepSeek repair pass over only
             # the affected records. The deterministic contract, not a second
             # model family, decides whether publication may continue.
-            model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+            model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
             # This is a narrow repair of explicitly identified fields, not the
             # final independent verification pass. Medium reasoning plus more
             # output headroom prevents reasoning tokens from consuming the whole
             # completion before strict JSON is emitted.
-            max_tokens=4200, effort="medium", budget=budget,
-            stage=f"luna_blocker_retry:{topic.get('title')}",
+            max_tokens=2400, effort="high", budget=budget,
+            stage=f"review_blocker_retry:{topic.get('title')}",
             response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_blocker_repair",
         )
         rows2 = retry.get("topics")
@@ -687,7 +687,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
     # Bilingual completeness is a publication invariant but not every missing
     # counterpart is represented as an audit.py blocker. Repair any remaining
     # exact EN/TR slot gaps before leaving the unit review. This is deliberately
-    # bounded to one Luna repair pass per affected topic and still fails closed.
+    # bounded to one DeepSeek repair pass per affected topic and still fails closed.
     if canonical not in ("English", "Turkish"):
         for topic in topics:
             missing_pairs = _missing_bilingual_pairs(topic.get("content"))
@@ -711,9 +711,9 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 ),
             }
             retry = _call_review(
-                model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-                max_tokens=3600, effort="medium", budget=budget,
-                stage=f"luna_bilingual_retry:{topic.get('title')}",
+                model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+                max_tokens=2000, effort="low", budget=budget,
+                stage=f"review_bilingual_retry:{topic.get('title')}",
                 response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_bilingual_repair",
             )
             rows2 = retry.get("topics")
@@ -822,14 +822,14 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         "assessment_records": _review_records(content),
         "unit_evidence": evidence,
         # These are deterministic facts about what the renderer would refuse,
-        # not semantic guesses. Give them to Luna up front so it can repair the
+        # not semantic guesses. Give them to DeepSeek up front so it can repair the
         # item instead of letting the final gate discover the same problem too late.
         "render_contract_blockers": _assessment_render_blockers(content),
     }
     data = _call_review(
-        model=LUNA_REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
-        max_tokens=3400, effort="high", budget=budget,
-        stage=f"luna_assessment:{unit_title}",
+        model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
+        max_tokens=2200, effort="low", budget=budget,
+        stage=f"review_assessment:{unit_title}",
         response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
     )
     _checked_all_ten(data, unit_title=unit_title, stage="assessment reviewer")
@@ -849,7 +849,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     # audit.py blocker. The fresh production classroom exposed exactly that
     # gap: Luna reviewed all ten items, then the final boundary correctly
     # refused one hidden-world inference. Give the exact rejected item and
-    # reason one bounded targeted Luna repair pass while the full unit evidence
+    # reason one bounded targeted DeepSeek repair pass while the full unit evidence
     # is still available. Fail closed if it cannot make all ten renderable.
     render_blockers = _assessment_render_blockers(content)
     if render_blockers:
@@ -870,9 +870,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             ),
         }
         retry = _call_review(
-            model=LUNA_REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
-            payload=retry_payload, max_tokens=4200, effort="medium", budget=budget,
-            stage=f"luna_assessment_render_retry:{unit_title}",
+            model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+            payload=retry_payload, max_tokens=2400, effort="high", budget=budget,
+            stage=f"review_assessment_render_retry:{unit_title}",
             response_schema=_ASSESSMENT_REVIEW_SCHEMA,
             response_name="assessment_render_repair",
         )
@@ -959,9 +959,9 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                     ),
                 }
                 data = _call_review(
-                    model=LUNA_REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
-                    payload=payload, max_tokens=4200, effort="medium", budget=budget,
-                    stage=f"luna_final_repair:{unit.get('title')}:assessment",
+                    model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+                    payload=payload, max_tokens=2400, effort="high", budget=budget,
+                    stage=f"review_final_repair:{unit.get('title')}:assessment",
                     response_schema=_ASSESSMENT_REVIEW_SCHEMA,
                     response_name="final_assessment_repair",
                 )
@@ -1002,9 +1002,9 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                     ),
                 }
                 data = _call_review(
-                    model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
-                    payload=payload, max_tokens=3600, effort="medium", budget=budget,
-                    stage=f"luna_final_repair:{topic.get('title')}",
+                    model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
+                    payload=payload, max_tokens=2200, effort="high", budget=budget,
+                    stage=f"review_final_repair:{topic.get('title')}",
                     response_schema=_LESSON_REVIEW_SCHEMA,
                     response_name="final_lesson_repair",
                 )
@@ -1357,9 +1357,9 @@ def provider_preflight() -> List[Dict[str, Any]]:
             },
         },
     }
-    # Only Luna Pro is part of the production review path. Mechanical Unicode
+    # Only DeepSeek V4.1 Flash is part of the production review path. Mechanical Unicode
     # contamination is proven by the deterministic gate, so the semantic canary
-    # requires Luna to catch the semantic defects and leaves that one mechanical
+    # requires DeepSeek to catch the semantic defects and leaves that one mechanical
     # check to code.
     model_expected = dict(expected, greek_lookalike_ipa_error=False)
     response = T.call_model(
@@ -1374,18 +1374,18 @@ def provider_preflight() -> List[Dict[str, Any]]:
             },
             {"role": "user", "content": json.dumps(challenge, ensure_ascii=False)},
         ],
-        max_tokens=900, temperature=0.0, model=LUNA_REVIEW_MODEL, cache_system=False,
+        max_tokens=900, temperature=0.0, model=REVIEW_MODEL, cache_system=False,
         timeout=120, attempts=2, reasoning_effort="high",
-        response_schema=schema, response_name="luna_pro_semantic_canary",
+        response_schema=schema, response_name="deepseek_flash_semantic_canary",
     )
     if not response.ok or response.data != model_expected:
         raise QualityGateError(
-            f"semantic provider preflight failed on {LUNA_REVIEW_MODEL}: "
+            f"semantic provider preflight failed on {REVIEW_MODEL}: "
             f"got {response.data!r}; expected {model_expected!r}; "
             f"transport={response.error or 'ok'}"
         )
     return [{
-        "model": LUNA_REVIEW_MODEL, "seconds": response.seconds,
+        "model": REVIEW_MODEL, "seconds": response.seconds,
         "cost": float(response.cost or 0.0),
         "input_tokens": response.input_tokens,
         "output_tokens": response.output_tokens,
