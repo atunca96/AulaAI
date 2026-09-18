@@ -1927,6 +1927,9 @@ table.vt td { padding: 4px 6px; }
         elif path in ("/api/classroom/rebuild", "/api/curriculum/rebuild"):
             if not self._require_lecturer(): return
             return self._classroom_rebuild()
+        elif path == "/api/classroom/retry-publication":
+            if not self._require_lecturer(): return
+            return self._retry_classroom_publication()
         elif path == "/api/classroom/wipe-curriculum":
             if not self._require_lecturer(): return
             return self._wipe_curriculum()
@@ -2108,6 +2111,109 @@ table.vt td { padding: 4px 6px; }
             return self._admin_create_student()
         else:
             self._send_error("Not found", 404)
+
+    def _retry_classroom_publication(self):
+        """Re-run only publication review on a fully generated failed classroom.
+
+        This exists so a semantic/provider edge case does not force the lecturer
+        to pay for another 30-lesson generation. It never regenerates lessons or
+        assessments; it only reviews the rows already persisted, then asks the
+        publication-state module to prove READY again.
+        """
+        body = self._read_body()
+        course_id = str(body.get("course_id") or "").strip()
+        if not course_id:
+            return self._send_error("course_id required", 400)
+
+        from services.authoring import publication_state as PS
+
+        with db_connection() as db:
+            if not self._verify_course_ownership(db, course_id):
+                return self._send_error("Forbidden: You do not own this classroom", 403)
+            row = db.execute(
+                "SELECT language, level, material_language, generation_id, is_building "
+                "FROM courses WHERE id = ?", (course_id,)
+            ).fetchone()
+            if not row:
+                return self._send_error("Classroom not found", 404)
+            if row[4]:
+                return self._send_error("Classroom is already processing", 409)
+
+        # Refuse a cheap review-only retry when generation itself is incomplete.
+        # Such a classroom really does need a rebuild; a review must never invent
+        # missing lessons or assessment questions.
+        try:
+            units = PS.load_persisted_units(course_id)
+        except Exception as exc:
+            return self._send_error(f"Stored classroom is unreadable: {exc}", 409)
+        if not units:
+            return self._send_error("Classroom has no generated units", 409)
+        for unit in units:
+            assessments = [t for t in (unit.get("topics") or []) if t.get("is_assessment")]
+            if len(assessments) != 1:
+                return self._send_error(
+                    f"{unit.get('title')}: review-only retry requires one unit assessment", 409
+                )
+            pages = (assessments[0].get("content") or {}).get("pages") or []
+            questions = [
+                p for p in pages
+                if isinstance(p, dict) and str(p.get("type") or "").casefold() == "mcq"
+            ]
+            if len(questions) != 10:
+                return self._send_error(
+                    f"{unit.get('title')}: review-only retry requires 10/10 assessment questions", 409
+                )
+
+        language = row[0] or ""
+        level = row[1] or "A1"
+        material_language = row[2] or "tr"
+        gen_id = row[3] or "LEGACY"
+
+        with db_connection() as db:
+            db.execute(
+                "UPDATE courses SET is_building = 1, build_stage = 'quality_review', "
+                "build_message = ? WHERE id = ?",
+                ("Publication review is being retried without regenerating lessons.", course_id),
+            )
+            db.commit()
+        bump_version()
+
+        def run_review_only():
+            try:
+                from services.legacy.pdf_pipeline import _run_publication_quality_gate
+                _run_publication_quality_gate(
+                    course_id, language, level, material_language, gen_id=gen_id,
+                    generation_spend_override=0.0,
+                )
+                with db_connection() as db:
+                    count_row = db.execute(
+                        "SELECT COUNT(*) FROM topics t JOIN chapters ch ON t.chapter_id = ch.id "
+                        "WHERE ch.course_id = ? AND (t.type IS NULL OR t.type != 'unit_assessment')",
+                        (course_id,),
+                    ).fetchone()
+                topic_count = int(count_row[0] if count_row else 0)
+                certified = PS.mark_ready(
+                    course_id, gen_id, progress=topic_count, total_steps=topic_count
+                )
+                file_log(
+                    f"[PUBLICATION-RETRY] READY {course_id}: "
+                    f"topics={certified['topics']} mcqs={certified['mcqs']} "
+                    f"unit_assessment_questions={certified['unit_assessment_questions']}"
+                )
+            except Exception as exc:
+                PS.mark_failed(course_id, str(exc), gen_id)
+                file_log(f"[PUBLICATION-RETRY] FAILED {course_id}: {exc}")
+            finally:
+                bump_version()
+
+        import threading
+        threading.Thread(target=run_review_only, daemon=True).start()
+        return self._send_json({
+            "success": True,
+            "course_id": course_id,
+            "mode": "review_only",
+            "message": "Publication review restarted without regenerating lessons or assessments."
+        })
 
     def _delete_blueprint(self):
         """Deletes a single cached blueprint. Restricted to primary admin."""
