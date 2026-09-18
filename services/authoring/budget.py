@@ -13,11 +13,11 @@ property of the system, not a description of its usual behaviour.
 Three things make the ceiling reachable, and all three are design rather than
 economising:
 
-* **One instructional track.** The old material prompt asked for both the
-  English and the Turkish field family in every lesson and a course publishes
-  exactly one. Half of the most expensive output in the product was generated,
-  stored and never read. Emitting only the published track halves lesson output,
-  which is the dominant cost.
+* **One target-language layer, two instructional views.** Target-language
+  examples, terms and answers are generated once, while English and Turkish
+  pedagogical fields are generated in parallel because the product exposes both
+  views. This avoids duplicating the taught-language payload while keeping both
+  reader modes real rather than synthesising one after the build.
 
 * **A cacheable prefix that is actually cacheable.** The system half is
   class-invariant by construction (see `prompts.py`), so after the first lesson
@@ -45,11 +45,13 @@ __all__ = [
 # The one model this system runs on. Pinned here rather than read from the
 # environment at each call site, so "which model produced this material" has a
 # single answer that a reader can find.
-MODEL = "google/gemini-3.8-flash"
+MODEL = "openai/gpt-5.6-terra"
 
 # USD per million tokens, as OpenRouter publishes them. `cache_read` is the
 # discounted rate for input served from a cached prefix.
 RATES: Dict[str, Dict[str, float]] = {
+    # Pinned to OpenRouter OpenAI Flex in transport.py.
+    "openai/gpt-5.6-terra": {"input": 1.00, "output": 6.00, "cache_read": 0.10},
     "google/gemini-3.8-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.1875},
     "google/gemini-3.7-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.1875},
     "google/gemini-3.5-flash": {"input": 1.50, "output": 9.00, "cache_read": 0.375},
@@ -87,7 +89,7 @@ def price(model: str, *, input_tokens: int = 0, output_tokens: int = 0,
 # attempt instead of being truncated, billed and retried.
 
 def lesson_output_ceiling(page_target: int = 5, *, inventory: bool = False) -> int:
-    """Room for one single-track lesson.
+    """Room for one bilingual-instruction lesson.
 
     `inventory` marks a topic that must print a closed set — an alphabet, a
     writing system — which is several times the length of an ordinary page and

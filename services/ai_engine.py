@@ -162,12 +162,13 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                           is_quiz=False, source_text_override=None, model_override=None,
                           material_language="en", generation_seed=None, focus_directive=None,
                           timing_ctx=None, scope=None, progression=None, coverage_plan="",
-                          forbidden_terms=None, ledger=None, **_ignored):
-    """`count` publishable assessment items, or [] if they could not be made.
+                          forbidden_terms=None, ledger=None, allow_partial=False, **_ignored):
+    """`count` publishable assessment items.
 
-    Returns [] rather than a short batch: a quiz with four of its ten questions
-    is a broken quiz, and the caller can retry. That invariant is the one piece
-    of the old function's behaviour worth keeping.
+    Ordinary quizzes remain all-or-nothing. Unit assessments may opt into a
+    partial return so their already-published lesson MCQs can deterministically
+    fill a tiny shortfall instead of deleting nine valid questions because the
+    model produced nine rather than ten.
     """
     started = time.perf_counter()
     wanted = int(count or 10)
@@ -192,6 +193,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     _log(f"[ASSESS] '{topic_title}' req={wanted} got={len(result.items)} "
          f"attempts={result.attempts} cost=${result.cost:.4f}")
     if len(result.items) < wanted:
+        if allow_partial and result.items:
+            _log(f"[ASSESS] '{topic_title}' short of {wanted}; returning {len(result.items)} "
+                 "validated item(s) for deterministic unit completion")
+            return result.items
         _log(f"[ASSESS] '{topic_title}' short of {wanted}; returning nothing rather than a partial set")
         return []
     return result.items
@@ -272,8 +277,17 @@ def _material_for_assessment(topic_content: Any, override: Any = None) -> str:
 def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
                              material_language="tr", unit_index=None, unit_total=None,
                              model_override=None, timing_ctx=None, count=10, ledger=None):
-    """The assessment that closes a unit, drawn from that unit's lessons only."""
+    """Close a unit with exactly `count` validated questions.
+
+    The model authors the assessment first. If only a tiny shortfall survives,
+    reuse clean MCQ pages that were already generated and published inside this
+    unit's lessons. Those questions are grounded in exactly the same unit and
+    cross the same audit boundary, so completion adds no invented material and
+    needs no extra paid call.
+    """
     parts: List[str] = []
+    lesson_mcqs: List[Dict[str, Any]] = []
+
     for topic in (unit_topics or []):
         if not isinstance(topic, dict):
             continue
@@ -283,15 +297,75 @@ def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
                 content = json.loads(content)
             except Exception:
                 content = {}
+        if not isinstance(content, dict):
+            continue
+
         block = _material_for_assessment(content)
         if block.strip():
             parts.append(f"=== {topic.get('title', '')} ===\n{block}")
+
+        for page in (content.get("pages") or []):
+            if not isinstance(page, dict) or str(page.get("type") or "").casefold() != "mcq":
+                continue
+            prompt = str(page.get("prompt") or page.get("question") or page.get("stem") or "").strip()
+            answer = str(page.get("answer") or "").strip()
+            options = [str(v).strip() for v in (page.get("options") or page.get("choices") or [])
+                       if str(v).strip()]
+            if answer and answer not in options:
+                options.insert(0, answer)
+            # Preserve order but remove exact duplicates.
+            distinct: List[str] = []
+            for value in options:
+                if value.casefold() not in [x.casefold() for x in distinct]:
+                    distinct.append(value)
+            if not prompt or not answer or len(distinct) != 4 or answer not in distinct:
+                continue
+            raw = {
+                "prompt": prompt,
+                "answer": answer,
+                "distractors": [v for v in distinct if v != answer][:3],
+                "evidence": str(page.get("evidence") or "").strip(),
+                "material_section": str(topic.get("title") or unit_title or "").strip(),
+                "cognitive_task": str(page.get("cognitive_task") or "lesson_review").strip(),
+                "why": str(page.get("why") or page.get("explanation") or "").strip(),
+                "why_tr": str(page.get("why_tr") or page.get("explanation_tr") or "").strip(),
+                "translation_en": str(page.get("translation_en") or page.get("translation") or "").strip(),
+                "translation_tr": str(page.get("translation_tr") or "").strip(),
+            }
+            item = _engine._clean_item(raw, track=material_language)
+            if item is None:
+                continue
+            from services.authoring import repair as _repair
+            _repair.repair_item(item, language=language)
+            findings = _audit.audit_item(item, language=language, track=material_language)
+            if not _audit.blocking(findings):
+                lesson_mcqs.append(item)
+
     if not parts:
         return []
-    return ai_generate_questions(
+
+    questions = ai_generate_questions(
         unit_title, "review", {"_preassembled_content_str": "\n\n".join(parts)[:9000]},
         language, count=count, level=level, material_language=material_language,
-        model_override=model_override, timing_ctx=timing_ctx, ledger=ledger)
+        model_override=model_override, timing_ctx=timing_ctx, ledger=ledger,
+        allow_partial=True)
+
+    if len(questions) >= count:
+        return questions[:count]
+
+    for candidate in lesson_mcqs:
+        if len(questions) >= count:
+            break
+        if any(_engine._same_target(candidate, existing) for existing in questions):
+            continue
+        questions.append(candidate)
+
+    if len(questions) < count:
+        _log(f"[UNIT-ASSESS] '{unit_title}' still short after lesson-MCQ completion: "
+             f"{len(questions)}/{count}")
+    else:
+        _log(f"[UNIT-ASSESS] '{unit_title}' completed to {count} with validated lesson MCQs")
+    return questions[:count]
 
 
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=10,

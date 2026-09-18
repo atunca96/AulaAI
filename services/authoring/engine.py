@@ -253,7 +253,6 @@ def _clean_item(raw: Any, *, track: str) -> Optional[Dict[str, Any]]:
         return None
     distractors = distractors[:3]
 
-    suffix = "_tr" if str(track).casefold().startswith("tr") else ""
     item: Dict[str, Any] = {
         "id": _uid(), "type": "mcq", "prompt": stem, "answer": answer,
         "distractors": distractors, "options": [answer] + distractors,
@@ -261,11 +260,25 @@ def _clean_item(raw: Any, *, track: str) -> Optional[Dict[str, Any]]:
         "material_section": str(raw.get("material_section") or "").strip()[:100],
         "cognitive_task": str(raw.get("cognitive_task") or "").strip()[:40],
     }
-    item[f"why{suffix}"] = str(raw.get(f"why{suffix}") or raw.get("why") or "").strip()
-    gloss = str(raw.get(f"translation{suffix}") or raw.get("translation") or "").strip()
-    if gloss:
-        item[f"translation{suffix}"] = gloss
-        item["translation"] = gloss
+
+    # Assessments are bilingual in their instructional metadata even though the
+    # stem/options/key stay entirely in the taught language. Keep the two tracks
+    # separate: the old single-track normaliser copied Turkish into the generic
+    # English aliases, which is how the English reader ended up showing Turkish.
+    why_en = str(raw.get("why") or raw.get("why_en") or "").strip()
+    why_tr = str(raw.get("why_tr") or "").strip()
+    if why_en:
+        item["why"] = why_en
+    if why_tr:
+        item["why_tr"] = why_tr
+
+    gloss_en = str(raw.get("translation_en") or raw.get("translation") or "").strip()
+    gloss_tr = str(raw.get("translation_tr") or "").strip()
+    if gloss_en:
+        item["translation"] = gloss_en
+        item["translation_en"] = gloss_en
+    if gloss_tr:
+        item["translation_tr"] = gloss_tr
     return item
 
 
@@ -283,7 +296,7 @@ def generate_assessment(*, title: str, content: str, count: int, language: str, 
                         emphasis: str = "", already_asked: Sequence[str] = (),
                         model: str = "", temperature: float = 0.75,
                         seed: Optional[int] = None) -> AssessmentResult:
-    """`count` publishable items, or as many as survive two attempts."""
+    """`count` publishable items, with two retries aimed only at the remaining shortfall."""
     ledger = ledger or B.BuildLedger(label=f"{language} {level}")
     system = P.build_assessment_system(language=language, level=level, track=track)
     system_tokens = estimate_tokens(system)
@@ -294,7 +307,7 @@ def generate_assessment(*, title: str, content: str, count: int, language: str, 
     correction = ""
     asked = list(already_asked)
 
-    for attempt in range(2):
+    for attempt in range(3):
         shortfall = count - len(kept)
         if shortfall <= 0:
             break
@@ -324,7 +337,9 @@ def generate_assessment(*, title: str, content: str, count: int, language: str, 
                                cached_tokens=response.cached_tokens,
                                reported_cost=response.cost)
         if not response.ok:
-            if attempt:
+            # A transient failure on one attempt is not a reason to throw away
+            # valid items already kept. Continue while a bounded retry remains.
+            if attempt >= 2:
                 return AssessmentResult(items=kept, findings=all_findings,
                                         attempts=attempt + 1, cost=spent,
                                         error="" if kept else response.error)
@@ -358,7 +373,7 @@ def generate_assessment(*, title: str, content: str, count: int, language: str, 
         correction = _correction_note(rejected)
 
     _shuffle_options(kept, seed)
-    return AssessmentResult(items=kept[:count], findings=all_findings, attempts=2, cost=spent)
+    return AssessmentResult(items=kept[:count], findings=all_findings, attempts=min(3, attempt + 1), cost=spent)
 
 
 def _same_target(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
