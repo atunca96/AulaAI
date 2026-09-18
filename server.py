@@ -1785,7 +1785,7 @@ table.vt td { padding: 4px 6px; }
                 message = "Generation did not start. Please click Force Restart."
 
             # STALE/TIMEOUT PROTECTION: If building has run > 15 minutes, auto-recover
-            elif is_building and started_at > 0 and elapsed > 900:
+            elif is_building and stage != "quality_review" and started_at > 0 and elapsed > 900:
                 print(f"[SERVER] Stale build detected for {course_id} (elapsed {elapsed:.0f}s). Auto-recovering...")
                 db.execute("UPDATE courses SET is_building = 0, build_stage = 'timeout', build_message = 'Build timed out. Please click Force Restart.' WHERE id = ?", (course_id,))
                 db.commit()
@@ -2173,10 +2173,19 @@ table.vt td { padding: 4px 6px; }
         gen_id = row[3] or "LEGACY"
 
         with db_connection() as db:
+            # A review-only retry is a new processing run. Reset its clock so the
+            # generic stale-build watchdog cannot immediately "recover" a course
+            # whose original generation started many minutes ago while the new
+            # review thread is genuinely active.
             db.execute(
                 "UPDATE courses SET is_building = 1, build_stage = 'quality_review', "
-                "build_message = ? WHERE id = ?",
-                ("Publication review is being retried without regenerating lessons.", course_id),
+                "build_message = ?, build_started_at = ?, progress_high_water = 96 "
+                "WHERE id = ?",
+                (
+                    "Publication review is being retried without regenerating lessons.",
+                    time.time(),
+                    course_id,
+                ),
             )
             db.commit()
         bump_version()
