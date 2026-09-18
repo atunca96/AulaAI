@@ -2511,3 +2511,115 @@ def enforce_material_integrity(data, language=None, material_language="tr"):
     # decision and records what it dropped. Splitting removal across both layers
     # is how two guards end up disagreeing about what shipped.
     return out
+
+
+# ── TARGET-LANGUAGE ORTHOGRAPHIC CONVENTION ──────────────────────────────────
+# Some writing conventions are not style: omitting them is a spelling error in
+# the language being taught, and it is the learners who copy it. Spanish opens a
+# question with ¿ and an exclamation with ¡, and a course that prints
+# "Cómo estás?" is teaching the punctuation of a different language while
+# claiming to teach this one.
+#
+# Kept strictly to conventions that are (a) obligatory rather than preferred,
+# (b) determinable from the text itself with no judgement about meaning, and
+# (c) repairable by inserting a mark, never by rewriting words. Anything that
+# needs to know what a sentence MEANS belongs to the generator, not here.
+#
+# Scoped by two things at once, and needs both: the taught language must be one
+# this table knows, and the caller must pass a field that is target-language by
+# contract. A Turkish answer-key sentence in a Spanish course ends in '?' too,
+# and it takes no ¿.
+
+_ES_LANGUAGE_KEYS = ("spanish", "español", "espanol", "castellano", "ispanyolca")
+
+# Where a question can begin inside a sentence: after a full stop, another
+# terminator, a colon or semicolon, a line break, or an opening quote or bracket
+# — the quoted question "«Cómo estás?»" opens inside the guillemets, not before
+# them.
+_ES_CLAUSE_OPENERS = set('.!?…\n\r«»"“”\'‘’()[]{}—–')
+
+# Spanish opens the question where the question starts, which after a vocative
+# or a courtesy opener is not the start of the sentence: "Perdone, ¿dónde está?"
+# An interrogative word right after a comma is that boundary, and is the only
+# comma this moves the mark to.
+_ES_INTERROGATIVE_AFTER_COMMA = re.compile(
+    r",\s+(?=(?:por\s+qu[eé]|para\s+qu[eé]|a\s+d[oó]nde|ad[oó]nde|de\s+d[oó]nde|"
+    r"qu[eé]|c[oó]mo|d[oó]nde|cu[aá]ndo|cu[aá]l(?:es)?|qui[eé]n(?:es)?|"
+    r"cu[aá]nt[oa]s?)\b)",
+    re.IGNORECASE,
+)
+
+
+def _is_spanish_context(language: Optional[str]) -> bool:
+    name = str(language or "").strip().casefold()
+    if not name:
+        return False
+    return name == "es" or any(key in name for key in _ES_LANGUAGE_KEYS)
+
+
+def _insert_spanish_opener(text: str, closer: str, opener: str) -> str:
+    """Give every unopened `closer` run in `text` its `opener`.
+
+    Walks the closers from the right so an insertion never moves an index that
+    has not been handled yet. A run of closers ('???') counts once.
+    """
+    out = text
+    index = len(out)
+    while True:
+        index = out.rfind(closer, 0, index)
+        if index < 0:
+            return out
+        # Collapse a run: only its first character is treated as the terminator.
+        while index > 0 and out[index - 1] == closer:
+            index -= 1
+
+        # Already opened? Scan back for this closer's own opener, stopping at
+        # the previous closer of the same kind, which would own it instead.
+        cursor, opened = index - 1, False
+        while cursor >= 0:
+            if out[cursor] == opener:
+                opened = True
+                break
+            if out[cursor] == closer:
+                break
+            cursor -= 1
+        if opened:
+            continue
+
+        start = 0
+        for pos in range(index - 1, -1, -1):
+            if out[pos] in _ES_CLAUSE_OPENERS:
+                start = pos + 1
+                break
+        while start < index and out[start].isspace():
+            start += 1
+        segment = out[start:index]
+        if not any(ch.isalpha() for ch in segment):
+            continue
+        vocative = None
+        for match in _ES_INTERROGATIVE_AFTER_COMMA.finditer(segment):
+            vocative = match
+        if vocative is not None:
+            start += vocative.end()
+        out = out[:start] + opener + out[start:]
+    return out
+
+
+def repair_target_orthography(text: Any, language: Optional[str] = None) -> Any:
+    """Restore obligatory punctuation the taught language requires.
+
+    Idempotent and additive: it inserts a mark the language mandates and never
+    removes, reorders or rewrites anything. Text that is already correct comes
+    back byte-identical, so it is safe to apply at every boundary the content
+    crosses.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return text
+    if not _is_spanish_context(language):
+        return text
+    out = text
+    if "?" in out:
+        out = _insert_spanish_opener(out, "?", "¿")
+    if "!" in out:
+        out = _insert_spanish_opener(out, "!", "¡")
+    return out

@@ -33,6 +33,7 @@ __all__ = [
     "TRANSLATION_REQUEST", "looks_like_translation_question",
     "instructional_prose_ratio", "out_of_scope_terms",
     "giveaway_features", "normalize_option", "mixed_spelling_variants",
+    "key_length_outlier", "distractor_fit", "appears_in_stem",
 ]
 
 
@@ -155,6 +156,133 @@ def mixed_spelling_variants(options: Sequence[Any]) -> bool:
         return False
     groups = {normalize_token(o) for o in opts}
     return 1 < len(groups) < len(opts)
+
+
+# ── Surface parallelism of the option set ─────────────────────────────────────
+# §4 of the contract asks for length symmetry and names the reason: a key that
+# is visibly longer or visibly shorter than everything beside it is chosen by
+# its shape, not by the language. Nothing measured it, so the rule survived only
+# as far as the generator's own attention to it.
+#
+# The thresholds below are deliberately far outside the ±25% the contract asks
+# for. This is not a second statement of that rule — it is the point past which
+# the difference stops being a proportion and becomes a visible marker on the
+# page, and where a deterministic check can act without judging content. An item
+# a little off balance is the generator's business; an option twice the size of
+# every other one is a defect any learner can see.
+_OUTLIER_RATIO = 2.0
+_OUTLIER_MIN_DELTA = 12
+
+
+def key_length_outlier(answer: Any, options: Sequence[Any]) -> bool:
+    """True when the keyed answer is a gross length outlier among the options.
+
+    Fires in both directions. A key twice as long as anything else is the
+    classic giveaway — the elaborated, carefully qualified option is the one the
+    writer thought hardest about. A key half the length of every distractor is
+    the same cue inverted: three long options and one short one read as three
+    variations on a theme and one odd answer.
+    """
+    key = str(answer or "").strip()
+    others = [str(o).strip() for o in (options or []) if str(o).strip()]
+    others = [o for o in others if normalize_option(o) != normalize_option(key)]
+    if not key or len(others) < 2:
+        return False
+    longest = max(len(o) for o in others)
+    shortest = min(len(o) for o in others)
+    if len(key) >= _OUTLIER_RATIO * longest and len(key) - longest >= _OUTLIER_MIN_DELTA:
+        return True
+    if shortest >= _OUTLIER_RATIO * len(key) and shortest - len(key) >= _OUTLIER_MIN_DELTA:
+        return True
+    return False
+
+
+def appears_in_stem(candidate: Any, stem: Any) -> bool:
+    """True when the whole candidate already sits in the carrier sentence.
+
+    A word the learner can read in the stem is not a live alternative to the
+    word that completes it; it is a word the sentence has already spent. Matched
+    on whole normalized tokens so an inflected neighbour is not caught, and only
+    from four characters up, below which the match would be an accident.
+    """
+    key = normalize_token(candidate)
+    if len(key) < 4:
+        return False
+    return f" {key} " in f" {normalize_token(stem)} "
+
+
+def distractor_fit(
+    answer: Any,
+    candidate: Any,
+    *,
+    stem: Any = "",
+    chosen: Sequence[Any] = (),
+    strict: bool = True,
+) -> Optional[tuple]:
+    """How well `candidate` works as a distractor for `answer`, or None if never.
+
+    Used when an item arrives with fewer than three usable distractors and the
+    missing ones have to be found among the material the batch already has. The
+    alternative — taking whatever is roughly the right length — is how an option
+    set ends up mixing a verb form with a greeting, or repeating the key with an
+    accent knocked off.
+
+    Returns a sort key, smallest first, so a caller can rank a pool rather than
+    shuffle it. The exclusions that return None are not preferences:
+
+      * the same option twice, whether identical or identical after stripping
+        diacritics — the second is the spelling-slip trap §4 forbids by name,
+        and `mixed_spelling_variants` would drop the whole item over it;
+      * an option already chosen, under either comparison.
+
+    `strict=False` keeps only those exclusions and the historical length band,
+    so a caller can fall back to it and never assemble fewer items than it would
+    have without any ranking at all.
+    """
+    ans = str(answer or "").strip()
+    cand = str(candidate or "").strip()
+    if not ans or not cand:
+        return None
+    # Bracketing and slashes mark an annotation or an either/or gloss, not a
+    # form the learner is being offered.
+    if any(ch in cand for ch in "()[]{}/\\|"):
+        return None
+
+    a_opt, c_opt = normalize_option(ans), normalize_option(cand)
+    a_tok, c_tok = normalize_token(ans), normalize_token(cand)
+    if not c_opt or c_opt == a_opt:
+        return None
+    if a_tok and c_tok == a_tok:
+        return None
+    for other in chosen or ():
+        if c_opt == normalize_option(other):
+            return None
+        o_tok = normalize_token(other)
+        if o_tok and c_tok == o_tok:
+            return None
+
+    a_words, c_words = len(ans.split()), len(cand.split())
+    word_delta = abs(a_words - c_words)
+    length_delta = abs(len(cand) - len(ans))
+
+    if strict:
+        # Homogeneity, measured the only two ways that need no knowledge of the
+        # language: a one-word key is answered by one-word options, and a
+        # phrase-length key by phrase-length options.
+        if a_words == 1 and c_words != 1:
+            return None
+        if word_delta > 1:
+            return None
+        ratio = len(cand) / float(max(1, len(ans)))
+        if not (0.6 <= ratio <= 1.7):
+            return None
+        if appears_in_stem(cand, stem):
+            return None
+    elif length_delta > max(len(ans), 15):
+        return None
+
+    same_shape = 0 if (ans[:1].isupper() == cand[:1].isupper()) else 1
+    return (word_delta, same_shape, length_delta)
 
 
 def normalize_option(text: Any) -> str:
@@ -348,8 +476,14 @@ def violations(
     # A misspelling of one option standing among otherwise real forms. §4
     # already forbids manufacturing a wrong option by mechanical mutation;
     # this is that rule measured.
-    if mixed_spelling_variants(item.get("options") or ([answer] + clean_d)):
+    option_set = item.get("options") or ([answer] + clean_d)
+    if mixed_spelling_variants(option_set):
         problems.append("mixed_spelling_variants")
+
+    # The key picked out by its shape rather than by its meaning. §4 asks for
+    # length symmetry; this is the point past which the asymmetry is visible.
+    if answer and key_length_outlier(answer, option_set):
+        problems.append("key_length_outlier")
 
     # The stem must be target-language prose, not instructional-language prose.
     if stem and instructional_prose_ratio(stem, instructional_track) >= max_instructional_ratio:
@@ -389,7 +523,7 @@ _DROP_PREFIXES = (
     "answer_among_distractors", "option_count_", "answer_not_in_options",
     "translation_question", "stem_in_instructional_language",
     "answer_revealed_in_", "out_of_scope:", "feature_only_in_key:",
-    "mixed_spelling_variants",
+    "mixed_spelling_variants", "key_length_outlier",
 )
 
 

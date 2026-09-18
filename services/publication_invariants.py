@@ -2243,6 +2243,10 @@ def apply_assessment_invariants(questions: Any, language: Any = None, material_l
     except Exception:
         safe_unicode_normalize = None  # type: ignore[assignment]
         validate_mcq = None  # type: ignore[assignment]
+    try:
+        from services.material_quality_guard import repair_target_orthography
+    except Exception:
+        repair_target_orthography = None  # type: ignore[assignment]
 
     out: List[Any] = []
     for question in questions:
@@ -2262,6 +2266,12 @@ def apply_assessment_invariants(questions: Any, language: Any = None, material_l
             if base in _RATIONALE_FIELDS and scope in _TENDENCY_SCOPES:
                 value = hedge_absolute_claims(value, _track_language(key, material_language))
             item[key] = value
+
+        # Obligatory target-language punctuation, applied to the item's
+        # target-language fields together so the key and the option list stay
+        # the same strings as each other. `translation_en`/`translation_tr` and
+        # the rationales are the instructional track and are never touched.
+        repair_entry_orthography(item, language, repair_target_orthography)
 
         if validate_mcq is not None and (item.get("options") or item.get("choices")):
             try:
@@ -2366,6 +2376,7 @@ def apply_publication_invariants(
         return data
     out = deepcopy(data) if copy else data
     out = prune_invalid_mcq_pages(out)
+    out = apply_target_orthography(out, language=language)
     out = enforce_option_parallelism(out, material_language=material_language)
     out = unify_phonetic_ownership(out)
     out = collapse_adjacent_duplicates(out)
@@ -2490,6 +2501,77 @@ def enforce_notation_repertoire(data: Any) -> int:
 
 
 _NOTATION_FIELD_NAMES = ("phonetic", "pronunciation", "ipa", "transcription")
+
+
+# ── Orthographic convention in the taught language ──────────────────────────
+# Character sanitation below repairs what is CORRUPT. This repairs what is
+# INCORRECT in the language being taught: punctuation the language requires and
+# whose absence a learner will copy. Unlike sanitation it cannot run over every
+# string, because a lesson holds three languages at once and the convention
+# belongs to exactly one of them - so it runs over a named list of the fields
+# the material schema defines as target-language, and nowhere else.
+#
+# Scalar fields and list-of-string fields are named separately because the
+# repair applies to a string; a list is repaired element by element. Adding a
+# target-language field to the schema means adding its name here.
+_TARGET_TEXT_FIELDS = ("term", "target", "example", "prompt", "answer")
+_TARGET_LIST_FIELDS = ("options", "distractors")
+# Containers whose entries carry target-language fields of their own.
+_TARGET_ENTRY_CONTAINERS = ("items", "vocabulary", "words", "examples", "rules", "comparisons")
+
+
+def repair_entry_orthography(entry: Any, language: Optional[str] = None, repair=None) -> Any:
+    """Apply `repair` to the target-language fields of one page or entry."""
+    if not isinstance(entry, dict) or repair is None:
+        return entry
+    # A dialogue turn holds the utterance in `text`, where a page holds
+    # instructional prose under the same name. Only the former is target
+    # language, which is why `text` is not in the scalar list above.
+    for key in _TARGET_TEXT_FIELDS:
+        value = entry.get(key)
+        if isinstance(value, str) and value.strip():
+            entry[key] = repair(value, language)
+    for key in _TARGET_LIST_FIELDS:
+        values = entry.get(key)
+        if isinstance(values, list):
+            entry[key] = [
+                repair(v, language) if isinstance(v, str) and v.strip() else v
+                for v in values
+            ]
+    return entry
+
+
+def apply_target_orthography(data: Any, language: Optional[str] = None) -> Any:
+    """Restore obligatory target-language punctuation across a lesson.
+
+    Deterministic, additive and idempotent, like every other invariant here: it
+    inserts a mark the taught language mandates and never rewrites a word, so
+    content that was already correct comes back unchanged.
+    """
+    if not isinstance(data, dict):
+        return data
+    try:
+        from services.material_quality_guard import repair_target_orthography as repair
+    except Exception:
+        return data
+    pages = data.get("pages")
+    if not isinstance(pages, list):
+        return data
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        repair_entry_orthography(page, language, repair)
+        for container in _TARGET_ENTRY_CONTAINERS:
+            entries = page.get(container)
+            if isinstance(entries, list):
+                for entry in entries:
+                    repair_entry_orthography(entry, language, repair)
+        turns = page.get("dialogue")
+        if isinstance(turns, list):
+            for turn in turns:
+                if isinstance(turn, dict) and isinstance(turn.get("text"), str):
+                    turn["text"] = repair(turn["text"], language)
+    return data
 
 
 def apply_text_layer_integrity(data: Any, language: Optional[str] = None) -> Any:

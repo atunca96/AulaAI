@@ -29,6 +29,19 @@ from typing import List, Dict, Any, Optional, Tuple
 from services.quiz_source_cache import get_content_hash
 from services import question_contract as qc
 from services.assessment_scope import SCOPE_TOPIC as _SCOPE_TOPIC, SCOPE_UNIT as _SCOPE_UNIT
+# services/assessment_validation.py owns every rule about an assessment item
+# that can be measured without knowing the taught language. Imported here rather
+# than inside the per-candidate closure, which re-imported it for every
+# candidate of every batch.
+from services.assessment_validation import (
+    violations as _av_violations,
+    is_fatal as _av_fatal,
+    distractor_fit as _av_distractor_fit,
+    giveaway_features as _av_giveaway_features,
+    mixed_spelling_variants as _av_mixed_spelling,
+    key_length_outlier as _av_key_length_outlier,
+    normalize_option as _av_normalize_option,
+)
 
 def _uid():
     return str(uuid.uuid4())
@@ -698,6 +711,42 @@ def get_language_profile(language):
     agglutinative = ["Turkish", "Korean", "Japanese", "Finnish", "Hungarian"]
     if language in agglutinative: return "agglutinative"
     return "inflected"
+
+
+# Violations whose verdict depends on the option set, and which are therefore
+# decided once, on the four options the learner actually receives, rather than
+# on the provisional set a candidate arrives with.
+_DEFERRED_TO_OPTION_AUDIT = (
+    "distractor_count_", "option_count_", "answer_not_in_options",
+    "duplicate_options", "answer_among_distractors",
+    "mixed_spelling_variants", "key_length_outlier", "feature_only_in_key:",
+)
+
+
+def audit_option_set(prompt: str, answer: str, distractors: list) -> List[str]:
+    """What is wrong with this exact set of four options. Empty means nothing.
+
+    The same rules `violations()` states, applied where they can actually be
+    trusted: after supplementation, after deduplication and after the language
+    calibrators have rewritten the text. Kept separate from `violations()` so it
+    can also be asked about a repair candidate before the repair is committed.
+    """
+    options = [answer] + list(distractors)
+    problems: List[str] = []
+    keys = [_av_normalize_option(o) for o in options]
+    present = [k for k in keys if k]
+    if len(present) != len(options) or len(set(present)) != len(present):
+        problems.append("duplicate_options")
+    if _av_mixed_spelling(options):
+        problems.append("mixed_spelling_variants")
+    if _av_key_length_outlier(answer, options):
+        problems.append("key_length_outlier")
+    for feature in _av_giveaway_features(
+        {"prompt": prompt, "answer": answer, "options": options}
+    ):
+        problems.append(f"feature_only_in_key:{feature}")
+    return problems
+
 
 LANGUAGE_CALIBRATION_REGISTRY = {
     "german": {
@@ -1369,16 +1418,19 @@ REPETITION & COVERAGE RULES:
             # replaced from the pool exactly like any other rejection, instead of
             # silently shrinking a finished batch.
             try:
-                from services.assessment_validation import violations as _av_violations, is_fatal as _av_fatal
                 _probs = [x for x in _av_violations(
                     item,
                     instructional_track=material_language,
                     forbidden_terms=forbidden_terms,
                     require_rationale_track=False,
                 ) if _av_fatal(x)]
-                # Option-shape problems are repaired further down by distractor
-                # supplementation, so they are not grounds for rejection here.
-                _probs = [x for x in _probs if not x.startswith(("distractor_count_", "option_count_", "answer_not_in_options"))]
+                # Everything decided by the OPTION SET is deferred to the audit
+                # after assembly. The set checked here is not the set the learner
+                # gets: distractors are still to be supplemented, deduplicated
+                # and rewritten by the language calibrators below, and a rule
+                # applied to a provisional set either misses a defect the final
+                # set has or condemns an item for one the final set does not.
+                _probs = [x for x in _probs if not x.startswith(_DEFERRED_TO_OPTION_AUDIT)]
                 if _probs:
                     return None
             except Exception:
@@ -1432,6 +1484,7 @@ REPETITION & COVERAGE RULES:
                     clean_d.append(ds)
 
             # If fewer than 3 distractors, supplement from raw_list or topic_content to reach exactly 3
+            supplement_reserve = []
             if len(clean_d) < 3:
                 extra_candidates = []
                 for other_item in raw_list:
@@ -1455,13 +1508,47 @@ REPETITION & COVERAGE RULES:
                                 if t_str and t_str.lower() != a.lower() and t_str.lower() not in [cd.lower() for cd in clean_d]:
                                     extra_candidates.append(t_str)
 
-                extra_candidates = [cand for cand in extra_candidates if abs(len(cand) - len(a)) <= max(len(a), 15)]
-                py_random.shuffle(extra_candidates)
+                # An item short of distractors has to borrow them from what the
+                # batch and the lesson already contain, and WHICH ones it borrows
+                # decides whether the learner sees a question or a giveaway.
+                # Ranking by fit — same word count, same length band, not the key
+                # with a diacritic knocked off, not a word already sitting in the
+                # carrier sentence — is what keeps a greeting out of an option set
+                # of verb forms. The strict pass runs first; the wide pass is the
+                # historical length band, so an item that could be completed
+                # before is still completed now, just from the best candidate
+                # available rather than from a shuffled one.
+                seen_extra = set()
+                supplement_pool = []
                 for cand in extra_candidates:
-                    if cand.lower() not in [cd.lower() for cd in clean_d]:
-                        clean_d.append(cand)
+                    key = cand.casefold()
+                    if key not in seen_extra:
+                        seen_extra.add(key)
+                        supplement_pool.append(cand)
+
+                for strict_pass in (True, False):
                     if len(clean_d) >= 3:
                         break
+                    ranked = []
+                    for cand in supplement_pool:
+                        fit = _av_distractor_fit(a, cand, stem=p, chosen=clean_d, strict=strict_pass)
+                        if fit is not None:
+                            ranked.append((fit, cand))
+                    ranked.sort(key=lambda pair: pair[0])
+                    for _fit, cand in ranked:
+                        if len(clean_d) >= 3:
+                            break
+                        # Re-checked against the distractors chosen since this
+                        # pool was ranked, so two borrowed options cannot turn
+                        # out to be the same word in two spellings.
+                        if _av_distractor_fit(a, cand, stem=p, chosen=clean_d, strict=strict_pass) is None:
+                            continue
+                        clean_d.append(cand)
+
+                # Whatever the passes did not take stays available to the option
+                # audit below, which may need to swap one of them back out.
+                chosen_keys = {cd.casefold() for cd in clean_d}
+                supplement_reserve = [c for c in supplement_pool if c.casefold() not in chosen_keys]
 
             if len(clean_d) < 3:
                 return None
@@ -1585,6 +1672,36 @@ REPETITION & COVERAGE RULES:
             if is_giveaway:
                 return None
 
+            # ── THE OPTION AUDIT ──
+            # The four options are now final: supplemented, deduplicated and put
+            # through the language calibrators. This is the first and only moment
+            # the set the learner will read can be judged as a set. A defect that
+            # a swap can cure is cured — a borrowed distractor is a choice, not a
+            # fact about the item — and one that cannot is a rejection, which
+            # costs a candidate the pool can replace rather than a learner a
+            # question.
+            final_d = clean_d[:3]
+            audit = audit_option_set(p, a, final_d)
+            if audit:
+                repaired = False
+                for slot in range(len(final_d)):
+                    if repaired:
+                        break
+                    for spare in supplement_reserve:
+                        trial = list(final_d)
+                        trial[slot] = spare
+                        if _av_distractor_fit(a, spare, stem=p,
+                                              chosen=[x for i, x in enumerate(trial) if i != slot],
+                                              strict=False) is None:
+                            continue
+                        if not audit_option_set(p, a, trial):
+                            final_d = trial
+                            repaired = True
+                            break
+                if not repaired:
+                    return None
+            clean_d = final_d
+
             why_en = item.get("why", "Correct answer based on the material.")
             why_tr = item.get("why_tr", item.get("why", "Materyale göre doğru seçenek."))
             t_en = item.get("translation_en") or item.get("translation", "")
@@ -1594,7 +1711,7 @@ REPETITION & COVERAGE RULES:
             if re.search(r'_{2,}', p):
                 t_en, t_tr = _sanitize_blank_translations(p, a, t_en, t_tr, why_en, why_tr, topic_content)
 
-            opts = [a] + clean_d[:3]
+            opts = [a] + clean_d
             py_random.shuffle(opts)
 
             return {
@@ -1605,7 +1722,7 @@ REPETITION & COVERAGE RULES:
                 "translation_en": t_en,
                 "translation_tr": t_tr,
                 "answer": a,
-                "distractors": clean_d[:3],
+                "distractors": clean_d,
                 "options": opts,
                 "why": why_en,
                 "why_tr": why_tr,
