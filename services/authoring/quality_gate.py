@@ -543,7 +543,7 @@ def final_terra_verify(*, units: List[Dict[str, Any]], language: str, level: str
     }
     data = _call_review(
         model=TERRA_VERIFY_MODEL, system=_TERRA_VERIFY_SYSTEM, payload=payload,
-        max_tokens=2000, effort="medium", budget=budget,
+        max_tokens=2600, effort="high", budget=budget,
         stage="terra_final_verify",
     )
     coverage = data.get("coverage")
