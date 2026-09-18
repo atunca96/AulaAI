@@ -253,13 +253,14 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
         if not target.lower().endswith("-pro"):
             payload["reasoning"] = {"effort": reasoning_effort or "low"}
     elif target.lower().startswith("deepseek/"):
-        # DeepSeek V4.1 Flash supports low/high/max thinking effort on OpenRouter.
-        # Do not send sampling controls alongside thinking mode; keep provider
-        # routing broad so structured-output capable endpoints can fail over.
+        # OpenRouter exposes explicit none/minimal/low/high/max reasoning effort.
+        # For schema-bound editorial passes we often want zero hidden reasoning:
+        # otherwise hidden tokens can consume max_tokens and return chars=0 even
+        # though the model understood the prompt.
         effort = (reasoning_effort or "low").lower()
         if effort == "medium":
             effort = "high"
-        if effort not in ("low", "high", "max"):
+        if effort not in ("none", "minimal", "low", "high", "max"):
             effort = "low"
         payload["reasoning"] = {"effort": effort}
     else:
