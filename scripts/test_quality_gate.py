@@ -137,7 +137,7 @@ def test_transport_strict_schema_and_content_blocks():
         T.urllib.request.urlopen = fake_urlopen
         response = T.call_model(
             [{"role": "user", "content": "return ok"}],
-            max_tokens=100, model="openai/gpt-5.6-luna-pro",
+            max_tokens=100, model="deepseek/deepseek-v4.1-flash",
             reasoning_effort="high", response_schema=schema,
             response_name="quality_smoke", attempts=1,
         )
@@ -153,7 +153,7 @@ def test_transport_strict_schema_and_content_blocks():
           "reviewer requests strict JSON-schema output")
     check(provider.get("require_parameters") is True,
           "routing refuses providers that cannot honor structured output")
-    check(Q.LUNA_REVIEW_MODEL == "openai/gpt-5.6-luna-pro",
+    check(Q.REVIEW_MODEL == "deepseek/deepseek-v4.1-flash",
           "semantic editor is pinned to Luna Pro")
 
 
@@ -274,7 +274,7 @@ def test_luna_assessment_review_removes_multi_correct_item():
 
 def test_single_semantic_review_model():
     print("\n[Q4] publication review uses Luna only; deterministic integrity is final")
-    check(Q.LUNA_REVIEW_MODEL == "openai/gpt-5.6-luna-pro",
+    check(Q.REVIEW_MODEL == "deepseek/deepseek-v4.1-flash",
           "Luna Pro is the single semantic review model")
     check(not hasattr(Q, "TERRA_VERIFY_MODEL"),
           "Terra is not part of the publication review runtime")
