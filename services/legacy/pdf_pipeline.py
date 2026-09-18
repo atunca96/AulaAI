@@ -713,7 +713,8 @@ Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".
     return filled
 
 
-def _run_publication_quality_gate(course_id, language, level, material_language, gen_id=None):
+def _run_publication_quality_gate(course_id, language, level, material_language, gen_id=None,
+                                  generation_spend_override=None):
     """Review, patch and re-audit every learner-visible field before READY."""
     from services.authoring import quality_gate as Q
 
@@ -723,13 +724,16 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     # call (the phase-2 ledger is reset after curriculum planning), then give the
     # semantic gate only the smaller of its normal allowance and real headroom.
     generation_spend = 0.0
-    try:
-        from services import generation_cost as _generation_cost
-        generation_spend = float(
-            (_generation_cost.summary().get("total") or {}).get("cost") or 0.0
-        )
-    except Exception:
-        pass
+    if generation_spend_override is not None:
+        generation_spend = max(0.0, float(generation_spend_override))
+    else:
+        try:
+            from services import generation_cost as _generation_cost
+            generation_spend = float(
+                (_generation_cost.summary().get("total") or {}).get("cost") or 0.0
+            )
+        except Exception:
+            pass
     review_headroom = 0.60 - generation_spend - 0.02
     if review_headroom <= 0:
         raise Q.QualityGateError(
