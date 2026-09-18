@@ -363,7 +363,7 @@ def test_publication_integrity_catches_renderer_silent_drop():
     page["answer"] = "española"
     page["options"] = ["española", "italiana", "francesa", "turca"]
     page["distractors"] = ["italiana", "francesa", "turca"]
-    page["explanation"] = "La nacionalidad correcta es española."
+    page["explanation"] = "The nationality is Spanish."
     page["explanation_tr"] = "Doğru milliyet İspanyoldur."
     try:
         Q.validate_publication_integrity(
