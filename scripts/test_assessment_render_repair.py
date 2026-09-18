@@ -9,6 +9,12 @@ to Terra, which patches the existing question in place. Ten questions remain.
 from __future__ import annotations
 
 import copy
+import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 from services.authoring import quality_gate as Q
 
