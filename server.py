@@ -1064,7 +1064,39 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         Reads real page-based topic content (overview/vocabulary/grammar/examples/comparisons/mcq).
         Supports ?lang=en or ?lang=tr query parameter.
         No external APIs — self-contained, local PDF generation only.
+
+        A failed/in-progress generation is deliberately not exportable. The
+        semantic publication gate is fail-closed; letting the PDF route ignore
+        that state would turn a rejected draft into an apparently authoritative
+        textbook, which is exactly what happened in the 2026-09-18 Spanish A1
+        validation run.
         """
+        try:
+            with db_connection() as _state_db:
+                _state = _state_db.execute(
+                    "SELECT is_building, build_stage, build_message FROM courses WHERE id = ?",
+                    (course_id,),
+                ).fetchone()
+            if not _state:
+                return self._send_error("Course not found", 404)
+            _building = bool(_state["is_building"])
+            _stage = str(_state["build_stage"] or "").strip().casefold()
+            if _building or _stage in {
+                "failed", "quality_review", "enriching", "priming", "analyzing",
+                "building", "generating",
+            }:
+                detail = str(_state["build_message"] or "").strip()
+                message = "Course material has not passed publication review yet."
+                if _stage == "failed":
+                    message = "Course material failed publication review and cannot be exported."
+                if detail:
+                    message += " " + detail[:180]
+                return self._send_error(message, 409)
+        except Exception as state_err:
+            # Exporting without knowing publication state is not a safe fallback.
+            print(f"[PDF EXPORT STATE ERROR] {state_err}")
+            return self._send_error("Unable to verify publication state.", 500)
+
         import html as _html
         try:
             import fitz
