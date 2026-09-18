@@ -31,8 +31,8 @@ def fake_call(**kwargs):
     payload=kwargs["payload"]
     rows=payload["topics"]
     assert len(rows)==1, f"review payload must contain one lesson, got {len(rows)}"
-    assert kwargs["max_tokens"]==2200
-    assert kwargs["effort"]=="none"
+    assert kwargs["max_tokens"]==1800
+    assert kwargs["effort"]=="low"
     row=rows[0]
     return {"topics":[{"topic_id":row["topic_id"],"verdict":"ok","patches":[]}]}
 
@@ -58,4 +58,4 @@ assert len(calls)==2, f"expected one semantic call per lesson, got {len(calls)}"
 assert calls[0]["stage"]=="review_lesson:Unit:Lesson One"
 assert calls[1]["stage"]=="review_lesson:Unit:Lesson Two"
 assert all(len(c["payload"]["topics"])==1 for c in calls)
-print("[DEEPSEEK-CHUNKING] per-lesson review regression PASSED")
+print("[GEMINI-CHUNKING] per-lesson review regression PASSED")

@@ -137,7 +137,7 @@ def test_transport_strict_schema_and_content_blocks():
         T.urllib.request.urlopen = fake_urlopen
         response = T.call_model(
             [{"role": "user", "content": "return ok"}],
-            max_tokens=100, model="deepseek/deepseek-v4.1-flash",
+            max_tokens=100, model="google/gemini-3.7-flash",
             reasoning_effort="high", response_schema=schema,
             response_name="quality_smoke", attempts=1,
         )
@@ -153,8 +153,8 @@ def test_transport_strict_schema_and_content_blocks():
           "reviewer requests strict JSON-schema output")
     check(provider.get("require_parameters") is True,
           "routing refuses providers that cannot honor structured output")
-    check(Q.REVIEW_MODEL == "deepseek/deepseek-v4.1-flash",
-          "semantic editor is pinned to Luna Pro")
+    check(Q.REVIEW_MODEL == "google/gemini-3.7-flash",
+          "semantic editor is pinned to Gemini 3.7 Flash")
 
 
 def test_non_ipa_fails_closed():
@@ -169,8 +169,8 @@ def test_non_ipa_fails_closed():
     check("non_ipa_in_transcription" in codes, "Greek look-alikes block publication")
 
 
-def test_luna_lesson_review_repairs_pdf_defects():
-    print("\n[Q2] Luna unit editor fixes the two real PDF defect classes")
+def test_gemini_lesson_review_repairs_pdf_defects():
+    print("\n[Q2] Gemini unit editor fixes the two real PDF defect classes")
     topic = {"id": "t1", "title": "Numbers and adjectives", "content": lesson_fixture()}
     original = Q.T.call_model
 
@@ -222,7 +222,7 @@ def test_luna_lesson_review_repairs_pdf_defects():
           "the reviewed lesson is mechanically publishable")
 
 
-def test_luna_assessment_review_removes_multi_correct_item():
+def test_gemini_assessment_review_removes_multi_correct_item():
     print("\n[Q3] assessment editor catches the real all-four-options-correct failure")
     lesson_topic = {"id": "t1", "title": "Sounds", "content": lesson_fixture()}
     # Start from the already-corrected IPA so evidence itself has no mechanical blocker.
@@ -273,9 +273,9 @@ def test_luna_assessment_review_removes_multi_correct_item():
 
 
 def test_single_semantic_review_model():
-    print("\n[Q4] publication review uses Luna only; deterministic integrity is final")
-    check(Q.REVIEW_MODEL == "deepseek/deepseek-v4.1-flash",
-          "Luna Pro is the single semantic review model")
+    print("\n[Q4] publication review uses Gemini 3.7 Flash only; deterministic integrity is final")
+    check(Q.REVIEW_MODEL == "google/gemini-3.7-flash",
+          "Gemini 3.7 Flash is the single semantic review model")
     check(not hasattr(Q, "TERRA_VERIFY_MODEL"),
           "Terra is not part of the publication review runtime")
 
@@ -369,7 +369,7 @@ def test_publication_integrity_rejects_duplicates_and_missing_english():
 
 
 
-def test_luna_can_fill_a_missing_bilingual_counterpart():
+def test_gemini_can_fill_a_missing_bilingual_counterpart():
     print("\n[Q8] missing bilingual fields are made patchable before semantic review")
     units = clean_integrity_fixture()
     topic = units[0]["topics"][0]
@@ -409,19 +409,19 @@ def test_luna_can_fill_a_missing_bilingual_counterpart():
     check(saw_empty_slot["value"],
           "the missing counterpart is exposed as an exact empty patch path")
     check(applied == 1 and topic["content"]["pages"][0]["title_tr"] == "Sayılar",
-          "Luna can repair the missing bilingual field without inventing structure")
+          "Gemini can repair the missing bilingual field without inventing structure")
 
 
 def main():
     test_transport_strict_schema_and_content_blocks()
     test_non_ipa_fails_closed()
-    test_luna_lesson_review_repairs_pdf_defects()
-    test_luna_assessment_review_removes_multi_correct_item()
+    test_gemini_lesson_review_repairs_pdf_defects()
+    test_gemini_assessment_review_removes_multi_correct_item()
     test_single_semantic_review_model()
     test_publication_integrity_keeps_ten_questions()
     test_publication_integrity_catches_renderer_silent_drop()
     test_publication_integrity_rejects_duplicates_and_missing_english()
-    test_luna_can_fill_a_missing_bilingual_counterpart()
+    test_gemini_can_fill_a_missing_bilingual_counterpart()
     print(f"\n=== {len(FAILS)} quality-gate failing checks ===")
     for failure in FAILS:
         print("  -", failure)

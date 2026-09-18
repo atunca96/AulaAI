@@ -553,7 +553,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
 
         # ── PHASE 2c: FAIL-CLOSED PUBLICATION QUALITY GATE ──
         # Generation is cheap and broad; review is narrow and independent.
-        # Every unit is reviewed by GPT-5.6 DeepSeek, all ten assessment questions
+        # Every unit is reviewed by Gemini 3.7 Flash, all ten assessment questions
         # are adversarially checked, and deterministic publication integrity verifies rules,
         # IPA and MCQs. A failed/incomplete review aborts publication rather
         # than silently shipping a classroom we did not actually verify.
@@ -864,10 +864,10 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         )
         db.commit()
 
-    # There is no second semantic verifier. DeepSeek already reviewed every unit;
+    # There is no second semantic verifier. Gemini already reviewed every unit;
     # deterministic publication integrity is the authority. If it can name a
     # repairable learner-visible blocker, give that exact blocker one bounded
-    # DeepSeek repair pass, then prove the contract again.
+    # Gemini repair pass, then prove the contract again.
     final_repair_patches = Q.repair_final_publication_blockers(
         units=reviewed_units,
         language=language, level=level, track=material_language, budget=budget,

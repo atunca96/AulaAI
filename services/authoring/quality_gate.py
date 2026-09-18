@@ -5,7 +5,7 @@ only where it has leverage: it reads finished material as an editor, patches
 specific fields, then refuses publication unless the deterministic auditor is
 clean. One semantic review layer is used:
 
-* DeepSeek V4.1 Flash reviews every unit's five lessons and its ten assessment
+* Gemini 3.7 Flash reviews every unit's five lessons and its ten assessment
   questions, and performs bounded targeted repairs when deterministic checks
   identify an exact learner-visible defect.
 * The final authority is deterministic publication integrity, not a second
@@ -39,8 +39,8 @@ from services.authoring import schema as S
 from services.authoring import transport as T
 
 
-REVIEW_MODEL = "deepseek/deepseek-v4.1-flash"
-QUALITY_REVIEW_CEILING_USD = 0.08
+REVIEW_MODEL = "google/gemini-3.7-flash"
+QUALITY_REVIEW_CEILING_USD = 0.22
 
 # A reviewer may change learner-facing content, never ids, page types, ordering,
 # topic structure or bookkeeping.
@@ -555,7 +555,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         budget: ReviewBudget) -> int:
     """Review a unit without sending a 70-110k character mega-prompt.
 
-    DeepSeek Flash can read the old unit-sized payload, but its completion budget
+    Gemini 3.7 Flash can read the old unit-sized payload, but its completion budget
     is shared with hidden reasoning. In production this produced
     finish_reason=length with zero visible JSON. Review each lesson independently
     instead: same learner-visible coverage, much smaller prompts, smaller outputs,
@@ -591,7 +591,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             # Broad review is editorial classification + exact patching. Hidden
             # chain-of-thought only burns completion budget here; deterministic
             # code re-checks every invariant afterwards.
-            max_tokens=2200, effort="none", budget=budget,
+            max_tokens=1800, effort="low", budget=budget,
             stage=f"review_lesson:{unit_title}:{topic.get('title')}",
             response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_review",
         )
@@ -651,7 +651,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             }
             retry = _call_review(
                 model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-                max_tokens=2200, effort="minimal", budget=budget,
+                max_tokens=2000, effort="medium", budget=budget,
                 stage=f"review_blocker_retry:{topic.get('title')}",
                 response_schema=_LESSON_REVIEW_SCHEMA,
                 response_name="lesson_blocker_repair",
@@ -714,7 +714,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 }
                 retry = _call_review(
                     model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-                    max_tokens=1800, effort="none", budget=budget,
+                    max_tokens=1600, effort="low", budget=budget,
                     stage=f"review_bilingual_retry:{topic.get('title')}",
                     response_schema=_LESSON_REVIEW_SCHEMA,
                     response_name="lesson_bilingual_repair",
@@ -826,7 +826,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         "assessment_records": _review_records(content),
         "unit_evidence": evidence,
         # These are deterministic facts about what the renderer would refuse,
-        # not semantic guesses. Give them to DeepSeek up front so it can repair the
+        # not semantic guesses. Give them to Gemini up front so it can repair the
         # item instead of letting the final gate discover the same problem too late.
         "render_contract_blockers": _assessment_render_blockers(content),
     }
@@ -851,9 +851,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
 
     # A renderer-contract blocker is deterministic but not necessarily an
     # audit.py blocker. The fresh production classroom exposed exactly that
-    # gap: DeepSeek reviewed all ten items, then the final boundary correctly
+    # gap: Gemini reviewed all ten items, then the final boundary correctly
     # refused one hidden-world inference. Give the exact rejected item and
-    # reason one bounded targeted DeepSeek repair pass while the full unit evidence
+    # reason one bounded targeted Gemini repair pass while the full unit evidence
     # is still available. Fail closed if it cannot make all ten renderable.
     render_blockers = _assessment_render_blockers(content)
     if render_blockers:
@@ -1361,9 +1361,9 @@ def provider_preflight() -> List[Dict[str, Any]]:
             },
         },
     }
-    # Only DeepSeek V4.1 Flash is part of the production review path. Mechanical Unicode
+    # Only Gemini 3.7 Flash is part of the production review path. Mechanical Unicode
     # contamination is proven by the deterministic gate, so the semantic canary
-    # requires DeepSeek to catch the semantic defects and leaves that one mechanical
+    # requires Gemini to catch the semantic defects and leaves that one mechanical
     # check to code.
     model_expected = dict(expected, greek_lookalike_ipa_error=False)
     response = T.call_model(
@@ -1380,7 +1380,7 @@ def provider_preflight() -> List[Dict[str, Any]]:
         ],
         max_tokens=900, temperature=0.0, model=REVIEW_MODEL, cache_system=False,
         timeout=120, attempts=2, reasoning_effort="high",
-        response_schema=schema, response_name="deepseek_flash_semantic_canary",
+        response_schema=schema, response_name="gemini37_flash_semantic_canary",
     )
     if not response.ok or response.data != model_expected:
         raise QualityGateError(
