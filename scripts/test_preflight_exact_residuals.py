@@ -49,6 +49,7 @@ topic = {
 
 orig_call = Q._call_review
 orig_audit = Q._audit_topic
+orig_repair = Q.R.repair_lesson
 calls = []
 
 def fake_audit(current_topic, *, language, track):
@@ -123,6 +124,7 @@ def fake_call(**kwargs):
 try:
     Q._call_review = fake_call
     Q._audit_topic = fake_audit
+    Q.R.repair_lesson = lambda content, language: content
     applied = Q.repair_deterministic_preflight(
         units=[{"title": "Family and Descriptions", "topics": [topic]}],
         language="Spanish",
@@ -133,15 +135,15 @@ try:
 finally:
     Q._call_review = orig_call
     Q._audit_topic = orig_audit
+    Q.R.repair_lesson = orig_repair
 
-assert applied >= 1, applied
-assert topic["content"]["pages"][0]["items"][0]["target"] != BAD_TARGET
+assert applied == 2, applied
+assert topic["content"]["pages"][0]["items"][0]["target"] == GOOD_TARGET
 assert topic["content"]["pages"][1]["prompt"] == GOOD_PROMPT
 stages = [s for s, _ in calls]
-assert stages[0] == "review_preflight_repair:Family Members", stages
-assert "review_preflight_exact:Family Members:pages.1.prompt" in stages, stages
-# repair_lesson may mechanically normalize one blocker before semantic repair;
-# the invariant under test is that every blocker still present after the bulk
-# pass is repaired by an exact-path fallback rather than causing publication
-# to fail immediately.
+assert stages == [
+    "review_preflight_repair:Family Members",
+    "review_preflight_exact:Family Members:pages.0.items.0.target",
+    "review_preflight_exact:Family Members:pages.1.prompt",
+], stages
 print("[PREFLIGHT-EXACT] residual blockers repaired one path at a time")
