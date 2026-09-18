@@ -253,7 +253,6 @@ def _clean_item(raw: Any, *, track: str) -> Optional[Dict[str, Any]]:
         return None
     distractors = distractors[:3]
 
-    suffix = "_tr" if str(track).casefold().startswith("tr") else ""
     item: Dict[str, Any] = {
         "id": _uid(), "type": "mcq", "prompt": stem, "answer": answer,
         "distractors": distractors, "options": [answer] + distractors,
@@ -261,11 +260,24 @@ def _clean_item(raw: Any, *, track: str) -> Optional[Dict[str, Any]]:
         "material_section": str(raw.get("material_section") or "").strip()[:100],
         "cognitive_task": str(raw.get("cognitive_task") or "").strip()[:40],
     }
-    item[f"why{suffix}"] = str(raw.get(f"why{suffix}") or raw.get("why") or "").strip()
-    gloss = str(raw.get(f"translation{suffix}") or raw.get("translation") or "").strip()
-    if gloss:
-        item[f"translation{suffix}"] = gloss
-        item["translation"] = gloss
+
+    # Both instructional families are kept. The reader offers an English view
+    # and a Turkish view of the same item, and a renderer that finds only one
+    # family falls back to it — which is how a Turkish-only item came to be
+    # shown as the English version of itself.
+    why_en = str(raw.get("why") or "").strip()
+    why_tr = str(raw.get("why_tr") or "").strip()
+    item["why"] = why_en or why_tr
+    item["why_tr"] = why_tr or why_en
+
+    gloss_en = str(raw.get("translation_en") or raw.get("translation") or "").strip()
+    gloss_tr = str(raw.get("translation_tr") or "").strip()
+    if gloss_en or gloss_tr:
+        item["translation_en"] = gloss_en or gloss_tr
+        item["translation_tr"] = gloss_tr or gloss_en
+        # `translation` is what the reader picks up for the published track.
+        item["translation"] = (gloss_tr or gloss_en) if \
+            str(track).casefold().startswith("tr") else (gloss_en or gloss_tr)
     return item
 
 

@@ -159,16 +159,24 @@ Every string you write belongs to exactly one of three tracks, and they never sw
 
 1. TARGET — {language} itself: vocabulary items, example sentences, dialogue utterances,
    and the whole of every assessment question (its stem, its options and its key).
-   These are written ONLY in {language}. No {inst} carrier text inside them.
+   These are written ONLY in {language}. No English or Turkish carrier text inside them.
+   Each of these is written ONCE and shared by both instructional views.
 2. INSTRUCTION — what you say ABOUT {language}: page text, rules, notes, analyses and
-   answer-key explanations. These are written ONLY in {inst}. No {language} prose
-   inside them beyond the forms being quoted, which stay in {language}.
-3. NOTATION — pronunciation. IPA, and nothing but IPA, inside square brackets.
+   answer-key explanations. Every one of these exists TWICE, once in English in its
+   plain field and once in Turkish in its `_tr` field, because the reader can open
+   this lesson in either language. The two must say the same thing: a real
+   translation, never the other language copied across, never one left blank. No
+   {language} prose inside them beyond the forms being quoted, which stay in {language}.
+3. NOTATION — pronunciation. IPA, and nothing but IPA, inside square brackets. Written
+   once; it belongs to no instructional language.
+
+This course publishes {inst} first, so if one of the two instructional languages has to
+be the more carefully written, make it {inst}. Both must still be correct.
 
 The commonest way material fails is one track wearing another's clothes: an English
 sentence inside a Turkish explanation, a Turkish instruction inside a Spanish example,
 a hand-made respelling where a transcription belongs. Before you emit any string, know
-which track it is on."""
+which track it is on and which language it is in."""
 
 
 def _notation_block() -> str:
@@ -293,54 +301,68 @@ second call, add no audit fields, and return the repaired JSON only."""
 
 
 def lesson_schema_block(language: str, track: str = "tr") -> str:
-    """The output shape — single-track by design.
+    """The output shape. Both instructional families, deliberately.
 
-    The previous prompt asked for both the English and the Turkish field family
-    in every lesson, and a course publishes exactly one of them. Half of the
-    most expensive output in the product was generated, stored, and never read
-    by anyone. Emitting only the published track is the single largest saving
-    available and costs nothing a reader can see; a course that later switches
-    track has its instructional fields translated in one cheap pass instead.
+    An earlier version of this rebuild asked for only the course's published
+    track, on the reasoning that a course reads one and generating the other is
+    waste. That reasoning was wrong about this product: the reader and the PDF
+    exporter both offer an English view and a Turkish view of the same lesson,
+    and the renderer falls back from the missing family to the present one — so
+    a Turkish-only lesson rendered as English showed Turkish throughout.
+
+    The waste it was avoiding is smaller than it looked, because the expensive
+    half of a lesson is the TARGET-language material, and that is written once
+    and shared by both views. Only the glosses and the explanations double.
     """
-    s = _suffix(track)
-    inst = _track_name(track)
     return f"""{{
   "variety": "The regional standard this lesson teaches, stated once",
   "pages": [
     {{
       "type": "overview" | "vocabulary" | "grammar" | "phonetics" | "examples" | "dialogue" | "mcq",
-      "title{s}": "Page title in {inst}",
-      "text{s}": "Pedagogical prose in {inst}",
+      "title": "Page title in English",
+      "title_tr": "Aynı başlık, doğal Türkçe",
+      "text": "Pedagogical prose in English",
+      "text_tr": "Aynı açıklama, doğal Türkçe",
       "items": [{{
         "term": "The word, character or phrase in {language}",
         "phonetic": "[IPA only, or omit the field entirely for every row of this table]",
-        "translation{s}": "Meaning in {inst}",
+        "translation": "Meaning in English",
+        "translation_tr": "Anlamı, Türkçe",
         "example": "A natural sentence in {language} using the term",
-        "example{s}": "That sentence rendered in {inst}",
-        "explanation{s}": "One short usage note in {inst}, only when it adds something"
+        "example_en": "That sentence in English",
+        "example_tr": "Aynı cümle, Türkçe",
+        "explanation": "One short usage note in English, only when it adds something",
+        "explanation_tr": "Aynı not, Türkçe"
       }}],
       "rules": [{{
-        "rule{s}": "The rule, stated in {inst}",
-        "explanation{s}": "Why it holds and when, in {inst}",
+        "rule": "The rule, stated in English",
+        "rule_tr": "Aynı kural, Türkçe",
+        "explanation": "Why it holds and when, in English",
+        "explanation_tr": "Aynı açıklama, Türkçe",
         "example": "A {language} sentence that demonstrates exactly this rule",
-        "example{s}": "That sentence in {inst}",
+        "example_en": "That sentence in English",
+        "example_tr": "Aynı cümle, Türkçe",
         "scope": "absolute" | "tendency",
         "domain": "orthography" | "morphology" | "syntax" | "pronunciation" | "lexis" | "register"
       }}],
       "comparisons": [{{
         "target": "The contrasting {language} forms, e.g. 'ser vs estar'",
-        "context{s}": "What distinguishes them, in {inst}",
-        "note{s}": "The decisive test a learner can apply, in {inst}"
+        "context": "What distinguishes them, in English",
+        "context_tr": "Aynı bağlam, Türkçe",
+        "note": "The decisive test a learner can apply, in English",
+        "note_tr": "Aynı ipucu, Türkçe"
       }}],
       "dialogue": [{{
         "speaker": "A first name",
         "text": "The utterance, in {language} only",
-        "line{s}": "That utterance in {inst}"
+        "line_en": "That utterance in English",
+        "line_tr": "Aynı replik, Türkçe"
       }}],
       "prompt": "For an mcq page: the COMPLETE question in {language}",
       "options": ["Four options, all in {language}"],
       "answer": "The correct option, exactly as it appears in options",
-      "explanation{s}": "Why that option is right, in {inst}"
+      "explanation": "Why that option is right, in English",
+      "explanation_tr": "Aynı gerekçe, Türkçe"
     }}
   ]
 }}"""
@@ -425,8 +447,7 @@ fails a rule above rather than emitting it. Return the JSON only."""
 
 
 def assessment_schema_block(language: str, track: str = "tr") -> str:
-    s = _suffix(track)
-    inst = _track_name(track)
+    """Bilingual, for the same reason lessons are: an item is read in both views."""
     return f"""{{
   "items": [
     {{
@@ -434,10 +455,12 @@ def assessment_schema_block(language: str, track: str = "tr") -> str:
       "evidence": "The sentence, rule or item it rests on — a citation, not reasoning",
       "cognitive_task": "situational_decision | comprehension | gapped_application | discrimination | collocation",
       "prompt": "The complete question, 100% in {language}",
-      "translation{s}": "A reference gloss of the prompt in {inst}, keeping any _____ blank as a blank",
+      "translation_en": "A reference gloss of the prompt in English, keeping any _____ blank as a blank",
+      "translation_tr": "Aynı soru Türkçe, boşluk yine _____ olarak kalır",
       "answer": "The correct answer in {language}",
       "distractors": ["Three distractors in {language}"],
-      "why{s}": "One sentence in {inst}, at most 15 words, saying why the key is right"
+      "why": "One sentence in English, at most 15 words, saying why the key is right",
+      "why_tr": "Aynı gerekçe Türkçe, en fazla 15 kelime"
     }}
   ]
 }}"""
