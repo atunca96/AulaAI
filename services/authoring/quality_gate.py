@@ -40,6 +40,7 @@ from services.authoring import transport as T
 
 
 REVIEW_MODEL = "google/gemini-3.7-flash"
+REPAIR_MODEL = "google/gemini-3.8-flash"
 QUALITY_REVIEW_CEILING_USD = 0.22
 
 # A reviewer may change learner-facing content, never ids, page types, ordering,
@@ -765,7 +766,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 ),
             }
             retry = _call_review(
-                model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+                model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
                 max_tokens=2000, effort="none", budget=budget,
                 stage=f"review_blocker_retry:{topic.get('title')}",
                 response_schema=_LESSON_REVIEW_SCHEMA,
@@ -816,7 +817,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         ),
                     }
                     exact_retry = _call_review(
-                        model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
+                        model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM,
                         payload=exact_retry_payload,
                         max_tokens=1800, effort="none", budget=budget,
                         stage=f"review_exact_blocker_retry:{topic.get('title')}",
@@ -889,7 +890,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                     ),
                 }
                 retry = _call_review(
-                    model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+                    model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
                     max_tokens=1600, effort="none", budget=budget,
                     stage=f"review_bilingual_retry:{topic.get('title')}",
                     response_schema=_LESSON_REVIEW_SCHEMA,
@@ -1050,7 +1051,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             ),
         }
         retry = _call_review(
-            model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+            model=REPAIR_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
             payload=retry_payload, max_tokens=2400, effort="none", budget=budget,
             stage=f"review_assessment_render_retry:{unit_title}",
             response_schema=_ASSESSMENT_REVIEW_SCHEMA,
@@ -1139,7 +1140,7 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                     ),
                 }
                 data = _call_review(
-                    model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+                    model=REPAIR_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
                     payload=payload, max_tokens=2400, effort="none", budget=budget,
                     stage=f"review_final_repair:{unit.get('title')}:assessment",
                     response_schema=_ASSESSMENT_REVIEW_SCHEMA,
@@ -1157,11 +1158,20 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                 findings = A.blocking(_audit_topic(topic, language=language, track=track))
                 if not render_blockers and not findings and not missing_pairs:
                     continue
-                records = (
+                finding_records = _records_for_findings(content, findings)
+                render_records = (
                     _records_for_render_blockers(content, render_blockers)
-                    if render_blockers and not findings and not missing_pairs
-                    else _review_records(content)
+                    if render_blockers else []
                 )
+                records = []
+                seen_paths = set()
+                for rec in finding_records + render_records:
+                    marker = tuple(rec.get("path") or [])
+                    if marker and marker not in seen_paths:
+                        seen_paths.add(marker)
+                        records.append(rec)
+                if missing_pairs or not records:
+                    records = _review_records(content)
                 payload = {
                     "language": language, "level": level, "unit": unit.get("title"),
                     "regional_variety": profile.variety if profile else "",
@@ -1170,7 +1180,9 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                         "topic_id": str(topic["id"]),
                         "title": str(topic.get("title") or ""),
                         "records": records,
-                        "deterministic_blockers": _findings_payload(findings),
+                        "deterministic_blockers": _findings_with_repair_paths(
+                            content, findings
+                        ),
                         "render_contract_blockers": render_blockers,
                         "missing_bilingual_pairs": missing_pairs,
                     }],
@@ -1182,7 +1194,7 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                     ),
                 }
                 data = _call_review(
-                    model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
+                    model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM,
                     payload=payload, max_tokens=2200, effort="none", budget=budget,
                     stage=f"review_final_repair:{topic.get('title')}",
                     response_schema=_LESSON_REVIEW_SCHEMA,
