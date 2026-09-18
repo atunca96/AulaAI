@@ -351,7 +351,12 @@ def _set_path(root: Any, path: Sequence[Any], value: Any, *, old: Any) -> None:
 
 
 def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[Any]) -> int:
-    seen = set()
+    # Structured reviewers occasionally emit the same exact patch path twice in
+    # one response (commonly when bilingual/dialogue checks converge on the same
+    # learner-visible field). Identical duplicate proposals are harmless and
+    # idempotent; conflicting proposals for one path are still a correctness
+    # ambiguity and must fail closed.
+    seen: Dict[Tuple[str, str], Any] = {}
     applied = 0
     for raw in patches or []:
         if not isinstance(raw, dict):
@@ -363,11 +368,22 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
         content = topics_by_id[topic_id]["content"]
         path = _coerce_patch_path(content, path)
         marker = (topic_id, json.dumps(path, ensure_ascii=False))
-        if marker in seen:
-            raise QualityGateError(f"duplicate semantic patch for {topic_id} {path!r}")
-        seen.add(marker)
-        current = _get_path(content, path)
         proposed = raw.get("value")
+        if marker in seen:
+            previous = seen[marker]
+            if proposed == previous:
+                print(
+                    f"[QUALITY-PATCH] IGNORE identical duplicate patch at "
+                    f"{topic_id} {list(path)!r}",
+                    flush=True,
+                )
+                continue
+            raise QualityGateError(
+                f"conflicting semantic patches for {topic_id} {path!r}: "
+                f"{previous!r} vs {proposed!r}"
+            )
+        seen[marker] = proposed
+        current = _get_path(content, path)
         old = raw.get("old")
 
         # Structured reviewers occasionally emit an empty replacement for an
