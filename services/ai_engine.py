@@ -358,7 +358,8 @@ def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
             from services.authoring import repair as _repair
             _repair.repair_item(item, language=language)
             findings = _audit.audit_item(item, language=language, track=material_language)
-            if not _audit.blocking(findings):
+            renderable, _render_reason = _engine._assessment_item_renderable(item)
+            if not _audit.blocking(findings) and renderable:
                 lesson_mcqs.append(item)
 
     if not parts:
