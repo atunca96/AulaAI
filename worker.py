@@ -100,21 +100,30 @@ def main():
                 db.execute("UPDATE courses SET progress = 0, total_steps = 0, progress_high_water = 0, is_building = 1, build_stage = 'enriching', build_message = 'Starting lesson rebuild...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
                 db.commit()
 
+            # This used to end in a `finally` that set build_stage='completed'
+            # and 'Classroom is ready!' whatever had happened above. The
+            # publication gate's refusal was written to the database by
+            # enrich_classroom_phase2 and then overwritten one statement later,
+            # which is how a classroom with nine of ten assessment questions and
+            # contaminated IPA became exportable. A caller cannot declare a
+            # classroom ready; it asks publication_state, which proves the
+            # invariants against the persisted rows and refuses if they fail.
+            from services.authoring import publication_state as PS
             try:
                 enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path, gen_id=gen_id)
+                PS.mark_ready(course_id, gen_id)
+                from database import enroll_permanent_students_in_course
+                enroll_permanent_students_in_course(course_id)
+            except PS.NotPublishable as refusal:
+                # mark_ready has already recorded the refusal and why.
+                with open("pipeline.log", "a", encoding="utf-8") as f:
+                    f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] REGENERATE refused publication: {refusal}\n")
             except Exception as e:
+                PS.mark_failed(course_id, str(e), gen_id)
                 with open("pipeline.log", "a", encoding="utf-8") as f:
                     f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] ERROR during REGENERATE: {str(e)}\n")
                     f.write(traceback.format_exc())
                 raise e
-            finally:
-                # enrich_classroom_phase2 already performs the single authoritative
-                # bilingual finalization. Do not run it again here.
-                with db_connection() as db:
-                    db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', build_message = 'Classroom is ready!' WHERE id=? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
-                    db.commit()
-                from database import enroll_permanent_students_in_course
-                enroll_permanent_students_in_course(course_id)
 
             with open("pipeline.log", "a", encoding="utf-8") as f:
                 f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Finished REGENERATE mode for Course {course_id}\n")
@@ -162,21 +171,23 @@ def main():
             """, (course_id, course_id, gen_id, gen_id))
             db.commit()
 
+        # The ready state used to be set here unconditionally, on the next line
+        # after the handler that had just recorded 'failed'. Enrichment
+        # returning is not evidence that the classroom may be published, so the
+        # decision belongs to publication_state, which re-proves the invariants
+        # against the rows the exporter will read.
+        from services.authoring import publication_state as PS
         try:
             enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path, gen_id=gen_id)
             print(f"[PIPELINE] Worker finished ENRICHMENT for Course {course_id}")
+            PS.mark_ready(course_id, gen_id, progress=100)
+            from database import enroll_permanent_students_in_course
+            enroll_permanent_students_in_course(course_id)
+        except PS.NotPublishable as refusal:
+            print(f"[PIPELINE] Course {course_id} refused publication: {refusal}")
         except Exception as e:
             print(f"[PIPELINE] ERROR during ENRICHMENT: {e}")
-            with db_connection() as db:
-                db.execute("UPDATE courses SET is_building = 0, build_stage = 'failed', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (f"Enrichment error: {str(e)[:120]}", course_id, gen_id, gen_id))
-                db.commit()
-
-        # enrich_classroom_phase2 already runs bilingual finalization once.
-        with db_connection() as db:
-            db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', progress = 100, build_message = 'Classroom is ready!' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
-            db.commit()
-        from database import enroll_permanent_students_in_course
-        enroll_permanent_students_in_course(course_id)
+            PS.mark_failed(course_id, f"Enrichment error: {e}", gen_id)
 
         print(f"[PIPELINE] Worker finished FULL PIPELINE (V2 + Enrichment) for Course {course_id}")
 

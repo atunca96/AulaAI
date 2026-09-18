@@ -24,6 +24,7 @@ Nothing new may import from here. Add the rule to `audit.py` instead.
 """
 
 from copy import deepcopy
+from functools import lru_cache
 import re
 import unicodedata
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -388,8 +389,50 @@ _TOKEN_PATTERN = re.compile(
 )
 
 
+@lru_cache(maxsize=1)
+def _ipa_repertoire() -> frozenset:
+    """The IPA's own inventory, asked of the schema rather than restated here."""
+    try:
+        from services.authoring.schema import IPA_REPERTOIRE
+        return frozenset(IPA_REPERTOIRE)
+    except Exception:
+        return frozenset()
+
+
+def _is_phonetic_notation(seg: str) -> bool:
+    """Whether a token is a transcription rather than a word.
+
+    This decides nothing about quality; it decides whether script harmonization
+    applies at all. A transcription is not a word that drifted between scripts,
+    and treating it as one corrupts it in the most damaging possible way: the
+    IPA borrows θ, β, χ and ɣ from the Greek block, so a correct `ˈonθe` reads as
+    a Latin word contaminated with Greek, and the harmonizer "repairs" it by
+    rewriting the Latin letters into Greek — `ˈονθε`. That output is wholly
+    Greek, visually and semantically, and it happened at RENDER time, long after
+    every content check had passed on a string that was right. Two production
+    PDFs shipped with it, and no audit could have seen it, because the audited
+    content was correct.
+
+    The test is the IPA's own inventory: a token made entirely of ASCII and IPA
+    symbols is notation. Everything the harmonizer exists for — `говориte`,
+    `comеr`, `рaбота`, `νεpό` — contains a character outside that inventory and
+    is still harmonized.
+    """
+    if not seg:
+        return False
+    repertoire = _ipa_repertoire()
+    if not repertoire:
+        return False
+    core = [ch for ch in seg if not unicodedata.category(ch).startswith(("P", "Z"))]
+    if not core:
+        return False
+    return all(ch.isascii() or ch in repertoire for ch in core)
+
+
 def _harmonize_segment(seg: str, language: Optional[str] = None) -> str:
     if not seg or is_metadata_or_proper_token(seg):
+        return seg
+    if _is_phonetic_notation(seg):
         return seg
     cyr = [c for c in seg if '\u0400' <= c <= '\u04FF' or '\u0500' <= c <= '\u052F']
     lat = [c for c in seg if ('a' <= c <= 'z' or 'A' <= c <= 'Z' or '\u00C0' <= c <= '\u024F')]

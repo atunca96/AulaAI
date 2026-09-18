@@ -4,7 +4,7 @@ import os
 import re
 import tempfile
 from functools import lru_cache
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import fitz
 
@@ -151,6 +151,95 @@ _CURSIVE_FONT_CANDIDATES = (
 )
 
 CURSIVE_FONT_FAMILY = 'aulacursive'
+
+
+# Phonetic notation has the same problem as the cursive scripts and a worse
+# symptom. A transcription mixes ASCII letters with IPA symbols the IPA borrows
+# from the Greek block - θ, β, χ, ɣ - and the default sans face has no glyph for
+# them. The layout engine resolves the run by finding a face that does, which is
+# a GREEK face, and then draws the whole run from it: the Latin letters come out
+# as their Greek look-alikes. A correct, validated `ˈonθe` is drawn and extracted
+# as `ˈονθε`, and `ˈkinθe` as `ˈκινθε`. Nothing in the content is wrong, so no
+# audit of the content can see it — the substitution happens in the renderer,
+# after every check the publication path makes.
+#
+# The cure is the same as for Arabic: bind the run, whole, to a face that really
+# covers it. A run must be bound whole because it is the MIXED run that goes
+# wrong; wrapping only the Greek-block symbols would leave the Latin letters in
+# the face that has no θ and reproduce the substitution around the edges.
+_NOTATION_FONT_CANDIDATES = (
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
+    '/usr/share/fonts/opentype/noto/NotoSans-Regular.otf',
+    '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+)
+
+NOTATION_FONT_FAMILY = 'aulaipa'
+
+# The symbols that trigger the substitution: everything in a transcription that
+# a Latin text face is not required to carry. Probing decides the font; this set
+# only decides which runs are worth binding.
+_NOTATION_TRIGGER = frozenset(
+    "\u02c8\u02cc\u02d0\u02d1"          # stress and length marks
+    "\u03b8\u03b2\u03c7\u03b3"          # IPA symbols borrowed from Greek
+    "\u0250\u0251\u0252\u0254\u0255\u0256\u0258\u0259\u025b\u025c"
+    "\u025e\u0261\u0263\u0265\u0266\u026a\u026b\u026c\u026d\u026f"
+    "\u0270\u0271\u0272\u0273\u0274\u0275\u0279\u027a\u027b\u027d"
+    "\u027e\u0281\u0282\u0283\u0288\u028a\u028b\u028c\u028d\u028e"
+    "\u0290\u0291\u0292\u0294\u0295\u029d\u02a1\u02a2"
+    "\u00f0\u00e6\u00f8"                 # eth, ash, slashed o
+)
+
+
+@lru_cache(maxsize=1)
+def _notation_font():
+    """A face with real IPA coverage, verified by probing the symbols in use.
+
+    Probing rather than assuming, for the same reason `_mark_font` probes: binding
+    a run to a face that lacks a glyph replaces a wrong-but-visible character with
+    a .notdef box, which is not an improvement. Returns an absolute path, or None,
+    in which case transcriptions render exactly as they do today.
+    """
+    probe_points = (0x03B8, 0x03B2, 0x0263, 0x027E, 0x02C8, 0x00F0, 0x0259)
+    for path in _NOTATION_FONT_CANDIDATES:
+        try:
+            real = os.path.realpath(path)
+            if not os.path.exists(real):
+                continue
+            probe = fitz.Font(fontfile=real)
+            if all(probe.has_glyph(cp) for cp in probe_points):
+                return real
+        except Exception:
+            continue
+    return None
+
+
+_NOTATION_RUN = re.compile(r"\S+")
+
+
+def _wrap_notation_runs(escaped):
+    """Bind each whitespace-delimited token containing IPA to an IPA face.
+
+    The token is the unit, not the symbol, because the defect is a property of
+    the mixed run. A string with no IPA in it is returned unchanged, so ordinary
+    prose in every language is byte-identical to before.
+    """
+    if not escaped or not any(ch in _NOTATION_TRIGGER for ch in escaped):
+        return escaped
+    if not _notation_font():
+        return escaped
+
+    def bind(match):
+        token = match.group(0)
+        if not any(ch in _NOTATION_TRIGGER for ch in token):
+            return token
+        if '<' in token or '>' in token or '&' in token:
+            # Never split or nest an existing span or entity; those runs are
+            # already bound to a face by the mark and cursive passes.
+            return token
+        return f'<span class="ipa">{token}</span>'
+
+    return _NOTATION_RUN.sub(bind, escaped)
 
 
 def _in_ranges(cp, ranges):
@@ -323,7 +412,11 @@ def _e(value):
     # Marks first, then cursive runs: the mark pass inserts spans around single
     # characters and the cursive pass groups runs, so running it the other way
     # round would let a mark's span cut a cursive word in half.
-    return _separate_tone_letters(_wrap_cursive_runs(_wrap_script_marks(escaped)))
+    # Notation last: it binds whole whitespace-delimited tokens and skips any
+    # token the earlier passes have already put a span inside, so it can never
+    # cut one of their runs.
+    return _wrap_notation_runs(
+        _separate_tone_letters(_wrap_cursive_runs(_wrap_script_marks(escaped))))
 
 
 def _pick(obj, en_key, tr_key, is_tr):
@@ -663,6 +756,14 @@ class AcademicPaginator:
                 % (CURSIVE_FONT_FAMILY, os.path.basename(cursive), CURSIVE_FONT_FAMILY)
             )
             archive_dirs.append(os.path.dirname(cursive))
+        notation = _notation_font() if 'class="ipa"' in fragment else None
+        if notation:
+            css += (
+                '\n@font-face { font-family: %s; src: url(%s); }'
+                '\n.ipa { font-family: %s; }'
+                % (NOTATION_FONT_FAMILY, os.path.basename(notation), NOTATION_FONT_FAMILY)
+            )
+            archive_dirs.append(os.path.dirname(notation))
         font = _mark_font() if 'class="mark"' in fragment else None
         if font:
             # Declared only for `.mark`, never for `body`: making this the document
@@ -950,7 +1051,17 @@ def _pdf_language_name(value: str, is_tr: bool) -> str:
     return {'english':'İngilizce','german':'Almanca','spanish':'İspanyolca','french':'Fransızca','italian':'İtalyanca','portuguese':'Portekizce','russian':'Rusça','chinese':'Çince','japanese':'Japonca','arabic':'Arapça','turkish':'Türkçe','dutch':'Hollandaca','swedish':'İsveççe','korean':'Korece','greek':'Yunanca'}.get(raw.casefold(), raw)
 
 
-def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
+def render_course_pdf(course_id: str, lang: str = 'en',
+                      report: Optional[Dict[str, Any]] = None) -> Tuple[bytes, str]:
+    """Render a course to PDF bytes.
+
+    `report`, when a caller passes a dict, is filled in with what this render
+    actually did — `questions` printed and `dropped` pages, each with the reason
+    the render contract gave. The export route compares that against what the
+    publication gate certified, so a divergence between the validated classroom
+    and the delivered artifact is caught at the artifact rather than inferred
+    from the fact that both sides ran the same function.
+    """
     is_tr = (lang == 'tr')
     # The track contract is owed to the reader of THIS export. A course may be
     # built as Turkish material and exported with ?lang=en, and it is the
@@ -961,6 +1072,7 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
     title_maps = _load_title_maps()
     answers: List[Dict] = []
     question_counter = 0
+    dropped_pages: List[Dict[str, Any]] = []
 
     with db_connection() as db:
         course = db.execute('SELECT name, language, level, semester FROM courses WHERE id = ?', (course_id,)).fetchone()
@@ -1039,6 +1151,22 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                     top_id, top_type, top_title, top_content = row[0], row[1], row[2], row[3]
                     top_title_tr = ''
                 content = _normalize_content(top_content, course_lang, material_language=_track)
+                # The publication boundary inside `_normalize_content` discards
+                # whole pages that carry an unanswerable item or corrupt
+                # notation, and it says so in `_dropped_items`. Nothing ever
+                # read that field, so an assessment question could vanish here —
+                # before `_normalize_pages`, before the MCQ loop's admission
+                # check, and out of sight of both. The surviving pages keep
+                # their stored titles, which is why a shipped unit ran
+                # "Question 2, Question 4". It is reported now, so the export
+                # can refuse rather than deliver a classroom a question short.
+                for _row in (content.get('_dropped_items') or []) if isinstance(content, dict) else []:
+                    dropped_pages.append({
+                        'topic': str(top_title or ''),
+                        'title': f"page {_row.get('index')}",
+                        'locale': _track,
+                        'why': f"publication boundary: {_row.get('why')}",
+                    })
                 if _class_phonetics:
                     try:
                         from services.class_lexicon import apply_phonetic_winners
@@ -1181,6 +1309,15 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                         # questions because these two lines once decided alone.
                         renderable, _why = _render_contract.page_is_renderable(page, is_tr)
                         if not renderable:
+                            # Recorded, not merely skipped. A certified
+                            # classroom must not reach this line at all, so the
+                            # caller is given the evidence rather than a PDF
+                            # that is quietly one question shorter.
+                            dropped_pages.append({
+                                'topic': str(top_title or ''),
+                                'title': str(page.get('title') or page.get('title_tr') or ''),
+                                'locale': _track, 'why': _why,
+                            })
                             last_mcq_section = None
                             continue
                         prompt = _render_contract.resolve_stem(page, is_tr)
@@ -1226,6 +1363,9 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                 frag = f'<div class="answer"><strong>{_e(key)}</strong>' + (f'<br><span class="translation">{_e(expl)}</span>' if expl else '') + '</div>'
                 paginator.place_html(frag, gap=2.5, keep=True)
 
+        if report is not None:
+            report['questions'] = question_counter
+            report['dropped'] = dropped_pages
         return paginator.finish(), course_name
 
 

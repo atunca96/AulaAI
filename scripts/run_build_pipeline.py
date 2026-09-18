@@ -45,6 +45,9 @@ VERIFICATION_STEPS = [
     # on the image's own Python. It is the only step that proves READY and the
     # exported PDF agree on the bytes a learner receives.
     "scripts/verify_production_path.py",
+    # The state machine that turns a publication verdict into a database state.
+    # Nothing tested it, and it was discarding the verdict.
+    "scripts/test_publication_state.py",
     "scripts/test_quality_gate.py",
     "scripts/test_language_matrix.py",
     "scripts/smoke_test_pdf_renderer.py",
@@ -76,6 +79,7 @@ COMPILE_TARGETS = [
     "services/authoring/repair.py",
     "services/authoring/budget.py",
     "services/authoring/render_contract.py",
+    "services/authoring/publication_state.py",
     "services/authoring/publish.py",
     "services/authoring/quality_gate.py",
     "services/authoring/legacy_text.py",

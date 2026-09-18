@@ -568,9 +568,18 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             except Exception as cost_err:
                 _log(f"Cost summary unavailable: {cost_err}")
         _log("Bilingual post-processor disabled: using persisted bilingual lesson fields from the AI engine.")
-        with db_connection() as db:
-            db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', progress = ?, total_steps = ?, build_message = 'Classroom is ready!' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, topic_count, course_id, gen_id, gen_id))
-            db.commit()
+        # Passing the gate above is necessary but not sufficient: it proved the
+        # in-memory reviewed objects, and what the learner receives is whatever
+        # the persist step actually wrote. `mark_ready` re-reads those rows and
+        # proves the invariants again before the classroom becomes exportable,
+        # so the certified state and the stored state cannot be different
+        # things. It is also the only writer of the ready state.
+        from services.authoring import publication_state as PS
+        certified = PS.mark_ready(course_id, gen_id, progress=topic_count,
+                                  total_steps=topic_count)
+        _log(f"[PUBLICATION] READY certified from persisted rows: "
+             f"topics={certified['topics']} mcqs={certified['mcqs']} "
+             f"unit_assessment_questions={certified['unit_assessment_questions']}")
         from database import enroll_permanent_students_in_course
         enroll_permanent_students_in_course(course_id)
         bump_version()

@@ -691,6 +691,84 @@ def audit_lesson(lesson: Any, *, language: str = "", track: str = "tr") -> List[
     for name in S.undeclared_fields(lesson):
         out.append(Finding("undeclared_field", WARN, field=name,
                            detail="carries prose but the schema does not type it"))
+
+    out.extend(_audit_every_string(lesson, language=language))
+
+    # The universal pass deliberately overlaps the typed ones, so the same
+    # defect can be reported twice for one string. Report it once.
+    seen = set()
+    unique: List[Finding] = []
+    for finding in out:
+        key = (finding.code, finding.path, str(finding.field), finding.detail,
+               finding.value)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(finding)
+    return unique
+
+
+# Keys that are identifiers and routing metadata rather than anything a learner
+# reads. Everything else in the tree is treated as prose that could reach a page.
+_NON_PROSE_KEYS = frozenset({
+    "id", "topic_id", "type", "stem_scope", "assessment_scope", "correct_index",
+    "module", "material_section", "scope", "domain", "provenance", "precision",
+    "variety", "cognitive_task",
+})
+
+
+def _explicable_as_ipa(token: str) -> bool:
+    """True when every foreign character in a token is a legitimate IPA symbol.
+
+    The IPA borrows θ, β, χ and ɣ at their Greek codepoints, and a transcription
+    is often written without brackets — `ˈonθe` is correct Castilian. The
+    universal pass must not condemn those, and it must still catch `ˈονθε`,
+    where ο, ν and ε are Greek look-alikes that the IPA does not contain. Asking
+    the repertoire rather than the script settles both cases with one rule.
+    """
+    return all(ch in S.IPA_REPERTOIRE or ch.isascii() for ch in token)
+
+
+def _audit_every_string(lesson: Any, *, language: str = "") -> List[Finding]:
+    """Writing-system integrity for EVERY string in the tree, typed or not.
+
+    Script integrity is a property of a string that reaches a page, not of the
+    role the schema happens to give its key. The role-based checks only ever saw
+    declared fields, so `prompt_tr`, `question_tr`, `stem_tr`, `text_en`,
+    `phrase`, `sentence`, `meaning_tr` and the dialogue fields — all of which the
+    PDF renderer reads and prints — were unvalidated channels straight to the
+    learner. A Greek look-alike in any of them reached the page with nothing
+    having looked at it, and adding each missing name to the schema would only
+    close the ones somebody remembered.
+
+    So this asks the question of everything, and schema drift stops being able
+    to create a new hole. It is language-agnostic by construction: what counts
+    as alien comes from the taught language's own script profile, Latin is
+    always permitted, and bracketed transcriptions are exempt.
+    """
+    profile = S.profile_for_language(language) if language else None
+    if profile is None:
+        return []
+    out: List[Finding] = []
+
+    def visit(node: Any, path: str) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in _NON_PROSE_KEYS:
+                    continue
+                visit(value, f"{path}.{key}" if path else str(key))
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                visit(value, f"{path}[{index}]")
+        elif isinstance(node, str) and node:
+            field = path.rsplit(".", 1)[-1].split("[")[0]
+            alien = [token for token in S.alien_script_tokens(node, profile)
+                     if not _explicable_as_ipa(token)]
+            if alien:
+                out.append(Finding("alien_script_token", BLOCK, path=path, field=field,
+                                   detail=", ".join(alien[:3]), value=node))
+
+    visit(lesson, "")
     return out
 
 

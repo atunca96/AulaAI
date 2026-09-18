@@ -1071,27 +1071,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         textbook, which is exactly what happened in the 2026-09-18 Spanish A1
         validation run.
         """
+        # Publication STATE is a claim; the invariants are the fact. A stage of
+        # 'completed' proved nothing about classrooms marked ready by a caller
+        # that simply asserted it — which is exactly the defect that let a
+        # nine-of-ten assessment and contaminated IPA reach a learner. So the
+        # invariants are re-proved here, against the same stored rows the
+        # renderer is about to read, microseconds before it reads them.
+        from services.authoring import publication_state as _PS
         try:
-            with db_connection() as _state_db:
-                _state = _state_db.execute(
-                    "SELECT is_building, build_stage, build_message FROM courses WHERE id = ?",
-                    (course_id,),
-                ).fetchone()
-            if not _state:
-                return self._send_error("Course not found", 404)
-            _building = bool(_state["is_building"])
-            _stage = str(_state["build_stage"] or "").strip().casefold()
-            if _building or _stage in {
-                "failed", "quality_review", "enriching", "priming", "analyzing",
-                "building", "generating",
-            }:
-                detail = str(_state["build_message"] or "").strip()
-                message = "Course material has not passed publication review yet."
-                if _stage == "failed":
-                    message = "Course material failed publication review and cannot be exported."
-                if detail:
-                    message += " " + detail[:180]
-                return self._send_error(message, 409)
+            certified = _PS.assert_exportable(course_id)
+        except _PS.NotPublishable as refusal:
+            return self._send_error(
+                "This classroom cannot be exported: " + str(refusal)[:240], 409)
         except Exception as state_err:
             # Exporting without knowing publication state is not a safe fallback.
             print(f"[PDF EXPORT STATE ERROR] {state_err}")
@@ -1139,7 +1130,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             import unicodedata
             import urllib.parse
 
-            pdf_bytes, academic_course_name = render_course_pdf(course_id, lang)
+            # The artifact itself is checked, not just the classroom behind it.
+            # If the renderer discarded anything the gate certified, the export
+            # is refused rather than delivered a question short — the exact
+            # divergence that produced a nine-of-ten unit assessment.
+            render_report = {}
+            pdf_bytes, academic_course_name = render_course_pdf(course_id, lang, render_report)
+            dropped = render_report.get("dropped") or []
+            if dropped:
+                summary = "; ".join(
+                    f"{row.get('topic') or 'topic'} / {row.get('title') or 'untitled'}"
+                    f" ({row.get('why')})" for row in dropped[:4])
+                print(f"[PDF EXPORT DIVERGENCE] {course_id}: {summary}")
+                return self._send_error(
+                    "This classroom cannot be exported: the renderer would omit "
+                    f"{len(dropped)} certified item(s) — {summary}", 409)
 
             # BaseHTTPRequestHandler serializes headers as latin-1. str.isalnum()
             # accepts Unicode letters, so names such as "İspanyolca", "Çince",
@@ -1165,19 +1170,26 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(pdf_bytes)
             return
         except Exception as academic_pdf_err:
-            # This fallback is not a normal outcome. It silently swapped in a second
-            # renderer with different behaviour, so a defect fixed in the primary
-            # path could keep shipping unnoticed. Log it loudly enough to be found.
-            print(f"[ACADEMIC PDF FALLBACK] primary renderer failed, exporting via "
-                  f"legacy path: {type(academic_pdf_err).__name__}: {academic_pdf_err}")
+            # This used to fall through to the legacy exporter below: a second
+            # renderer that honours none of the render contract, reached by an
+            # exception rather than a decision. A classroom certified against
+            # one renderer and delivered by another is the divergence this whole
+            # publication path exists to prevent, so a primary-renderer failure
+            # is now a refusal. The legacy exporter below is unreachable and
+            # kept only until it can be removed in a change of its own.
+            print(f"[ACADEMIC PDF ERROR] {course_id}: "
+                  f"{type(academic_pdf_err).__name__}: {academic_pdf_err}")
             traceback.print_exc()
             try:
                 from datetime import datetime as _dt
                 with open("pipeline.log", "a", encoding="utf-8") as _f:
-                    _f.write(f"[{_dt.now().strftime('%H:%M:%S')}] [PDF-FALLBACK] course={course_id} "
+                    _f.write(f"[{_dt.now().strftime('%H:%M:%S')}] [PDF-REFUSED] course={course_id} "
                              f"lang={lang} error={type(academic_pdf_err).__name__}: {academic_pdf_err}\n")
             except Exception:
                 pass
+            return self._send_error(
+                "This classroom could not be exported by the verified renderer. "
+                "Exporting it through an unverified path is not a safe fallback.", 500)
 
         # --- Human-readable topic type labels ---
         TYPE_LABELS = {
@@ -5085,14 +5097,28 @@ def _cleanup_orphaned_building_flags():
     with db_connection() as db:
         # 1. Recover classrooms whose substantive build already finished and only the
         # bilingual finalizer was still running when the process restarted.
-        db.execute("""
-            UPDATE courses
-            SET is_building = 0, build_stage = 'completed', progress = 100, build_message = 'Classroom is ready!'
+        # Recovery is a reason to re-examine a classroom, never a reason to
+        # declare it ready: this used to hand out the ready state on progress
+        # counters alone, with nothing having proved the classroom publishable.
+        # Each candidate is put through the same proof as any other build.
+        _recoverable = [r[0] for r in db.execute("""
+            SELECT id FROM courses
             WHERE is_building = 1
               AND build_stage = 'finalizing'
               AND total_steps > 0
               AND progress >= total_steps
-        """)
+        """).fetchall()]
+    if _recoverable:
+        from services.authoring import publication_state as _PS
+        for _course_id in _recoverable:
+            try:
+                _PS.mark_ready(_course_id, "LEGACY", progress=100)
+                print(f"[STARTUP] Recovered and certified classroom {_course_id}.")
+            except _PS.NotPublishable as _refusal:
+                print(f"[STARTUP] Classroom {_course_id} left unpublished: {_refusal}")
+            except Exception as _err:
+                print(f"[STARTUP] Recovery check failed for {_course_id}: {_err}")
+    with db_connection() as db:
 
         # Reset genuinely interrupted classroom builds.
         db.execute("""
