@@ -1199,8 +1199,12 @@ def render_course_pdf(course_id: str, lang: str = 'en',
                     if str(value or '').strip()
                 }
                 _kind_label = _kind(top_type, is_tr)
+                # Assessment topics already carry their own localized topic
+                # heading. A second generic kind label is redundant and can leak
+                # an English "Unit Assessment" into a Turkish export when the
+                # synthetic type has no localized TYPE_LABELS entry.
                 _kind_html = (
-                    '' if (_assessment_topic and _norm_key(_kind_label) in _topic_title_keys)
+                    '' if _assessment_topic
                     else f'<div class="kind">{_e(_kind_label)}</div>'
                 )
                 topic_html = (
