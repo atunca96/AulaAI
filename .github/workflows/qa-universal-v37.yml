@@ -2,7 +2,7 @@ name: qa-universal-v37
 
 on:
   push:
-    branches: [qa-universal-v37-work, qa-speed-quality-v38]
+    branches: [qa-universal-v37-work, qa-speed-quality-v38, chatgpt-publication-grade-gate]
 
 jobs:
   verify:
