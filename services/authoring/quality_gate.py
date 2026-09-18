@@ -1711,6 +1711,169 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
     return applied
 
 
+_EXACT_BILINGUAL_COUNTERPART_SYSTEM = """You write exactly ONE missing
+counterpart field for a bilingual AulaAI lesson page.
+
+`source_value` is the field that already exists, in `source_locale`. You return
+the SAME content in `target_locale` — nothing added, nothing dropped, nothing
+answered or explained further.
+
+Hard contract:
+- `en` means English and `tr` means Turkish. Write the value in `target_locale`
+  and in no other language.
+- It must be a faithful counterpart of `source_value`: same meaning, same
+  register, same CEFR level, same length class. Do not summarise, expand,
+  re-teach, or add examples the source does not have.
+- NEVER return `source_value` itself, or a copy of it with only punctuation or
+  casing changed. A field that still reads in the source language is a failure,
+  not a fallback.
+- Target-language words the lesson teaches stay in the taught language inside
+  the sentence; only the instructional prose around them changes locale.
+- Do not add labels, quotation marks, commentary, markdown or alternatives.
+- Return JSON only: {"value":"NON-EMPTY COUNTERPART","reason":"brief reason"}.
+"""
+
+
+def repair_bilingual_preflight(*, units: List[Dict[str, Any]],
+                               language: str, level: str, track: str,
+                               budget: ReviewBudget) -> int:
+    """Prove EN/TR completeness for every lesson before broad review runs.
+
+    Bilingual completeness used to be a tail check inside `review_unit_lessons`,
+    which made it both late and invisible: a gap the broad reviewer happened to
+    fill never produced a `review_bilingual_retry` call, and the filled content
+    only reached the database if the ENTIRE gate passed. Course
+    6c2c5f8c… ran exactly that way — `Countries and Nationalities` was reviewed
+    clean in memory, an unrelated renderer blocker on another topic aborted the
+    run before the final persist, and the database kept the preflight-level
+    snapshot whose `pages.5.text_tr` was still empty. The outer publication
+    validation then refused the course over a gap that had been repaired.
+
+    So bilingual completeness is its own stage, ahead of any broad review:
+    deterministic detection, one small exact repair per missing counterpart, and
+    a re-proof per topic. It never trusts a generic reviewer to produce a
+    translation as a side effect, never copies the source into the target, and
+    never accepts an empty counterpart. Callers checkpoint the result before
+    spending review budget, so a later unrelated failure cannot leave the
+    database in an incomplete bilingual state.
+    """
+    if S.canonical_language(language) in ("English", "Turkish"):
+        return 0
+
+    profile = S.profile_for_language(language)
+    applied = 0
+    for unit in units:
+        for topic in unit.get("topics") or []:
+            if topic.get("is_assessment"):
+                continue
+            content = topic.get("content")
+            if not isinstance(content, dict):
+                continue
+
+            # Create only the counterpart slots an existing field already
+            # obliges, so every repair below has an exact path and an exact
+            # empty old value. No slot is created where both sides are absent.
+            _ensure_bilingual_slots(content)
+            slots = _missing_bilingual_slots(content)
+            if not slots:
+                continue
+
+            for slot in slots:
+                applied += _repair_bilingual_counterpart(
+                    topic=topic, content=content, slot=slot,
+                    language=language, level=level, track=track, budget=budget,
+                    unit_title=str(unit.get("title") or ""),
+                    profile=profile,
+                )
+
+            remaining = _missing_bilingual_pairs(content)
+            if remaining:
+                raise QualityGateError(
+                    f"{topic.get('title')}: incomplete EN/TR field pairs after "
+                    f"bilingual preflight repair: " + ", ".join(remaining[:8])
+                )
+
+    return applied
+
+
+def _repair_bilingual_counterpart(*, topic: Dict[str, Any], content: Dict[str, Any],
+                                  slot: Dict[str, Any], language: str, level: str,
+                                  track: str, budget: ReviewBudget,
+                                  unit_title: str, profile: Any) -> int:
+    """Fill exactly one empty counterpart from its own source field."""
+    path = list(slot["path"])
+    source_value = str(slot.get("source_value") or "").strip()
+    if not source_value:
+        # A slot exists only because its source is non-empty; if that stopped
+        # being true between detection and repair the re-proof below the caller
+        # will refuse the topic rather than this writing something arbitrary.
+        return 0
+
+    current = _get_path(content, path)
+    if not isinstance(current, str) or current.strip():
+        return 0
+
+    page_context: Dict[str, Any] = {}
+    if len(path) >= 2 and path[0] == "pages" and isinstance(path[1], int):
+        pages = content.get("pages")
+        if isinstance(pages, list) and 0 <= path[1] < len(pages) and \
+                isinstance(pages[path[1]], dict):
+            page = pages[path[1]]
+            for key in ("type", "title", "title_tr", "prompt", "question",
+                        "term", "word", "target", "translation", "translation_tr"):
+                value = page.get(key)
+                if value not in (None, "", []):
+                    page_context[key] = value
+
+    data = _call_review(
+        model=REPAIR_MODEL,
+        system=_EXACT_BILINGUAL_COUNTERPART_SYSTEM,
+        payload={
+            "taught_language": language,
+            "level": level,
+            "regional_variety": profile.variety if profile else "",
+            "instruction_track": track,
+            "unit": unit_title,
+            "topic_title": str(topic.get("title") or ""),
+            "path": path,
+            "field": slot["field"],
+            "target_locale": slot["target_locale"],
+            # Immutable evidence. The source field is read, never written.
+            "source_field": slot["source_field"],
+            "source_locale": slot["source_locale"],
+            "source_value": source_value,
+            "immutable_page_context": page_context,
+        },
+        max_tokens=500,
+        effort="low",
+        budget=budget,
+        stage=(
+            f"review_bilingual_exact:{topic.get('title')}:"
+            + ".".join(map(str, path))
+        ),
+        response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+        response_name="lesson_bilingual_counterpart",
+    )
+    value = data.get("value")
+    if not isinstance(value, str) or not value.strip():
+        raise QualityGateError(
+            f"{topic.get('title')}: bilingual exact repair returned an empty "
+            f"counterpart for {'.'.join(map(str, path))}"
+        )
+    value = value.strip()
+    if _stem_key(value) == _stem_key(source_value):
+        raise QualityGateError(
+            f"{topic.get('title')}: bilingual exact repair copied the "
+            f"{slot['source_locale']} source into {'.'.join(map(str, path))} "
+            f"instead of writing {slot['target_locale']}"
+        )
+
+    # Exactly the target counterpart is written, at the exact path, through the
+    # same guard every reviewer patch goes through.
+    _set_path(content, path, value, old=current)
+    return 1
+
+
 def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         language: str, level: str, track: str,
                         budget: ReviewBudget,
@@ -2649,6 +2812,50 @@ def _ensure_bilingual_slots(node: Any, *, page_level: bool = False) -> None:
             _ensure_bilingual_slots(value, page_level=page_level)
 
 
+def _missing_bilingual_slots(node: Any, *, path: Tuple[Any, ...] = (),
+                             page_level: bool = False) -> List[Dict[str, Any]]:
+    """Every missing EN/TR counterpart, with the exact path and its source.
+
+    Same traversal and same obligation rule as `_missing_bilingual_pairs`, which
+    is derived from this function so the detector and the repairer can never
+    disagree about which gaps exist. Each row names the empty counterpart to
+    write and the non-empty field it must be the counterpart OF — the repair is
+    only ever allowed to touch the former and only ever allowed to read the
+    latter as evidence.
+    """
+    out: List[Dict[str, Any]] = []
+    if isinstance(node, dict):
+        pairs = list(_BILINGUAL_PAIRS)
+        if page_level or "type" in node:
+            pairs.append(("text", "text_tr"))
+        for left, right in pairs:
+            left_present = left in node and bool(str(node.get(left) or "").strip())
+            right_present = right in node and bool(str(node.get(right) or "").strip())
+            if left_present != right_present:
+                absent, source = (right, left) if left_present else (left, right)
+                out.append({
+                    "path": list(path + (absent,)),
+                    "field": absent,
+                    "target_locale": "tr" if absent.endswith("_tr") else "en",
+                    "source_path": list(path + (source,)),
+                    "source_field": source,
+                    "source_locale": "tr" if source.endswith("_tr") else "en",
+                    "source_value": str(node.get(source) or "").strip(),
+                })
+        for key, value in node.items():
+            if isinstance(value, (dict, list)):
+                out.extend(_missing_bilingual_slots(
+                    value, path=path + (key,),
+                    page_level=(key == "pages"),
+                ))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            out.extend(_missing_bilingual_slots(
+                value, path=path + (index,), page_level=page_level
+            ))
+    return out
+
+
 def _missing_bilingual_pairs(node: Any, *, path: Tuple[Any, ...] = (),
                              page_level: bool = False) -> List[str]:
     """Pairs that would make EN/TR reader modes contain different material.
@@ -2658,29 +2865,20 @@ def _missing_bilingual_pairs(node: Any, *, path: Tuple[Any, ...] = (),
     only on page objects because dialogue text is the taught-language utterance,
     not English instructional prose.
     """
-    missing: List[str] = []
-    if isinstance(node, dict):
-        pairs = list(_BILINGUAL_PAIRS)
-        if page_level or "type" in node:
-            pairs.append(("text", "text_tr"))
-        for left, right in pairs:
-            left_present = left in node and bool(str(node.get(left) or "").strip())
-            right_present = right in node and bool(str(node.get(right) or "").strip())
-            if left_present != right_present:
-                absent = right if left_present else left
-                missing.append(".".join(map(str, path + (absent,))))
-        for key, value in node.items():
-            if isinstance(value, (dict, list)):
-                missing.extend(_missing_bilingual_pairs(
-                    value, path=path + (key,),
-                    page_level=(key == "pages"),
-                ))
-    elif isinstance(node, list):
-        for index, value in enumerate(node):
-            missing.extend(_missing_bilingual_pairs(
-                value, path=path + (index,), page_level=page_level
-            ))
-    return missing
+    return [
+        ".".join(map(str, row["path"]))
+        for row in _missing_bilingual_slots(node, path=path, page_level=page_level)
+    ]
+
+
+def missing_bilingual_pairs(content: Any) -> List[str]:
+    """Public name for the EN/TR completeness proof the publication gate uses.
+
+    The pipeline checkpoints bilingual repairs to the database and must prove,
+    at that boundary, that what it is about to write is complete — using this
+    exact predicate rather than a second implementation of it.
+    """
+    return _missing_bilingual_pairs(content)
 
 
 def _duplicate_mcq_occurrences(units: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:

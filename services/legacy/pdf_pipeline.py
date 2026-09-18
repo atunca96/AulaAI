@@ -896,6 +896,50 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             f"{preflight_patches} deterministic repair patch(es)."
         )
 
+    # Bilingual completeness is proven and checkpointed BEFORE broad review.
+    # It used to be a tail check inside lesson review, so a gap the broad
+    # reviewer happened to fill only reached the database if the ENTIRE gate
+    # passed. When a later unrelated failure aborted the run, the persisted
+    # snapshot stayed at preflight level and the outer publication validation
+    # refused the course over a counterpart that had in fact been repaired.
+    bilingual_patches = Q.repair_bilingual_preflight(
+        units=preflight_units,
+        language=language,
+        level=level,
+        track=material_language,
+        budget=budget,
+    )
+    if bilingual_patches:
+        # Write only what carries the proof. The stage above already fails
+        # closed on a topic it could not complete; this re-proves it at the
+        # persistence boundary, because that is the boundary whose output a
+        # later failure leaves behind.
+        for unit in units:
+            for topic in unit["lessons"]:
+                incomplete = Q.missing_bilingual_pairs(topic["content"])
+                if incomplete:
+                    raise Q.QualityGateError(
+                        f"{topic['title']}: refusing to checkpoint incomplete "
+                        f"EN/TR field pairs: " + ", ".join(incomplete[:8])
+                    )
+        with db_connection() as db:
+            for unit in units:
+                for topic in unit["lessons"]:
+                    db.execute(
+                        "UPDATE topics SET content = ? WHERE id = ?",
+                        (json.dumps(topic["content"], ensure_ascii=False), topic["id"]),
+                    )
+            db.execute(
+                "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                ("Quality review: bilingual counterparts checkpointed", course_id),
+            )
+            db.commit()
+        bump_version()
+        _log(
+            f"[QUALITY-GATE] bilingual checkpoint persisted "
+            f"{bilingual_patches} exact counterpart repair(s)."
+        )
+
     _log(
         f"[QUALITY-GATE] reviewing {len(units)} unit(s) with {Q.REVIEW_MODEL}; "
         f"targeted repairs use {Q.REPAIR_MODEL}."
@@ -1072,7 +1116,8 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     except Exception:
         pass
     _log(
-        f"[QUALITY-GATE] PASS lesson_patches={lesson_patches} "
+        f"[QUALITY-GATE] PASS bilingual_patches={bilingual_patches} "
+        f"lesson_patches={lesson_patches} "
         f"risk_patches={risk_patches} "
         f"assessment_patches={assessment_patches} "
         f"final_repair_patches={final_repair_patches} "
@@ -1081,6 +1126,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         + Q.gate_summary(budget)
     )
     return {
+        "bilingual_patches": bilingual_patches,
         "lesson_patches": lesson_patches,
         "risk_patches": risk_patches,
         "assessment_patches": assessment_patches,
