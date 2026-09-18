@@ -92,7 +92,8 @@ def detect_language(text: str, hint: str = "") -> str:
 
 def generate_full_lesson(topic, topic_type, language, count=6, level="A1", source_text=None,
                          material_language="tr", unit_index=None, unit_total=None,
-                         topics_completed=0, taught_so_far=(), ledger=None):
+                         topics_completed=0, taught_so_far=(), ledger=None,
+                         unit_title="", unit_topics=()):
     """One publication-ready lesson, or a review notice if it could not be made.
 
     The signature is the one the callers already pass. `count` is read as the
@@ -106,7 +107,8 @@ def generate_full_lesson(topic, topic_type, language, count=6, level="A1", sourc
         topic=str(topic), topic_type=str(topic_type or "vocabulary"), language=str(language),
         level=str(level or "A1"), track=str(material_language or "tr"),
         ledger=ledger, source_text=str(source_text or ""), taught_so_far=taught_so_far,
-        pages=max(3, min(8, int(count or 5))), model=MODEL)
+        pages=max(3, min(8, int(count or 5))), model=MODEL,
+        unit_title=str(unit_title or ""), unit_topics=tuple(unit_topics or ()))
 
     # Terra is intentionally NOT the bulk generator. At 30 topics it measured
     # about $2/classroom by itself. Use it only as a narrow rescue path when the
@@ -120,7 +122,8 @@ def generate_full_lesson(topic, topic_type, language, count=6, level="A1", sourc
             topic=str(topic), topic_type=str(topic_type or "vocabulary"), language=str(language),
             level=str(level or "A1"), track=str(material_language or "tr"),
             ledger=None, source_text=str(source_text or ""), taught_so_far=taught_so_far,
-            pages=max(3, min(8, int(count or 5))), model=TERRA_REVIEW_MODEL)
+            pages=max(3, min(8, int(count or 5))), model=TERRA_REVIEW_MODEL,
+            unit_title=str(unit_title or ""), unit_topics=tuple(unit_topics or ()))
         if rescue.lesson and not _audit.blocking(rescue.findings):
             result = rescue
 
