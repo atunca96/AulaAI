@@ -61,10 +61,10 @@ def fake_call_review(**kwargs):
     calls.append(kwargs)
     stage = kwargs["stage"]
     payload = kwargs["payload"]
-    if stage.startswith("luna_assessment:"):
+    if stage.startswith("review_assessment:"):
         assert payload["render_contract_blockers"],             "Luna must receive deterministic renderer blockers up front"
         return {"checked_questions": list(range(1, 11)), "patches": []}
-    assert stage.startswith("luna_assessment_render_retry:"), stage
+    assert stage.startswith("review_assessment_render_retry:"), stage
     blockers = payload["render_contract_blockers"]
     assert blockers and blockers[0]["question"] == 1
     return {
