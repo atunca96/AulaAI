@@ -358,6 +358,44 @@ def test_curriculum_titles_are_bilingual():
           "and so is one with an empty column")
 
 
+def test_curriculum_draft_shape_and_model():
+    print("\n[4c] lecturer curriculum uses Gemini 3.8 Flash and exact 6x5 shape")
+    original = BP.T.call_model
+    seen = {}
+
+    def provider(messages, *, max_tokens, temperature=0.6, model="", cache_system=True,
+                 timeout=None, attempts=3):
+        seen["model"] = model
+        units = []
+        for u in range(1, 7):
+            units.append({
+                "title": f"Unit {u}",
+                "title_tr": f"Ünite {u}",
+                "goal": f"Goal {u}",
+                "topics": [{
+                    "title": f"Topic {u}.{t}",
+                    "title_tr": f"Konu {u}.{t}",
+                    "type": "vocabulary",
+                    "teaches": [f"item {u}.{t}"],
+                } for t in range(1, 6)],
+            })
+        return T.Response(data={"units": units}, input_tokens=1200,
+                          output_tokens=1800, model=model)
+
+    try:
+        BP.T.call_model = provider
+        plan = BP.plan_curriculum_draft(language="Spanish", level="A1", track="tr")
+    finally:
+        BP.T.call_model = original
+
+    check(seen.get("model") == "google/gemini-3.8-flash",
+          "curriculum is pinned to Gemini 3.8 Flash")
+    check(len(plan.units) == 6, "curriculum has exactly six units")
+    check(all(len(unit.topics) == 5 for unit in plan.units),
+          "every curriculum unit has exactly five topics")
+    check(plan.lesson_count == 30, "curriculum exposes thirty topics")
+
+
 # ── 5. The cost ceiling ──────────────────────────────────────────────────────
 
 def test_budget():
@@ -540,6 +578,7 @@ def main():
     test_unit_assessment_reuses_clean_lesson_mcq()
     test_planning()
     test_curriculum_titles_are_bilingual()
+    test_curriculum_draft_shape_and_model()
     test_budget()
     test_full_builds()
     test_budget_stops_a_runaway()
