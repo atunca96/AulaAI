@@ -248,10 +248,12 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
         payload["reasoning"] = {"effort": reasoning_effort or "low"}
     elif target.lower().startswith("openai/gpt-5.6-"):
         # OpenAI reasoning models reject/ignore sampling controls in several
-        # provider paths. Keep the live route simple and let callers explicitly
-        # spend more reasoning only where quality review needs it.
+        # provider paths. Luna Pro is already a model alias with pro reasoning
+        # pinned by the provider; do not overwrite that mode with an effort
+        # parameter. Standard GPT-5.6 routes still accept explicit effort.
         payload["provider"] = {"sort": "throughput"}
-        payload["reasoning"] = {"effort": reasoning_effort or "low"}
+        if not target.lower().endswith("-pro"):
+            payload["reasoning"] = {"effort": reasoning_effort or "low"}
     else:
         payload["temperature"] = float(temperature)
 
