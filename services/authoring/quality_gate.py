@@ -326,12 +326,16 @@ Review EVERY supplied topic. Be adversarial and conservative. Check:
 - factual grammar/lexis/usage claims and overgeneralizations; narrow absolute
   rules when standard counterexamples exist;
 - naturalness and correctness of target-language examples/dialogue;
-- English and Turkish instructional fields for semantic equivalence and natural
-  phrasing;
+- English and Turkish instructional fields for exact semantic equivalence and
+  natural phrasing. Treat a change of tense, aspect, person, number, polarity,
+  register or factual relation as an error even when the rough meaning survives;
 - every IPA transcription against the exact written term AND the declared
   regional variety; IPA-looking Unicode is not enough;
 - internal contradictions, invented forms, impossible examples and CEFR-level
   leakage;
+- every absolute pedagogical claim containing meanings such as always, never,
+  every, only, must or impossible. Keep it absolute only if it is genuinely
+  exceptionless in the declared standard variety; otherwise scope it precisely;
 - lesson MCQs for exactly one defensible answer and plausible distractors.
 
 Return JSON only:
@@ -392,7 +396,9 @@ Inspect the compact high-risk ledger and look only for defects that still make
 publication professionally unacceptable.
 
 You MUST independently verify:
-1) every grammar/usage rule for truth, scope, exceptions and regional variety;
+1) every grammar/usage rule for truth, scope, exceptions and regional variety,
+   with special suspicion for absolute claims equivalent to always/never/every/
+   only/must/impossible;
 2) every IPA pair against the written form and declared variety;
 3) every MCQ in BOTH lessons and unit assessments for exactly one correct
    answer, correct key, natural stem and defensible distractors;
