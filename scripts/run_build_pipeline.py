@@ -51,6 +51,7 @@ VERIFICATION_STEPS = [
     # Provider-free orchestration proof: a deterministic renderer blocker missed
     # by Luna is handed to one bounded Terra repair pass before publication.
     "scripts/test_assessment_render_repair.py",
+    "scripts/test_review_schema_provider_compat.py",
     "scripts/test_quality_gate.py",
     "scripts/test_language_matrix.py",
     "scripts/smoke_test_pdf_renderer.py",
