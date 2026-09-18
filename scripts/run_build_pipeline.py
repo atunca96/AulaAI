@@ -56,6 +56,7 @@ VERIFICATION_STEPS = [
     "scripts/test_unit_assessment_rescue.py",
     "scripts/test_semantic_patch_reconciliation.py",
     "scripts/test_duplicate_semantic_patch.py",
+    "scripts/test_slash_duplicate_patch_reconcile.py",
     "scripts/test_assessment_review_budget.py",
     "scripts/test_lesson_render_exact_repair.py",
     "scripts/test_review_reconciliation_v2.py",
