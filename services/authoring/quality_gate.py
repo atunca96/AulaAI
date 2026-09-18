@@ -65,7 +65,7 @@ _ASSESSMENT_FIELDS = frozenset({
 
 
 _PATCH_SCALAR_OR_LIST = {
-    "oneOf": [
+    "anyOf": [
         {"type": "string"},
         {"type": "array", "items": {"type": "string"}, "minItems": 1},
     ]
@@ -124,7 +124,7 @@ _ASSESSMENT_REVIEW_SCHEMA = {
     "properties": {
         "checked_questions": {
             "type": "array", "items": {"type": "integer"},
-            "minItems": 10, "maxItems": 10, "uniqueItems": True,
+            "minItems": 10, "maxItems": 10,
         },
         "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
     },
