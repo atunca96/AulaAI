@@ -308,6 +308,27 @@ ai_generate_activity = ai_generate_activity_batch
 
 # ── Curriculum ───────────────────────────────────────────────────────────────
 
+def _monolingual_rows(chapters) -> int:
+    """How many units or topics lack a real title in one of the two columns.
+
+    A row counts as monolingual when either title is empty or the two are the
+    same string — the second being the case that made every row look
+    untranslated and sent the whole curriculum through a translation pass it did
+    not need.
+    """
+    gaps = 0
+    for chapter in chapters or []:
+        if not isinstance(chapter, dict):
+            continue
+        rows = [chapter] + [t for t in (chapter.get("topics") or []) if isinstance(t, dict)]
+        for row in rows:
+            english = str(row.get("title") or "").strip()
+            turkish = str(row.get("title_tr") or "").strip()
+            if not english or not turkish or english.casefold() == turkish.casefold():
+                gaps += 1
+    return gaps
+
+
 def ai_generate_curriculum(language, level, prompt_extra=""):
     """The course structure, in the chapter shape the server stores."""
     started = time.perf_counter()
@@ -320,15 +341,27 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
         chapters.append({
             "number": number,
             "title": unit.title,
-            "title_tr": unit.title,
-            "topics": [{"title": t.title, "title_tr": t.title, "type": t.type}
+            "title_tr": unit.title_tr,
+            "topics": [{"title": t.title, "title_tr": t.title_tr, "type": t.type}
                        for t in unit.topics],
         })
-    try:
-        from services.curriculum_translator import ensure_bilingual_curriculum
-        chapters = ensure_bilingual_curriculum(chapters)
-    except Exception as exc:
-        _log(f"[CURRICULUM] bilingual pass skipped: {exc}")
+
+    # The planner emits both titles now, so the translation pass has nothing to
+    # do and is skipped. It used to run on every build: filling `title` and
+    # `title_tr` with the SAME string made every row look untranslated, which
+    # triggered a batch translation call per chapter and per topic — most of the
+    # 45 seconds a curriculum took — and where a topic's translation did not
+    # come back, the editor showed Turkish under ENGLISH UNIT NAME with an empty
+    # box beside it. It stays as a repair for a model that answers with a title
+    # missing, which is the only case it can still help with.
+    gaps = _monolingual_rows(chapters)
+    if gaps:
+        try:
+            from services.curriculum_translator import ensure_bilingual_curriculum
+            _log(f"[CURRICULUM] {gaps} row(s) came back monolingual; translating the gaps")
+            chapters = ensure_bilingual_curriculum(chapters)
+        except Exception as exc:
+            _log(f"[CURRICULUM] bilingual repair skipped: {exc}")
     for chapter in chapters:
         if isinstance(chapter, dict):
             chapter["_aulaai_bilingual_healed"] = True

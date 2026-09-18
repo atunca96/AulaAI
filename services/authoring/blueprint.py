@@ -34,30 +34,46 @@ __all__ = ["plan_course", "CoursePlan", "Unit", "Topic", "validate_plan", "skele
 TOPIC_TYPES = ("phonetics", "vocabulary", "grammar", "dialogue", "reading", "review")
 
 
-class Topic:
-    __slots__ = ("id", "title", "type", "teaches")
+# Unit and topic titles are the one part of a course that is genuinely
+# BILINGUAL rather than single-track. Lesson bodies are read in one language and
+# generating the other is waste; these appear in the lecturer's curriculum
+# editor with an English and a Turkish column side by side, so both are real
+# content and both must exist.
+#
+# They are also cheap — a title is a handful of tokens — which makes generating
+# the pair far cheaper than producing one and translating it. Doing the latter
+# cost a batch translation pass on every build, and when it did not land the
+# editor showed Turkish text under ENGLISH UNIT NAME and an empty box under
+# TÜRKÇE ÜNİTE ADI.
 
-    def __init__(self, title: str, type_: str = "vocabulary", teaches: Sequence[str] = ()):
+class Topic:
+    __slots__ = ("id", "title", "title_tr", "type", "teaches")
+
+    def __init__(self, title: str, type_: str = "vocabulary", teaches: Sequence[str] = (),
+                 title_tr: str = ""):
         self.id = str(uuid.uuid4())
         self.title = title
+        self.title_tr = title_tr or title
         self.type = type_ if type_ in TOPIC_TYPES else "vocabulary"
         self.teaches: List[str] = list(teaches)
 
     def as_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "title": self.title, "type": self.type,
-                "teaches": list(self.teaches)}
+        return {"id": self.id, "title": self.title, "title_tr": self.title_tr,
+                "type": self.type, "teaches": list(self.teaches)}
 
 
 class Unit:
-    __slots__ = ("title", "goal", "topics")
+    __slots__ = ("title", "title_tr", "goal", "topics")
 
-    def __init__(self, title: str, goal: str = "", topics: Optional[List[Topic]] = None):
+    def __init__(self, title: str, goal: str = "", topics: Optional[List[Topic]] = None,
+                 title_tr: str = ""):
         self.title = title
+        self.title_tr = title_tr or title
         self.goal = goal
         self.topics: List[Topic] = topics or []
 
     def as_dict(self) -> Dict[str, Any]:
-        return {"title": self.title, "goal": self.goal,
+        return {"title": self.title, "title_tr": self.title_tr, "goal": self.goal,
                 "topics": [t.as_dict() for t in self.topics]}
 
 
@@ -156,7 +172,6 @@ def validate_plan(plan: CoursePlan) -> List[str]:
 # ── Generation ───────────────────────────────────────────────────────────────
 
 def _system(language: str, level: str, track: str) -> str:
-    inst = "Turkish" if str(track).casefold().startswith("tr") else "English"
     band = P.cefr_band(level)
     profile = S.profile_for_language(language)
     script_line = ""
@@ -164,7 +179,7 @@ def _system(language: str, level: str, track: str) -> str:
         script_line = (f"\n- {language} is written in {' + '.join(profile.scripts)}. Unit 1 "
                        f"MUST teach the writing system and its sounds before any word is "
                        f"asked to be read.")
-    return f"""You are the curriculum architect for AulaAI. You plan one CEFR {level} course in {language} for adult learners, with unit and topic titles written in {inst}. You return one JSON object and nothing else.
+    return f"""You are the curriculum architect for AulaAI. You plan one CEFR {level} course in {language} for adult learners. You return one JSON object and nothing else.
 
 A CEFR {level} learner can {band['can']}.
 - STRUCTURAL CEILING for the whole course: {band['ceiling']}.
@@ -178,14 +193,21 @@ PLANNING RULES
 - Cover what this level genuinely needs and stop. Do not pad to fill units, and do not reach above the ceiling to look thorough.
 - Give each topic a `type` from: {", ".join(TOPIC_TYPES)}.
 
+TITLES ARE BILINGUAL. Every unit and every topic carries BOTH an English title
+and a Turkish one, because the lecturer's curriculum editor shows the two side
+by side. They must be the same title in two languages — a real Turkish title,
+not the English one copied across, and not a transliteration. Write `teaches`
+and `goal` in English only.
+
 Return ONLY:
 {{
   "units": [
     {{
-      "title": "Unit title in {inst}",
-      "goal": "What the learner can do after it, in {inst}",
+      "title": "Unit title in English",
+      "title_tr": "Aynı ünite başlığı, doğal Türkçe",
+      "goal": "What the learner can do after it, in English",
       "topics": [
-        {{"title": "Topic title in {inst}", "type": "vocabulary", "teaches": ["concrete item", "concrete item"]}}
+        {{"title": "Topic title in English", "title_tr": "Aynı konu başlığı, doğal Türkçe", "type": "vocabulary", "teaches": ["concrete item", "concrete item"]}}
       ]
     }}
   ]
@@ -215,10 +237,12 @@ def _parse(payload: Any, language: str, level: str, track: str) -> Optional[Cour
                 teaches = raw_topic.get("teaches")
                 topics.append(Topic(title, str(raw_topic.get("type") or "vocabulary").strip(),
                                     [str(t).strip() for t in teaches
-                                     if str(t).strip()] if isinstance(teaches, list) else []))
+                                     if str(t).strip()] if isinstance(teaches, list) else [],
+                                    title_tr=str(raw_topic.get("title_tr") or "").strip()))
         if topics:
             units.append(Unit(str(raw.get("title") or "").strip(),
-                              str(raw.get("goal") or "").strip(), topics))
+                              str(raw.get("goal") or "").strip(), topics,
+                              title_tr=str(raw.get("title_tr") or "").strip()))
     return CoursePlan(language, level, track, units) if units else None
 
 
@@ -276,43 +300,79 @@ def plan_course(*, language: str, level: str, track: str = "tr",
 
 # ── The fallback ─────────────────────────────────────────────────────────────
 
+# Each row is (English title, Turkish title, type, what it teaches). The Turkish
+# column is written out rather than translated at run time for the same reason
+# the planner emits both: this is the fallback, so it runs when the model is
+# unavailable, and a fallback that needs a model call is not one.
 _SKELETON = {
-    "A1": [("Sounds and writing", "phonetics", ["the writing system", "the sound inventory"]),
-           ("Greetings and introductions", "vocabulary", ["greeting formulas", "saying your name"]),
-           ("Numbers, time and prices", "vocabulary", ["numbers 0-100", "telling the time"]),
-           ("People, family and description", "vocabulary", ["family words", "basic adjectives"]),
-           ("Everyday actions in the present", "grammar", ["present tense of frequent verbs"]),
-           ("Getting around and asking for things", "dialogue", ["requests", "directions"])],
-    "A2": [("Talking about the past", "grammar", ["the common past tense"]),
-           ("Plans and the future", "grammar", ["future forms"]),
-           ("Shopping, food and services", "vocabulary", ["transactional language"]),
-           ("Home, work and routine", "vocabulary", ["daily routine", "workplace words"]),
-           ("Giving reasons and opinions", "grammar", ["simple connectors"]),
-           ("Travel and arrangements", "dialogue", ["booking", "timetables"])],
-    "B1": [("Narrating experience", "grammar", ["past tenses in contrast"]),
-           ("Opinions and justification", "grammar", ["standard connectors"]),
-           ("Work and study", "vocabulary", ["workplace and academic register"]),
-           ("Problems and solutions", "dialogue", ["complaints", "negotiation"]),
-           ("Conditions and hypotheses", "grammar", ["everyday conditionals"]),
-           ("Reading connected text", "reading", ["extended comprehension"])],
-    "B2": [("Argument and counter-argument", "grammar", ["concession and contrast"]),
-           ("Abstract and specialised topics", "vocabulary", ["abstract lexis"]),
-           ("Register and formality", "grammar", ["formal and informal contrast"]),
-           ("Reported and attributed speech", "grammar", ["reported speech"]),
-           ("Extended narrative", "reading", ["long-form comprehension"]),
-           ("Professional interaction", "dialogue", ["meetings", "correspondence"])],
-    "C1": [("Implicit meaning and inference", "reading", ["reading between the lines"]),
-           ("Cohesion across paragraphs", "grammar", ["discourse organisation"]),
-           ("Idiom and collocation", "vocabulary", ["idiomatic precision"]),
-           ("Stylistic word order", "grammar", ["marked constructions"]),
-           ("Debate and nuance", "dialogue", ["qualified argument"]),
-           ("Synthesis of sources", "reading", ["summarising across texts"])],
-    "C2": [("Fine shades of meaning", "vocabulary", ["near-synonym discrimination"]),
-           ("Rhetoric and figurative language", "reading", ["figurative interpretation"]),
-           ("Literary and historical register", "reading", ["marked register"]),
-           ("Precision under complexity", "grammar", ["complex subordination"]),
-           ("Reconstructing argument", "reading", ["source synthesis"]),
-           ("Spontaneous formal speech", "dialogue", ["extended formal turns"])],
+    "A1": [("Sounds and writing", "Sesler ve Yazı Sistemi", "phonetics",
+            ["the writing system", "the sound inventory"]),
+           ("Greetings and introductions", "Selamlaşma ve Tanışma", "vocabulary",
+            ["greeting formulas", "saying your name"]),
+           ("Numbers, time and prices", "Sayılar, Saat ve Fiyatlar", "vocabulary",
+            ["numbers 0-100", "telling the time"]),
+           ("People, family and description", "İnsanlar, Aile ve Tanımlama", "vocabulary",
+            ["family words", "basic adjectives"]),
+           ("Everyday actions in the present", "Günlük Eylemler: Şimdiki Zaman", "grammar",
+            ["present tense of frequent verbs"]),
+           ("Getting around and asking for things", "Yol Sorma ve İstekte Bulunma", "dialogue",
+            ["requests", "directions"])],
+    "A2": [("Talking about the past", "Geçmişten Söz Etmek", "grammar",
+            ["the common past tense"]),
+           ("Plans and the future", "Planlar ve Gelecek", "grammar", ["future forms"]),
+           ("Shopping, food and services", "Alışveriş, Yemek ve Hizmetler", "vocabulary",
+            ["transactional language"]),
+           ("Home, work and routine", "Ev, İş ve Günlük Düzen", "vocabulary",
+            ["daily routine", "workplace words"]),
+           ("Giving reasons and opinions", "Gerekçe ve Görüş Bildirme", "grammar",
+            ["simple connectors"]),
+           ("Travel and arrangements", "Seyahat ve Düzenlemeler", "dialogue",
+            ["booking", "timetables"])],
+    "B1": [("Narrating experience", "Deneyim Anlatımı", "grammar",
+            ["past tenses in contrast"]),
+           ("Opinions and justification", "Görüş ve Gerekçelendirme", "grammar",
+            ["standard connectors"]),
+           ("Work and study", "İş ve Eğitim", "vocabulary",
+            ["workplace and academic register"]),
+           ("Problems and solutions", "Sorunlar ve Çözümler", "dialogue",
+            ["complaints", "negotiation"]),
+           ("Conditions and hypotheses", "Koşullar ve Varsayımlar", "grammar",
+            ["everyday conditionals"]),
+           ("Reading connected text", "Bağlantılı Metin Okuma", "reading",
+            ["extended comprehension"])],
+    "B2": [("Argument and counter-argument", "Sav ve Karşı Sav", "grammar",
+            ["concession and contrast"]),
+           ("Abstract and specialised topics", "Soyut ve Uzmanlık Konuları", "vocabulary",
+            ["abstract lexis"]),
+           ("Register and formality", "Üslup ve Resmiyet", "grammar",
+            ["formal and informal contrast"]),
+           ("Reported and attributed speech", "Aktarılan Söz", "grammar",
+            ["reported speech"]),
+           ("Extended narrative", "Uzun Anlatı", "reading", ["long-form comprehension"]),
+           ("Professional interaction", "Profesyonel İletişim", "dialogue",
+            ["meetings", "correspondence"])],
+    "C1": [("Implicit meaning and inference", "Örtük Anlam ve Çıkarım", "reading",
+            ["reading between the lines"]),
+           ("Cohesion across paragraphs", "Paragraflar Arası Bağdaşıklık", "grammar",
+            ["discourse organisation"]),
+           ("Idiom and collocation", "Deyim ve Eşdizim", "vocabulary",
+            ["idiomatic precision"]),
+           ("Stylistic word order", "Üslupsal Sözcük Dizimi", "grammar",
+            ["marked constructions"]),
+           ("Debate and nuance", "Tartışma ve İnce Ayrım", "dialogue", ["qualified argument"]),
+           ("Synthesis of sources", "Kaynakların Sentezi", "reading",
+            ["summarising across texts"])],
+    "C2": [("Fine shades of meaning", "İnce Anlam Ayrımları", "vocabulary",
+            ["near-synonym discrimination"]),
+           ("Rhetoric and figurative language", "Retorik ve Mecaz", "reading",
+            ["figurative interpretation"]),
+           ("Literary and historical register", "Yazınsal ve Tarihsel Üslup", "reading",
+            ["marked register"]),
+           ("Precision under complexity", "Karmaşıklıkta Kesinlik", "grammar",
+            ["complex subordination"]),
+           ("Reconstructing argument", "Savı Yeniden Kurma", "reading", ["source synthesis"]),
+           ("Spontaneous formal speech", "Hazırlıksız Resmi Konuşma", "dialogue",
+            ["extended formal turns"])],
 }
 
 
@@ -325,18 +385,19 @@ def skeleton_plan(language: str, level: str, track: str = "tr") -> CoursePlan:
     """
     key = str(level or "A1").strip().upper()[:2]
     rows = _SKELETON.get(key, _SKELETON["A1"])
-    profile = S.profile_for_language(language)
-    if key != "A1" or not (profile and set(profile.scripts) - {"Latin"}):
-        rows = [r for r in rows if not (key != "A1" and r[1] == "phonetics")] or rows
+    if key != "A1":
+        rows = [r for r in rows if r[2] != "phonetics"] or rows
+
+    def topic(row) -> Topic:
+        title, title_tr, kind, teaches = row
+        return Topic(title, kind, teaches, title_tr=title_tr)
 
     units: List[Unit] = []
     for index in range(0, len(rows), 2):
         chunk = rows[index:index + 2]
         if len(chunk) < 2 and units:
-            units[-1].topics.extend(Topic(t, k, teaches) for t, k, teaches in chunk)
+            units[-1].topics.extend(topic(r) for r in chunk)
             break
-        units.append(Unit(
-            title=chunk[0][0],
-            goal="",
-            topics=[Topic(t, k, teaches) for t, k, teaches in chunk]))
+        units.append(Unit(title=chunk[0][0], goal="", topics=[topic(r) for r in chunk],
+                          title_tr=chunk[0][1]))
     return CoursePlan(language, level, track, units, notes="skeleton")

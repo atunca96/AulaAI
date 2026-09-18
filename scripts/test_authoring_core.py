@@ -201,6 +201,49 @@ def test_planning():
           "a plan too large for the budget is refused")
 
 
+def test_curriculum_titles_are_bilingual():
+    """Unit and topic titles show in the lecturer's editor in two columns.
+
+    Generating one title and translating it afterwards put Turkish under ENGLISH
+    UNIT NAME and left TÜRKÇE ÜNİTE ADI empty, and cost a batch translation call
+    per row — most of the 45 seconds a curriculum used to take.
+    """
+    print("\n[4b] curriculum titles carry both languages, without a translation pass")
+    import services.ai_engine as ae
+
+    for level in LEVELS:
+        plan = BP.skeleton_plan("Spanish", level)
+        pairs = [(u.title, u.title_tr) for u in plan.units] + \
+                [(t.title, t.title_tr) for t in plan.topics]
+        both = all(en.strip() and tr.strip() and en.casefold() != tr.casefold()
+                   for en, tr in pairs)
+        check(both, f"{level}: every skeleton title differs in the two columns")
+
+    parsed = BP._parse({"units": [{
+        "title": "Unit 1: Introductions", "title_tr": "Ünite 1: Tanışma", "goal": "g",
+        "topics": [
+            {"title": "Spanish sounds", "title_tr": "İspanyolca Sesler",
+             "type": "phonetics", "teaches": ["the sound inventory"]},
+            {"title": "Greetings", "title_tr": "Selamlaşma",
+             "type": "vocabulary", "teaches": ["greeting formulas"]}]}] * 3},
+        "Spanish", "A1", "tr")
+    check(parsed is not None and parsed.units[0].title_tr == "Ünite 1: Tanışma",
+          "a model answer's Turkish unit title is parsed, not discarded")
+    check(parsed.units[0].topics[0].title_tr == "İspanyolca Sesler",
+          "and so is a topic's")
+
+    chapters = [{"number": n, "title": u.title, "title_tr": u.title_tr,
+                 "topics": [{"title": t.title, "title_tr": t.title_tr, "type": t.type}
+                            for t in u.topics]}
+                for n, u in enumerate(parsed.units, 1)]
+    check(ae._monolingual_rows(chapters) == 0,
+          "a fully bilingual curriculum triggers no translation pass")
+    check(ae._monolingual_rows([{"title": "X", "title_tr": "X", "topics": []}]) == 1,
+          "a row with the same string in both columns is caught as monolingual")
+    check(ae._monolingual_rows([{"title": "X", "title_tr": "", "topics": []}]) == 1,
+          "and so is one with an empty column")
+
+
 # ── 5. The cost ceiling ──────────────────────────────────────────────────────
 
 def test_budget():
@@ -372,6 +415,7 @@ def main():
     test_repair_is_a_no_op_on_correct_material()
     test_prompts()
     test_planning()
+    test_curriculum_titles_are_bilingual()
     test_budget()
     test_full_builds()
     test_budget_stops_a_runaway()
