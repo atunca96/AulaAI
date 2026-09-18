@@ -534,9 +534,12 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             "instruction": "Fix every deterministic blocker. Return this one topic only.",
         }
         retry = _call_review(
-            model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+            # Deterministic blockers are the cases where the broad cheap editor
+            # demonstrably missed something. Escalate that one topic to Terra
+            # rather than asking the same model to reconsider its own miss.
+            model=TERRA_VERIFY_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
             max_tokens=2600, effort="high", budget=budget,
-            stage=f"luna_blocker_retry:{topic.get('title')}",
+            stage=f"terra_blocker_retry:{topic.get('title')}",
             response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_blocker_repair",
         )
         rows2 = retry.get("topics")
@@ -987,6 +990,15 @@ def provider_preflight() -> List[Dict[str, Any]]:
         },
     }
     rows = []
+    # The live canary verifies the system's division of labour, not an
+    # unrealistic requirement that every model independently catch every
+    # mechanical defect. Unicode contamination is deterministically blocked
+    # before publication and Terra is the escalation path for any blocker the
+    # broad Luna editor misses. Luna must still catch the semantic failures.
+    expected_by_model = {
+        LUNA_REVIEW_MODEL: dict(expected, greek_lookalike_ipa_error=False),
+        TERRA_VERIFY_MODEL: expected,
+    }
     for model, effort, name in (
         (LUNA_REVIEW_MODEL, "high", "luna_pro_semantic_canary"),
         (TERRA_VERIFY_MODEL, "high", "terra_semantic_canary"),
@@ -1007,10 +1019,11 @@ def provider_preflight() -> List[Dict[str, Any]]:
             timeout=120, attempts=2, reasoning_effort=effort,
             response_schema=schema, response_name=name,
         )
-        if not response.ok or response.data != expected:
+        model_expected = expected_by_model[model]
+        if not response.ok or response.data != model_expected:
             raise QualityGateError(
                 f"semantic provider preflight failed on {model}: "
-                f"got {response.data!r}; expected {expected!r}; "
+                f"got {response.data!r}; expected {model_expected!r}; "
                 f"transport={response.error or 'ok'}"
             )
         rows.append({
