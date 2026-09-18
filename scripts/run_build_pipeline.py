@@ -58,7 +58,7 @@ VERIFICATION_STEPS = [
     "scripts/test_duplicate_semantic_patch.py",
     "scripts/test_slash_duplicate_patch_reconcile.py",
     "scripts/test_editorial_slash_patch_reconcile.py",
-    "scripts/test_cross_topic_duplicate_stem_repair.py",
+    "scripts/test_cross_topic_duplicate_stem_repair.py",\n    "scripts/test_scope_risk_phonetic_gate.py",
     "scripts/test_embedded_patch_corruption.py",
     "scripts/test_camel_hump_patch_reconcile.py",
     "scripts/test_sentence_camel_corruption.py",
