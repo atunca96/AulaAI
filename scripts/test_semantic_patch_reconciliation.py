@@ -33,7 +33,7 @@ orig_repair=Q.R.repair_lesson
 
 def fake_call(**kwargs):
     calls.append(kwargs["stage"])
-    if kwargs["stage"].startswith("review_lessons:"):
+    if kwargs["stage"].startswith("review_lesson:"):
         return {"topics":[{
             "topic_id":"t1","verdict":"fix","patches":[{
                 "path":["pages","1","items","0","explanation_tr"],
@@ -73,5 +73,5 @@ finally:
 assert topic["content"]["pages"][1]["items"][0]["explanation_tr"] ==        "Her ortamda kullanılabilen genel bir vedalaşma ifadesidir."
 assert topic["content"]["pages"][0]["text_tr"] == "Bu ifadeleri derste kullanın."
 assert applied == 1, applied
-assert calls == ["review_lessons:Unit 1", "review_bilingual_retry:Greetings and Farewells"], calls
+assert calls == ["review_lesson:Unit 1:Greetings and Farewells", "review_bilingual_retry:Greetings and Farewells"], calls
 print("[SEMANTIC-PATCH] idempotent stale patch + bilingual repair regression PASSED")
