@@ -914,6 +914,14 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             unit_title=unit["title"], topics=unit["lessons"],
             language=language, level=level, track=material_language,
             budget=budget,
+            unit_topic_titles=[t.get("title") for t in unit["lessons"]],
+        )
+
+    def _review_risks(unit):
+        return Q.review_unit_risk_claims(
+            unit_title=unit["title"], topics=unit["lessons"],
+            language=language, level=level, track=material_language,
+            budget=budget,
         )
 
     def _review_assessment(unit):
@@ -938,6 +946,16 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         reviewer=_review_lessons,
         stage="lesson review",
         on_complete=_lesson_complete,
+        quality_error_cls=Q.QualityGateError,
+    )
+
+    risk_patches = 0
+    _log("[QUALITY-GATE] pedagogical-risk review running serially.")
+    risk_patches += _run_quality_units_serially(
+        units=units,
+        reviewer=_review_risks,
+        stage="risk review",
+        on_complete=lambda done, total, unit: None,
         quality_error_cls=Q.QualityGateError,
     )
 
@@ -981,6 +999,19 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     )
     if final_repair_patches:
         _log(f"[QUALITY-GATE] final targeted repair applied {final_repair_patches} patch(es).")
+
+    phonetic_conflict_patches = Q.repair_cross_topic_phonetic_conflicts(
+        units=reviewed_units,
+        language=language,
+        level=level,
+        track=material_language,
+        budget=budget,
+    )
+    if phonetic_conflict_patches:
+        _log(
+            f"[QUALITY-GATE] phonetic-conflict repair applied "
+            f"{phonetic_conflict_patches} patch(es)."
+        )
 
     duplicate_stem_patches = Q.repair_duplicate_mcq_stems(
         units=reviewed_units,
@@ -1042,15 +1073,19 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         pass
     _log(
         f"[QUALITY-GATE] PASS lesson_patches={lesson_patches} "
+        f"risk_patches={risk_patches} "
         f"assessment_patches={assessment_patches} "
         f"final_repair_patches={final_repair_patches} "
+        f"phonetic_conflict_patches={phonetic_conflict_patches} "
         f"duplicate_stem_patches={duplicate_stem_patches}; "
         + Q.gate_summary(budget)
     )
     return {
         "lesson_patches": lesson_patches,
+        "risk_patches": risk_patches,
         "assessment_patches": assessment_patches,
         "final_repair_patches": final_repair_patches,
+        "phonetic_conflict_patches": phonetic_conflict_patches,
         "duplicate_stem_patches": duplicate_stem_patches,
         "review_cost": budget.spent,
     }
