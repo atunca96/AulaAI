@@ -53,7 +53,7 @@ orig_repair=Q.R.repair_lesson
 def fake_call(**kwargs):
     calls.append((kwargs["stage"], kwargs["payload"]))
     stage=kwargs["stage"]
-    if stage.startswith("review_lessons:"):
+    if stage.startswith("review_lesson:"):
         payload=kwargs["payload"]
         assert payload["topics"][0]["render_contract_blockers"]
         return {"topics":[{"topic_id":"lesson-1","verdict":"ok","patches":[]}]}
@@ -89,7 +89,7 @@ assert applied==1
 assert topic["content"]["pages"][1]["prompt"]==good_prompt
 assert not Q._topic_render_blockers(topic["content"])
 assert [stage for stage,_ in calls]==[
-    "review_lessons:Professions and Family",
+    "review_lesson:Professions and Family:Professions and Occupations",
     "review_blocker_retry:Professions and Occupations",
 ]
 print("[REVIEW-RECONCILE] nullable-old + lesson renderer repair regression PASSED")
