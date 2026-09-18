@@ -123,21 +123,18 @@ def test_luna_lesson_review_repairs_pdf_defects():
             "verdict": "fix",
             "patches": [
                 {
-                    "topic_id": tid,
                     "path": ["pages", 0, "items", 0, "phonetic"],
                     "old": "[ˈονθε]",
                     "value": "[ˈonθe]",
                     "reason": "Castilian once is [ˈonθe]; Greek look-alikes are not IPA.",
                 },
                 {
-                    "topic_id": tid,
                     "path": ["pages", 1, "rules", 0, "rule"],
                     "old": "Adjectives ending in -e or a consonant never change for gender.",
                     "value": "Many -e adjectives are gender-invariable; consonant-final adjectives vary by lexical class, and nationality adjectives such as español/española can change.",
                     "reason": "The original absolute rule has common counterexamples.",
                 },
                 {
-                    "topic_id": tid,
                     "path": ["pages", 1, "rules", 0, "rule_tr"],
                     "old": "-e veya ünsüzle biten sıfatlar cinsiyete göre asla değişmez.",
                     "value": "-e ile biten birçok sıfat cinsiyete göre değişmez; ünsüzle biten sıfatlarda ise sözcük türüne göre farklılık vardır ve español/española gibi milliyet sıfatları değişebilir.",
@@ -177,7 +174,7 @@ def test_luna_assessment_review_removes_multi_correct_item():
 
     def provider(messages, **kwargs):
         data = {
-            "checked_questions": list(range(1, 11)),
+            "checked_questions": [str(i) for i in reversed(range(1, 11))],
             "patches": [
                 {
                     "topic_id": "a1",
@@ -241,7 +238,8 @@ def test_terra_final_coverage_is_mandatory():
         captured["model"] = kwargs.get("model")
         captured["effort"] = kwargs.get("reasoning_effort")
         return T.Response(
-            data={"coverage": payload["expected_coverage"], "patches": []},
+            data={"coverage": {k: str(v) for k, v in payload["expected_coverage"].items()},
+                  "patches": []},
             input_tokens=6000, output_tokens=300, cost=0.005,
             model=kwargs.get("model", ""),
         )
