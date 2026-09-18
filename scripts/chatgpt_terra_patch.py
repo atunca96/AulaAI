@@ -45,7 +45,7 @@ old = '''def generate_unit_assessment(unit_title, unit_topics, language, level="
                 content = {}
         block = _material_for_assessment(content)
         if block.strip():
-            parts.append(f"=== {topic.get('title', '')} ===\n{block}")
+            parts.append(f"=== {topic.get('title', '')} ===\\n{block}")
     if not parts:
         return []
     return ai_generate_questions(
@@ -80,7 +80,7 @@ new = '''def generate_unit_assessment(unit_title, unit_topics, language, level="
     if not parts:
         return []
 
-    source = "\n\n".join(parts)[:9000]
+    source = "\\n\\n".join(parts)[:9000]
     own_ledger = ledger or _budget.BuildLedger(label=f"unit assessment {unit_title}")
     model = model_override or MODEL
     result = _engine.generate_assessment(
