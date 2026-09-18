@@ -113,7 +113,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level="A1", sourc
     # cheap primary model cannot produce a clean lesson after its bounded retry.
     # That preserves the quality escape hatch without paying Terra rates thirty
     # times on every classroom.
-    if _audit.blocking(result.findings) and not result.lesson:
+    if (str(os.getenv("AULAAI_TERRA_RESCUE", "0")).strip().lower() in
+            ("1", "true", "on", "yes")
+            and _audit.blocking(result.findings) and not result.lesson):
         rescue = _engine.generate_lesson(
             topic=str(topic), topic_type=str(topic_type or "vocabulary"), language=str(language),
             level=str(level or "A1"), track=str(material_language or "tr"),
