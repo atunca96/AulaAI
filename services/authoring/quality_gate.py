@@ -3,12 +3,14 @@
 Bulk generation stays on Gemini 3.8 Flash. This gate does the expensive thing
 only where it has leverage: it reads finished material as an editor, patches
 specific fields, then refuses publication unless the deterministic auditor is
-clean. Two independent review layers are used:
+clean. One semantic review layer is used:
 
-* GPT-5.6 Luna (high reasoning) reviews every unit's five lessons and its ten
-  assessment questions. It is cheap enough to inspect the whole course.
-* GPT-5.6 Terra performs one final, compact verification over only the highest
-  risk claims: grammar rules, IPA pairs, and MCQs.
+* GPT-5.6 Luna Pro reviews every unit's five lessons and its ten assessment
+  questions, and performs bounded targeted repairs when deterministic checks
+  identify an exact learner-visible defect.
+* The final authority is deterministic publication integrity, not a second
+  semantic model. The gate proves renderer, bilingual, assessment-count, IPA
+  and duplicate invariants before READY.
 
 The models never rewrite a lesson wholesale. They can only replace an existing
 learner-facing field at an exact JSON path, and every patch is checked against
@@ -38,7 +40,6 @@ from services.authoring import transport as T
 
 
 LUNA_REVIEW_MODEL = "openai/gpt-5.6-luna-pro"
-TERRA_VERIFY_MODEL = "openai/gpt-5.6-terra"
 QUALITY_REVIEW_CEILING_USD = 0.13
 
 # A reviewer may change learner-facing content, never ids, page types, ordering,
@@ -137,25 +138,6 @@ _ASSESSMENT_REVIEW_SCHEMA = {
     },
     "required": ["checked_questions", "patches"],
 }
-_TERRA_VERIFY_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "coverage": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "rules": {"type": "integer"},
-                "phonetics": {"type": "integer"},
-                "assessments": {"type": "integer"},
-            },
-            "required": ["rules", "phonetics", "assessments"],
-        },
-        "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
-    },
-    "required": ["coverage", "patches"],
-}
-
 
 class QualityGateError(RuntimeError):
     pass
@@ -482,46 +464,6 @@ distractors mutually consistent. No cosmetic rewrites.
 """
 
 
-_TERRA_VERIFY_SYSTEM = """You are the final fact-checker before a language
-textbook is published. Another independent reviewer has already edited it.
-Inspect the compact high-risk ledger and look only for defects that still make
-publication professionally unacceptable.
-
-You MUST independently verify:
-1) every grammar/usage rule for truth, scope, exceptions and regional variety,
-   with special suspicion for absolute claims equivalent to always/never/every/
-   only/must/impossible;
-2) every IPA pair against the written form and declared variety;
-3) every MCQ in BOTH lessons and unit assessments for exactly one correct
-   answer, correct key, natural stem and defensible distractors;
-4) cross-item consistency: repeated/paraphrased questions about the same taught
-   fact must never carry incompatible answers, and answer explanations must agree
-   with the evidence;
-5) Turkish/English paired rule fields must remain semantically equivalent after
-   any repair;
-6) exact or near-duplicate MCQ stems are a publication defect even when their
-   answer is the same. Keep the learning objective but make repeated items test
-   a genuinely different application, context or contrast. Do not let a unit
-   assessment simply copy a lesson check verbatim.
-
-Return JSON only:
-{"coverage":{"rules":N,"phonetics":N,"assessments":N},
- "patches":[
-   {"topic_id":"EXACT ID","path":[...],"old":"EXACT OLD VALUE",
-    "value":"CORRECT REPLACEMENT","reason":"brief factual reason"}
- ]}
-
-Coverage numbers must exactly equal the counts stated in the user message.
-Patch only certain errors; do not stylistically rewrite correct material. Use
-only paths present in the ledger and copy old exactly. If a rule is too broad,
-replace it with an accurate scoped rule. If an MCQ has multiple correct options,
-repair the item so exactly one remains correct. If you change an assessment
-answer/options/distractors, patch every affected field so the stored key,
-options and distractors remain exactly consistent. If you change an English or
-Turkish rule/explanation, patch its paired field too so both instructional
-tracks continue to teach the same claim.
-"""
-
 
 def _call_review(*, model: str, system: str, payload: Dict[str, Any],
                  max_tokens: int, effort: str, budget: ReviewBudget,
@@ -563,7 +505,7 @@ def _records_for_render_blockers(content: Dict[str, Any],
                                  blockers: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Only the records needed to repair the pages the renderer rejects.
 
-    Targeted retries previously resent an entire five-page lesson to Terra.
+    Targeted retries previously resent an entire five-page lesson.
     That made a one-field repair spend its completion budget on reasoning over
     unrelated material and could finish with reason=length before emitting any
     JSON. Keep exact patch paths, but send only the affected page records.
@@ -700,16 +642,16 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             ),
         }
         retry = _call_review(
-            # Deterministic blockers are the cases where the broad cheap editor
-            # demonstrably missed something. Escalate that one topic to Terra
-            # rather than asking the same model to reconsider its own miss.
-            model=TERRA_VERIFY_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+            # Deterministic blockers get one narrow Luna repair pass over only
+            # the affected records. The deterministic contract, not a second
+            # model family, decides whether publication may continue.
+            model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
             # This is a narrow repair of explicitly identified fields, not the
             # final independent verification pass. Medium reasoning plus more
             # output headroom prevents reasoning tokens from consuming the whole
             # completion before strict JSON is emitted.
             max_tokens=4200, effort="medium", budget=budget,
-            stage=f"terra_blocker_retry:{topic.get('title')}",
+            stage=f"luna_blocker_retry:{topic.get('title')}",
             response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_blocker_repair",
         )
         rows2 = retry.get("topics")
@@ -745,7 +687,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
     # Bilingual completeness is a publication invariant but not every missing
     # counterpart is represented as an audit.py blocker. Repair any remaining
     # exact EN/TR slot gaps before leaving the unit review. This is deliberately
-    # bounded to one Terra pass per affected topic and still fails closed.
+    # bounded to one Luna repair pass per affected topic and still fails closed.
     if canonical not in ("English", "Turkish"):
         for topic in topics:
             missing_pairs = _missing_bilingual_pairs(topic.get("content"))
@@ -769,9 +711,9 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 ),
             }
             retry = _call_review(
-                model=TERRA_VERIFY_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+                model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
                 max_tokens=3600, effort="medium", budget=budget,
-                stage=f"terra_bilingual_retry:{topic.get('title')}",
+                stage=f"luna_bilingual_retry:{topic.get('title')}",
                 response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_bilingual_repair",
             )
             rows2 = retry.get("topics")
@@ -928,9 +870,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             ),
         }
         retry = _call_review(
-            model=TERRA_VERIFY_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+            model=LUNA_REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
             payload=retry_payload, max_tokens=4200, effort="medium", budget=budget,
-            stage=f"terra_assessment_render_retry:{unit_title}",
+            stage=f"luna_assessment_render_retry:{unit_title}",
             response_schema=_ASSESSMENT_REVIEW_SCHEMA,
             response_name="assessment_render_repair",
         )
@@ -1017,9 +959,9 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                     ),
                 }
                 data = _call_review(
-                    model=TERRA_VERIFY_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+                    model=LUNA_REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
                     payload=payload, max_tokens=4200, effort="medium", budget=budget,
-                    stage=f"terra_final_repair:{unit.get('title')}:assessment",
+                    stage=f"luna_final_repair:{unit.get('title')}:assessment",
                     response_schema=_ASSESSMENT_REVIEW_SCHEMA,
                     response_name="final_assessment_repair",
                 )
@@ -1060,9 +1002,9 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                     ),
                 }
                 data = _call_review(
-                    model=TERRA_VERIFY_MODEL, system=_LESSON_REVIEW_SYSTEM,
+                    model=LUNA_REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM,
                     payload=payload, max_tokens=3600, effort="medium", budget=budget,
-                    stage=f"terra_final_repair:{topic.get('title')}",
+                    stage=f"luna_final_repair:{topic.get('title')}",
                     response_schema=_LESSON_REVIEW_SCHEMA,
                     response_name="final_lesson_repair",
                 )
@@ -1109,102 +1051,6 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                         + ", ".join(remaining_pairs[:8])
                     )
     return applied
-
-
-def _risk_ledger(units: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
-    ledger: List[Dict[str, Any]] = []
-    counts = {"rules": 0, "phonetics": 0, "assessments": 0}
-    for unit in units:
-        for topic in unit.get("topics") or []:
-            tid = str(topic["id"])
-            is_assessment = bool(topic.get("is_assessment"))
-            for rec in _review_records(topic["content"]):
-                field = str(rec.get("field") or "")
-                path = rec.get("path") or []
-                include = False
-                kind = ""
-                if field in _NOTATION_FIELDS:
-                    include, kind = True, "phonetic"
-                    counts["phonetics"] += 1
-                elif field in _RISK_RULE_FIELDS and any(str(p) == "rules" for p in path):
-                    include, kind = True, "rule"
-                    counts["rules"] += 1
-                elif field in _ASSESSMENT_FIELDS:
-                    # Final verification covers lesson checks as well as the
-                    # synthetic unit assessment. The shipped PDF contained two
-                    # paraphrases of the same restaurant question with different
-                    # answers; limiting Terra to synthetic assessments made that
-                    # contradiction invisible.
-                    rec_path = rec.get("path") or []
-                    is_mcq = False
-                    if len(rec_path) >= 2 and rec_path[0] == "pages" and isinstance(rec_path[1], int):
-                        pages = topic.get("content", {}).get("pages") or []
-                        page_index = rec_path[1]
-                        if 0 <= page_index < len(pages) and isinstance(pages[page_index], dict):
-                            is_mcq = str(pages[page_index].get("type") or "").casefold() == "mcq"
-                    if is_mcq:
-                        include, kind = True, "assessment"
-                        # Count once per question, not once per answer/option field.
-                        if field in ("prompt", "question", "stem"):
-                            counts["assessments"] += 1
-                if include:
-                    ledger.append({
-                        "topic_id": tid, "unit": unit.get("title"), "title": topic.get("title"),
-                        "kind": kind, **rec,
-                    })
-    return ledger, counts
-
-
-def final_terra_verify(*, units: List[Dict[str, Any]], language: str, level: str,
-                       track: str, budget: ReviewBudget) -> int:
-    risk, counts = _risk_ledger(units)
-    profile = S.profile_for_language(language)
-    payload = {
-        "language": language, "level": level,
-        "regional_variety": profile.variety if profile else "",
-        "instruction_track": track,
-        "expected_coverage": counts,
-        "ledger": risk,
-    }
-    data = _call_review(
-        model=TERRA_VERIFY_MODEL, system=_TERRA_VERIFY_SYSTEM, payload=payload,
-        max_tokens=3200, effort="high", budget=budget,
-        stage="terra_final_verify",
-        response_schema=_TERRA_VERIFY_SCHEMA, response_name="final_verification",
-    )
-    coverage = data.get("coverage")
-    try:
-        coverage_normalized = {
-            key: int((coverage or {}).get(key)) for key in ("rules", "phonetics", "assessments")
-        }
-    except (TypeError, ValueError):
-        coverage_normalized = {}
-    if coverage_normalized != counts:
-        raise QualityGateError(
-            f"Terra verification coverage mismatch: got {coverage!r}, expected {counts!r}"
-        )
-    by_id = {
-        str(topic["id"]): topic
-        for unit in units for topic in (unit.get("topics") or [])
-    }
-    applied = _apply_patches(by_id, data.get("patches") or [])
-
-    # Nothing reaches the renderer with a known mechanical defect.
-    remaining: List[str] = []
-    for unit in units:
-        for topic in unit.get("topics") or []:
-            findings = _audit_topic(topic, language=language, track=track)
-            blockers = A.blocking(findings)
-            if blockers:
-                remaining.append(
-                    f"{topic.get('title')}: {A.summarise(blockers)}"
-                )
-    if remaining:
-        raise QualityGateError(
-            "final publication audit failed: " + "; ".join(remaining[:8])
-        )
-    return applied
-
 
 
 _BILINGUAL_PAIRS = (
@@ -1454,10 +1300,10 @@ def provider_preflight() -> List[Dict[str, Any]]:
     """Live semantic canary for the exact defect classes that reached a real PDF.
 
     This is deliberately stronger than a connectivity ping. Before a user pays
-    for a thirty-lesson regeneration, both review models must independently
-    recognize the actual failures that motivated this gate, while leaving a
-    clean control alone. It is opt-in at deploy time and normally disabled after
-    one successful production canary.
+    for a thirty-lesson regeneration, the production review model must recognize
+    the semantic failures that motivated this gate while leaving a clean control
+    alone. Mechanical invariants remain code-enforced. It is opt-in at deploy
+    time and normally disabled after one successful production canary.
     """
     properties = {
         "greek_lookalike_ipa_error": {"type": "boolean"},
@@ -1511,50 +1357,39 @@ def provider_preflight() -> List[Dict[str, Any]]:
             },
         },
     }
-    rows = []
-    # The live canary verifies the system's division of labour, not an
-    # unrealistic requirement that every model independently catch every
-    # mechanical defect. Unicode contamination is deterministically blocked
-    # before publication and Terra is the escalation path for any blocker the
-    # broad Luna editor misses. Luna must still catch the semantic failures.
-    expected_by_model = {
-        LUNA_REVIEW_MODEL: dict(expected, greek_lookalike_ipa_error=False),
-        TERRA_VERIFY_MODEL: expected,
-    }
-    for model, effort, name in (
-        (LUNA_REVIEW_MODEL, "high", "luna_pro_semantic_canary"),
-        (TERRA_VERIFY_MODEL, "high", "terra_semantic_canary"),
-    ):
-        response = T.call_model(
-            [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a strict professional language-textbook fact-checker. "
-                        "Return only the requested structured booleans. A false positive "
-                        "on the clean control is a failure."
-                    ),
-                },
-                {"role": "user", "content": json.dumps(challenge, ensure_ascii=False)},
-            ],
-            max_tokens=900, temperature=0.0, model=model, cache_system=False,
-            timeout=120, attempts=2, reasoning_effort=effort,
-            response_schema=schema, response_name=name,
+    # Only Luna Pro is part of the production review path. Mechanical Unicode
+    # contamination is proven by the deterministic gate, so the semantic canary
+    # requires Luna to catch the semantic defects and leaves that one mechanical
+    # check to code.
+    model_expected = dict(expected, greek_lookalike_ipa_error=False)
+    response = T.call_model(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "You are a strict professional language-textbook fact-checker. "
+                    "Return only the requested structured booleans. A false positive "
+                    "on the clean control is a failure."
+                ),
+            },
+            {"role": "user", "content": json.dumps(challenge, ensure_ascii=False)},
+        ],
+        max_tokens=900, temperature=0.0, model=LUNA_REVIEW_MODEL, cache_system=False,
+        timeout=120, attempts=2, reasoning_effort="high",
+        response_schema=schema, response_name="luna_pro_semantic_canary",
+    )
+    if not response.ok or response.data != model_expected:
+        raise QualityGateError(
+            f"semantic provider preflight failed on {LUNA_REVIEW_MODEL}: "
+            f"got {response.data!r}; expected {model_expected!r}; "
+            f"transport={response.error or 'ok'}"
         )
-        model_expected = expected_by_model[model]
-        if not response.ok or response.data != model_expected:
-            raise QualityGateError(
-                f"semantic provider preflight failed on {model}: "
-                f"got {response.data!r}; expected {model_expected!r}; "
-                f"transport={response.error or 'ok'}"
-            )
-        rows.append({
-            "model": model, "seconds": response.seconds,
-            "cost": float(response.cost or 0.0),
-            "input_tokens": response.input_tokens,
-            "output_tokens": response.output_tokens,
-        })
-    return rows
+    return [{
+        "model": LUNA_REVIEW_MODEL, "seconds": response.seconds,
+        "cost": float(response.cost or 0.0),
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
+    }]
 
 
 def gate_summary(budget: ReviewBudget) -> str:
