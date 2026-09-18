@@ -21,12 +21,24 @@ def fake_generate(*args, **kwargs):
     if len(calls)==1:
         return []
     # Rescue call returns the missing 10 already-valid items.
+    prompts = [
+        "¿Qué palabra significa pan?",
+        "Elige la bebida: agua.",
+        "¿Dónde compras fruta normalmente?",
+        "Completa: Quiero pagar con ____.",
+        "¿Qué dices para pedir un café?",
+        "Selecciona el lugar: la farmacia.",
+        "¿Cuál opción nombra una verdura?",
+        "Completa la compra: Necesito dos ____.",
+        "¿Qué frase sirve para preguntar el precio?",
+        "Selecciona la comida que aparece en la unidad.",
+    ]
     out=[]
-    for i in range(10):
+    for i, prompt in enumerate(prompts):
         out.append({
             "id":f"q{i}",
             "type":"mcq",
-            "prompt":f"Pregunta {i+1}?",
+            "prompt":prompt,
             "answer":f"respuesta {i+1}",
             "distractors":[f"d{i+1}a",f"d{i+1}b",f"d{i+1}c"],
             "options":[f"respuesta {i+1}",f"d{i+1}a",f"d{i+1}b",f"d{i+1}c"],
