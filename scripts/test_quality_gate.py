@@ -272,49 +272,12 @@ def test_luna_assessment_review_removes_multi_correct_item():
           "the corrected assessment passes deterministic validation")
 
 
-def test_terra_final_coverage_is_mandatory():
-    print("\n[Q4] final Terra pass proves it checked every high-risk record")
-    lesson = {"id": "t1", "title": "Reviewed lesson", "content": lesson_fixture(),
-              "is_assessment": False}
-    lesson["content"]["pages"][0]["items"][0]["phonetic"] = "[ˈonθe]"
-    lesson["content"]["pages"][1]["rules"][0]["rule"] = (
-        "Many -e adjectives are gender-invariable; consonant-final adjectives vary by lexical class."
-    )
-    lesson["content"]["pages"][1]["rules"][0]["rule_tr"] = (
-        "-e ile biten birçok sıfat değişmez; ünsüzle biten sıfatlar sözcüğe göre değişebilir."
-    )
-    assessment = {"id": "a1", "title": "Assessment",
-                  "content": assessment_fixture(), "is_assessment": True}
-    assessment["content"]["pages"][1]["options"] = ["hotel", "gato", "mesa", "casa"]
-    assessment["content"]["pages"][1]["distractors"] = ["gato", "mesa", "casa"]
-    units = [{"title": "Unit 1", "topics": [lesson, assessment]}]
-
-    original = Q.T.call_model
-    captured = {}
-
-    def provider(messages, **kwargs):
-        payload = json.loads(messages[-1]["content"])
-        captured["model"] = kwargs.get("model")
-        captured["effort"] = kwargs.get("reasoning_effort")
-        return T.Response(
-            data={"coverage": {k: str(v) for k, v in payload["expected_coverage"].items()},
-                  "patches": []},
-            input_tokens=6000, output_tokens=300, cost=0.005,
-            model=kwargs.get("model", ""),
-        )
-
-    try:
-        Q.T.call_model = provider
-        budget = Q.ReviewBudget(0.05)
-        applied = Q.final_terra_verify(
-            units=units, language="Spanish", level="A1", track="tr", budget=budget)
-    finally:
-        Q.T.call_model = original
-
-    check(applied == 0, "a clean course needs no final patch")
-    check(captured.get("model") == "openai/gpt-5.6-terra",
-          "final verifier is independent Terra, not the Gemini author")
-    check(captured.get("effort") == "high", "Terra uses high reasoning effort")
+def test_single_semantic_review_model():
+    print("\n[Q4] publication review uses Luna only; deterministic integrity is final")
+    check(Q.LUNA_REVIEW_MODEL == "openai/gpt-5.6-luna-pro",
+          "Luna Pro is the single semantic review model")
+    check(not hasattr(Q, "TERRA_VERIFY_MODEL"),
+          "Terra is not part of the publication review runtime")
 
 
 
@@ -454,7 +417,7 @@ def main():
     test_non_ipa_fails_closed()
     test_luna_lesson_review_repairs_pdf_defects()
     test_luna_assessment_review_removes_multi_correct_item()
-    test_terra_final_coverage_is_mandatory()
+    test_single_semantic_review_model()
     test_publication_integrity_keeps_ten_questions()
     test_publication_integrity_catches_renderer_silent_drop()
     test_publication_integrity_rejects_duplicates_and_missing_english()
