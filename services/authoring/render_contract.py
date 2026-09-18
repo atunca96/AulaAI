@@ -129,7 +129,7 @@ def _has_biography_marker(text: str, markers: Sequence[str]) -> bool:
     """
     for marker in markers:
         if marker == "nacio":
-            if re.search(r"(?<!\\w)nacio(?!\\w)", text):
+            if re.search(r"(?<!\w)nacio(?!\w)", text):
                 return True
             continue
         if marker in text:
