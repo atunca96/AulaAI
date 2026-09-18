@@ -89,7 +89,7 @@ def price(model: str, *, input_tokens: int = 0, output_tokens: int = 0,
 # attempt instead of being truncated, billed and retried.
 
 def lesson_output_ceiling(page_target: int = 5, *, inventory: bool = False) -> int:
-    """Room for one single-track lesson.
+    """Room for one bilingual-instruction lesson.
 
     `inventory` marks a topic that must print a closed set — an alphabet, a
     writing system — which is several times the length of an ordinary page and
