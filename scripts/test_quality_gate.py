@@ -155,8 +155,8 @@ def test_transport_strict_schema_and_content_blocks():
           "routing refuses providers that cannot honor structured output")
     check(Q.REVIEW_MODEL == "google/gemini-3.7-flash",
           "semantic editor is pinned to Gemini 3.7 Flash")
-    check(Q.REPAIR_MODEL == "google/gemini-3.8-flash",
-          "targeted publication repairs use Gemini 3.8 Flash")
+    check(Q.REPAIR_MODEL == "google/gemini-3.7-flash",
+          "targeted publication repairs use Gemini 3.7 Flash with zero thinking")
 
 
 def test_non_ipa_fails_closed():
@@ -278,8 +278,8 @@ def test_single_semantic_review_model():
     print("\n[Q4] broad review and targeted repair have explicit Gemini roles")
     check(Q.REVIEW_MODEL == "google/gemini-3.7-flash",
           "Gemini 3.7 Flash is the broad semantic review model")
-    check(Q.REPAIR_MODEL == "google/gemini-3.8-flash",
-          "Gemini 3.8 Flash is the targeted repair model")
+    check(Q.REPAIR_MODEL == "google/gemini-3.7-flash",
+          "Gemini 3.7 Flash is the targeted repair model")
     check(not hasattr(Q, "TERRA_VERIFY_MODEL"),
           "Terra is not part of the publication review runtime")
 
