@@ -837,12 +837,11 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     lesson_patches = 0
     assessment_patches = 0
 
-    # Units are independent review documents. Running them serially made a
-    # healthy six-unit course sit at 30/30 for minutes while twelve model calls
-    # queued behind each other. Review up to three units concurrently; the
-    # shared ReviewBudget reserves worst-case spend before each call, so speed
-    # cannot turn into an unbounded invoice.
-    review_workers = min(3, max(1, len(units)))
+    # OpenRouter admission control can reject otherwise valid zero-cost calls
+    # when several review requests start at once. Review-only retries are already
+    # expensive, so prefer reliability over a short wall-clock win: one lesson
+    # unit worker at a time. Assessment review is already serialized below.
+    review_workers = 1
 
     def _review_lessons(unit):
         return Q.review_unit_lessons(
