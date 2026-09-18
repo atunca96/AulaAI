@@ -601,9 +601,11 @@ def _assessment_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]
                 "stem": RC.resolve_stem(page, is_tr),
                 "answer": str(page.get("answer") or ""),
                 "explanation": str(
-                    page.get("explanation_tr") if is_tr else page.get("explanation_en")
-                    or page.get("explanation") or page.get("why_tr") if is_tr else page.get("why")
-                    or ""
+                    (page.get("explanation_tr") or page.get("why_tr") or
+                     page.get("explanation") or "")
+                    if is_tr else
+                    (page.get("explanation_en") or page.get("why") or
+                     page.get("explanation") or "")
                 ),
             })
     return blockers
