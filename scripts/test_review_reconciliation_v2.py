@@ -57,7 +57,7 @@ def fake_call(**kwargs):
         payload=kwargs["payload"]
         assert payload["topics"][0]["render_contract_blockers"]
         return {"topics":[{"topic_id":"lesson-1","verdict":"ok","patches":[]}]}
-    if stage.startswith("terra_blocker_retry:"):
+    if stage.startswith("luna_blocker_retry:"):
         payload=kwargs["payload"]
         assert payload["topics"][0]["render_contract_blockers"]
         return {"topics":[{"topic_id":"lesson-1","verdict":"fix","patches":[{
@@ -90,6 +90,6 @@ assert topic["content"]["pages"][1]["prompt"]==good_prompt
 assert not Q._topic_render_blockers(topic["content"])
 assert [stage for stage,_ in calls]==[
     "luna_lessons:Professions and Family",
-    "terra_blocker_retry:Professions and Occupations",
+    "luna_blocker_retry:Professions and Occupations",
 ]
 print("[REVIEW-RECONCILE] nullable-old + lesson renderer repair regression PASSED")
