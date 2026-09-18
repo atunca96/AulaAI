@@ -2207,7 +2207,8 @@ def _repair_bilingual_counterpart(*, topic: Dict[str, Any], content: Dict[str, A
         + ".".join(map(str, path))
     )
 
-    def _candidate(*, corrective: bool = False, rejected: str = "") -> str:
+    def _candidate(*, corrective: bool = False, rejected: str = "",
+                   max_tokens: int = 500) -> str:
         payload = dict(base_payload)
         if corrective:
             payload["rejected_candidate"] = rejected
@@ -2220,7 +2221,7 @@ def _repair_bilingual_counterpart(*, topic: Dict[str, Any], content: Dict[str, A
             model=REPAIR_MODEL,
             system=_EXACT_BILINGUAL_COUNTERPART_SYSTEM,
             payload=payload,
-            max_tokens=500,
+            max_tokens=max_tokens,
             effort="low",
             budget=budget,
             stage=stage + (":corrective" if corrective else ""),
@@ -2230,13 +2231,29 @@ def _repair_bilingual_counterpart(*, topic: Dict[str, Any], content: Dict[str, A
         value = data.get("value")
         return value.strip() if isinstance(value, str) else ""
 
-    value = _candidate()
+    try:
+        value = _candidate()
+    except QualityGateError as exc:
+        # Structured output can occasionally spend its small completion budget
+        # before closing the JSON object. That is transport truncation, not an
+        # unrepairable content defect: retry only this exact slot with headroom.
+        if "finish_reason=length" not in str(exc):
+            raise
+        value = _candidate(max_tokens=900)
+
     invalid = not value or _stem_key(value) == _stem_key(source_value)
     if invalid:
         # A counterpart is a repairable defect, not a reason to abandon the
         # whole classroom after one bad candidate. Retry this exact slot once;
         # no topic/unit work is repeated.
-        value = _candidate(corrective=True, rejected=value)
+        try:
+            value = _candidate(corrective=True, rejected=value)
+        except QualityGateError as exc:
+            if "finish_reason=length" not in str(exc):
+                raise
+            value = _candidate(
+                corrective=True, rejected=value, max_tokens=900
+            )
         invalid = not value or _stem_key(value) == _stem_key(source_value)
 
     if invalid:
