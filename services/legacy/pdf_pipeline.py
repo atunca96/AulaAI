@@ -802,29 +802,88 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     _log(f"[QUALITY-GATE] reviewing {len(units)} unit(s) with {Q.LUNA_REVIEW_MODEL}.")
     lesson_patches = 0
     assessment_patches = 0
-    for unit in units:
-        lesson_patches += Q.review_unit_lessons(
+
+    # Units are independent review documents. Running them serially made a
+    # healthy six-unit course sit at 30/30 for minutes while twelve model calls
+    # queued behind each other. Review up to three units concurrently; the
+    # shared ReviewBudget reserves worst-case spend before each call, so speed
+    # cannot turn into an unbounded invoice.
+    review_workers = min(3, max(1, len(units)))
+
+    def _review_lessons(unit):
+        return Q.review_unit_lessons(
             unit_title=unit["title"], topics=unit["lessons"],
             language=language, level=level, track=material_language,
             budget=budget,
         )
-    for unit in units:
-        assessment_patches += Q.review_unit_assessment(
+
+    def _review_assessment(unit):
+        return Q.review_unit_assessment(
             unit_title=unit["title"], assessment_topic=unit["assessment"],
             lesson_topics=unit["lessons"], language=language, level=level,
             track=material_language, budget=budget,
         )
 
+    _log(f"[QUALITY-GATE] lesson review running with {review_workers} concurrent unit worker(s).")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=review_workers) as pool:
+        future_map = {pool.submit(_review_lessons, unit): unit for unit in units}
+        done = 0
+        for future in concurrent.futures.as_completed(future_map):
+            unit = future_map[future]
+            lesson_patches += future.result()
+            done += 1
+            _log(f"[QUALITY-GATE] lesson review {done}/{len(units)} complete ({unit['title']}).")
+            with db_connection() as db:
+                db.execute(
+                    "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                    (f"Quality review: lessons {done}/{len(units)}", course_id),
+                )
+                db.commit()
+
+    _log(f"[QUALITY-GATE] assessment review running with {review_workers} concurrent unit worker(s).")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=review_workers) as pool:
+        future_map = {pool.submit(_review_assessment, unit): unit for unit in units}
+        done = 0
+        for future in concurrent.futures.as_completed(future_map):
+            unit = future_map[future]
+            assessment_patches += future.result()
+            done += 1
+            _log(f"[QUALITY-GATE] assessment review {done}/{len(units)} complete ({unit['title']}).")
+            with db_connection() as db:
+                db.execute(
+                    "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                    (f"Quality review: assessments {done}/{len(units)}", course_id),
+                )
+                db.commit()
+
     reviewed_units = [{"title": u["title"], "topics": u["topics"]} for u in units]
+    with db_connection() as db:
+        db.execute(
+            "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+            ("Quality review: final verification", course_id),
+        )
+        db.commit()
+
     terra_patches = Q.final_terra_verify(
         units=reviewed_units,
         language=language, level=level, track=material_language, budget=budget,
     )
 
-    # Terra is the last semantic editor, not the last boundary. Prove that the
-    # exact post-review objects still contain ten questions per unit, complete
-    # EN/TR pairs, no duplicate MCQ stems, and nothing either renderer would
-    # silently discard. Only then may the database ever reach READY.
+    # Final verification may expose a repairable renderer/bilingual defect that
+    # the broad editors did not touch, or may itself change a field in a way that
+    # creates one. The publication boundary must not merely report that defect
+    # and throw away the whole build. Repair the exact named blocker once, then
+    # prove the complete contract. Structural defects still fail closed.
+    final_repair_patches = Q.repair_final_publication_blockers(
+        units=reviewed_units,
+        language=language, level=level, track=material_language, budget=budget,
+    )
+    if final_repair_patches:
+        _log(f"[QUALITY-GATE] final targeted repair applied {final_repair_patches} patch(es).")
+
+    # Prove that the exact post-review objects still contain ten questions per
+    # unit, complete EN/TR pairs, no duplicate MCQ stems, and nothing either
+    # renderer would silently discard. Only then may the database ever reach READY.
     integrity = Q.validate_publication_integrity(
         units=reviewed_units, language=language, track=material_language,
     )
@@ -869,13 +928,15 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         pass
     _log(
         f"[QUALITY-GATE] PASS lesson_patches={lesson_patches} "
-        f"assessment_patches={assessment_patches} terra_patches={terra_patches}; "
+        f"assessment_patches={assessment_patches} terra_patches={terra_patches} "
+        f"final_repair_patches={final_repair_patches}; "
         + Q.gate_summary(budget)
     )
     return {
         "lesson_patches": lesson_patches,
         "assessment_patches": assessment_patches,
         "terra_patches": terra_patches,
+        "final_repair_patches": final_repair_patches,
         "review_cost": budget.spent,
     }
 
