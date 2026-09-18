@@ -553,56 +553,65 @@ def _topic_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
 def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         language: str, level: str, track: str,
                         budget: ReviewBudget) -> int:
+    """Review a unit without sending a 70-110k character mega-prompt.
+
+    DeepSeek Flash can read the old unit-sized payload, but its completion budget
+    is shared with hidden reasoning. In production this produced
+    finish_reason=length with zero visible JSON. Review each lesson independently
+    instead: same learner-visible coverage, much smaller prompts, smaller outputs,
+    cheaper retries, and one bad lesson cannot waste the other four.
+    """
     if not topics:
         return 0
+
     by_id = {str(t["id"]): t for t in topics}
-    payload_topics = []
     canonical = S.canonical_language(language)
+    profile = S.profile_for_language(language)
+    applied = 0
+
     for topic in topics:
         if canonical not in ("English", "Turkish"):
             _ensure_bilingual_slots(topic.get("content"))
+
         findings = _audit_topic(topic, language=language, track=track)
-        payload_topics.append({
-            "topic_id": str(topic["id"]),
-            "title": str(topic.get("title") or ""),
-            "records": _review_records(topic["content"]),
-            "deterministic_blockers": _findings_payload(findings),
-            "render_contract_blockers": _topic_render_blockers(topic["content"]),
-        })
-    profile = S.profile_for_language(language)
-    payload = {
-        "language": language, "level": level, "unit": unit_title,
-        "regional_variety": profile.variety if profile else "",
-        "instruction_track": track,
-        "topics": payload_topics,
-    }
-    data = _call_review(
-        model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=payload,
-        max_tokens=2600, effort="low", budget=budget,
-        stage=f"review_lessons:{unit_title}",
-        response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_review",
-    )
-    rows = data.get("topics")
-    if not isinstance(rows, list):
-        raise QualityGateError(f"lesson reviewer returned no topic coverage for {unit_title}")
-    returned = [str(r.get("topic_id") or "") for r in rows if isinstance(r, dict)]
-    if len(returned) != len(by_id) or set(returned) != set(by_id):
-        raise QualityGateError(
-            f"lesson reviewer coverage mismatch for {unit_title}: "
-            f"got {returned}, expected {list(by_id)}"
+        payload = {
+            "language": language, "level": level, "unit": unit_title,
+            "regional_variety": profile.variety if profile else "",
+            "instruction_track": track,
+            "topics": [{
+                "topic_id": str(topic["id"]),
+                "title": str(topic.get("title") or ""),
+                "records": _review_records(topic["content"]),
+                "deterministic_blockers": _findings_payload(findings),
+                "render_contract_blockers": _topic_render_blockers(topic["content"]),
+            }],
+        }
+        data = _call_review(
+            model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=payload,
+            # Broad review is editorial classification + exact patching. Hidden
+            # chain-of-thought only burns completion budget here; deterministic
+            # code re-checks every invariant afterwards.
+            max_tokens=2200, effort="none", budget=budget,
+            stage=f"review_lesson:{unit_title}:{topic.get('title')}",
+            response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_review",
         )
-    patches: List[Any] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            raise QualityGateError("lesson review row is not an object")
-        row_topic_id = str(row.get("topic_id") or "")
+        rows = data.get("topics")
+        if not isinstance(rows, list) or len(rows) != 1:
+            raise QualityGateError(
+                f"lesson reviewer returned invalid coverage for {topic.get('title')}"
+            )
+        row = rows[0]
+        if not isinstance(row, dict) or str(row.get("topic_id") or "") != str(topic["id"]):
+            raise QualityGateError(
+                f"lesson reviewer coverage mismatch for {topic.get('title')}"
+            )
+
+        patches: List[Any] = []
+        row_topic_id = str(topic["id"])
         for patch in (row.get("patches") or []):
             if not isinstance(patch, dict):
                 raise QualityGateError("lesson semantic patch is not an object")
             patch = dict(patch)
-            # The enclosing row already identifies the topic. Accept reviewers
-            # that omit the redundant id inside each nested patch, but never
-            # accept a contradictory id.
             if patch.get("topic_id") not in (None, "", row_topic_id):
                 raise QualityGateError(
                     f"lesson patch topic mismatch: row={row_topic_id}, "
@@ -610,89 +619,14 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 )
             patch["topic_id"] = row_topic_id
             patches.append(patch)
-    applied = _apply_patches(by_id, patches)
+        applied += _apply_patches(by_id, patches)
 
-    # Any deterministic defect the semantic editor did not cure gets one very
-    # small targeted pass. This is bounded and fail-closed.
-    for topic in topics:
+        # Any deterministic defect the broad editor did not cure gets one narrow
+        # pass over only this lesson. Keep reasoning minimal so the response
+        # budget is available for the strict JSON patch itself.
         blockers = A.blocking(_audit_topic(topic, language=language, track=track))
         render_blockers = _topic_render_blockers(topic.get("content"))
-        if not blockers and not render_blockers:
-            continue
-        targeted = {
-            "language": language, "level": level, "unit": unit_title,
-            "regional_variety": profile.variety if profile else "",
-            "instruction_track": track,
-            "topics": [{
-                "topic_id": str(topic["id"]),
-                "title": str(topic.get("title") or ""),
-                "records": (
-                    _records_for_render_blockers(topic["content"], render_blockers)
-                    if render_blockers and not blockers
-                    else _review_records(topic["content"])
-                ),
-                "deterministic_blockers": _findings_payload(blockers),
-                "render_contract_blockers": render_blockers,
-            }],
-            "instruction": (
-                "Fix every deterministic and renderer-contract blocker. For any MCQ "
-                "whose answer depends on an unstated identity/biographical inference, "
-                "rewrite the smallest learner-visible fields so exactly one answer is "
-                "derivable from explicit stem or taught evidence. Return this one topic only."
-            ),
-        }
-        retry = _call_review(
-            # Deterministic blockers get one narrow DeepSeek repair pass over only
-            # the affected records. The deterministic contract, not a second
-            # model family, decides whether publication may continue.
-            model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-            # This is a narrow repair of explicitly identified fields, not the
-            # final independent verification pass. Medium reasoning plus more
-            # output headroom prevents reasoning tokens from consuming the whole
-            # completion before strict JSON is emitted.
-            max_tokens=2400, effort="high", budget=budget,
-            stage=f"review_blocker_retry:{topic.get('title')}",
-            response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_blocker_repair",
-        )
-        rows2 = retry.get("topics")
-        if not isinstance(rows2, list) or len(rows2) != 1 or                 str(rows2[0].get("topic_id") or "") != str(topic["id"]):
-            raise QualityGateError(f"blocker retry coverage failed for {topic.get('title')}")
-        retry_patches = []
-        for patch in (rows2[0].get("patches") or []):
-            if not isinstance(patch, dict):
-                raise QualityGateError("blocker retry patch is not an object")
-            patch = dict(patch)
-            patch_id = str(patch.get("topic_id") or str(topic["id"]))
-            if patch_id != str(topic["id"]):
-                raise QualityGateError("blocker retry patch changed topic id")
-            patch["topic_id"] = str(topic["id"])
-            retry_patches.append(patch)
-        applied += _apply_patches(by_id, retry_patches)
-        still = A.blocking(_audit_topic(topic, language=language, track=track))
-        if still:
-            raise QualityGateError(
-                f"{topic.get('title')}: deterministic blockers remain after semantic repair: "
-                f"{A.summarise(still)}"
-            )
-        still_render = _topic_render_blockers(topic.get("content"))
-        if still_render:
-            detail = "; ".join(
-                f"page {row['page_index']} {row['locale']}: {row['why']}"
-                for row in still_render[:4]
-            )
-            raise QualityGateError(
-                f"{topic.get('title')}: renderer-contract blockers remain after semantic repair — {detail}"
-            )
-
-    # Bilingual completeness is a publication invariant but not every missing
-    # counterpart is represented as an audit.py blocker. Repair any remaining
-    # exact EN/TR slot gaps before leaving the unit review. This is deliberately
-    # bounded to one DeepSeek repair pass per affected topic and still fails closed.
-    if canonical not in ("English", "Turkish"):
-        for topic in topics:
-            missing_pairs = _missing_bilingual_pairs(topic.get("content"))
-            if not missing_pairs:
-                continue
+        if blockers or render_blockers:
             targeted = {
                 "language": language, "level": level, "unit": unit_title,
                 "regional_variety": profile.variety if profile else "",
@@ -700,43 +634,113 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 "topics": [{
                     "topic_id": str(topic["id"]),
                     "title": str(topic.get("title") or ""),
-                    "records": _review_records(topic["content"]),
-                    "deterministic_blockers": [],
-                    "missing_bilingual_pairs": missing_pairs,
+                    "records": (
+                        _records_for_render_blockers(topic["content"], render_blockers)
+                        if render_blockers and not blockers
+                        else _review_records(topic["content"])
+                    ),
+                    "deterministic_blockers": _findings_payload(blockers),
+                    "render_contract_blockers": render_blockers,
                 }],
                 "instruction": (
-                    "Fix every listed missing bilingual counterpart. Patch only the "
-                    "existing empty counterpart paths from their non-empty semantic pair. "
-                    "Return this one topic only."
+                    "Fix every deterministic and renderer-contract blocker. For any MCQ "
+                    "whose answer depends on an unstated identity/biographical inference, "
+                    "rewrite the smallest learner-visible fields so exactly one answer is "
+                    "derivable from explicit stem or taught evidence. Return this one topic only."
                 ),
             }
             retry = _call_review(
                 model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-                max_tokens=2000, effort="low", budget=budget,
-                stage=f"review_bilingual_retry:{topic.get('title')}",
-                response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_bilingual_repair",
+                max_tokens=2200, effort="minimal", budget=budget,
+                stage=f"review_blocker_retry:{topic.get('title')}",
+                response_schema=_LESSON_REVIEW_SCHEMA,
+                response_name="lesson_blocker_repair",
             )
             rows2 = retry.get("topics")
-            if not isinstance(rows2, list) or len(rows2) != 1 or                     str(rows2[0].get("topic_id") or "") != str(topic["id"]):
+            if not isinstance(rows2, list) or len(rows2) != 1 or \
+                    str(rows2[0].get("topic_id") or "") != str(topic["id"]):
                 raise QualityGateError(
-                    f"bilingual retry coverage failed for {topic.get('title')}"
+                    f"blocker retry coverage failed for {topic.get('title')}"
                 )
             retry_patches = []
             for patch in (rows2[0].get("patches") or []):
                 if not isinstance(patch, dict):
-                    raise QualityGateError("bilingual retry patch is not an object")
+                    raise QualityGateError("blocker retry patch is not an object")
                 patch = dict(patch)
+                patch_id = str(patch.get("topic_id") or str(topic["id"]))
+                if patch_id != str(topic["id"]):
+                    raise QualityGateError("blocker retry patch changed topic id")
                 patch["topic_id"] = str(topic["id"])
                 retry_patches.append(patch)
             applied += _apply_patches(by_id, retry_patches)
-            remaining = _missing_bilingual_pairs(topic.get("content"))
-            if remaining:
-                raise QualityGateError(
-                    f"{topic.get('title')}: incomplete EN/TR field pairs after targeted repair: "
-                    + ", ".join(remaining[:8])
-                )
-    return applied
 
+            still = A.blocking(_audit_topic(topic, language=language, track=track))
+            if still:
+                raise QualityGateError(
+                    f"{topic.get('title')}: deterministic blockers remain after semantic repair: "
+                    f"{A.summarise(still)}"
+                )
+            still_render = _topic_render_blockers(topic.get("content"))
+            if still_render:
+                detail = "; ".join(
+                    f"page {row['page_index']} {row['locale']}: {row['why']}"
+                    for row in still_render[:4]
+                )
+                raise QualityGateError(
+                    f"{topic.get('title')}: renderer-contract blockers remain after semantic repair — {detail}"
+                )
+
+        # Bilingual completeness is a publication invariant but not every missing
+        # counterpart is represented as an audit.py blocker.
+        if canonical not in ("English", "Turkish"):
+            missing_pairs = _missing_bilingual_pairs(topic.get("content"))
+            if missing_pairs:
+                targeted = {
+                    "language": language, "level": level, "unit": unit_title,
+                    "regional_variety": profile.variety if profile else "",
+                    "instruction_track": track,
+                    "topics": [{
+                        "topic_id": str(topic["id"]),
+                        "title": str(topic.get("title") or ""),
+                        "records": _review_records(topic["content"]),
+                        "deterministic_blockers": [],
+                        "missing_bilingual_pairs": missing_pairs,
+                    }],
+                    "instruction": (
+                        "Fix every listed missing bilingual counterpart. Patch only the "
+                        "existing empty counterpart paths from their non-empty semantic pair. "
+                        "Return this one topic only."
+                    ),
+                }
+                retry = _call_review(
+                    model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+                    max_tokens=1800, effort="none", budget=budget,
+                    stage=f"review_bilingual_retry:{topic.get('title')}",
+                    response_schema=_LESSON_REVIEW_SCHEMA,
+                    response_name="lesson_bilingual_repair",
+                )
+                rows2 = retry.get("topics")
+                if not isinstance(rows2, list) or len(rows2) != 1 or \
+                        str(rows2[0].get("topic_id") or "") != str(topic["id"]):
+                    raise QualityGateError(
+                        f"bilingual retry coverage failed for {topic.get('title')}"
+                    )
+                retry_patches = []
+                for patch in (rows2[0].get("patches") or []):
+                    if not isinstance(patch, dict):
+                        raise QualityGateError("bilingual retry patch is not an object")
+                    patch = dict(patch)
+                    patch["topic_id"] = str(topic["id"])
+                    retry_patches.append(patch)
+                applied += _apply_patches(by_id, retry_patches)
+                remaining = _missing_bilingual_pairs(topic.get("content"))
+                if remaining:
+                    raise QualityGateError(
+                        f"{topic.get('title')}: incomplete EN/TR field pairs after targeted repair: "
+                        + ", ".join(remaining[:8])
+                    )
+
+    return applied
 
 
 def _assessment_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
