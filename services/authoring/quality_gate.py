@@ -2180,9 +2180,15 @@ def _detect_topic_blockers(topic: Dict[str, Any], *, language: str, track: str,
             "where": f"pages[{page_index}]",
             "reason": why,
             "render_rows": rows,
+            # The name/gender class owns two surfaces: the stem that introduces
+            # the person and the rationale that reasons from them. The atomic
+            # page repair edits both, which is what this class needs. The
+            # stem-only repair is a genuine second route — removing the person
+            # from the stem clears the blocker too — so it is the fallback
+            # rather than a dead end when the page repair cannot converge.
             "strategies": (
-                ["render_name_gender"] if why == _name_gender_reason()
-                else ["render_stem"]
+                ["render_name_gender", "render_stem"]
+                if why == _name_gender_reason() else ["render_stem"]
             ),
         })
 

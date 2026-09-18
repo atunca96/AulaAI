@@ -104,24 +104,33 @@ _NAME_WORDS = re.compile(r"\b(isim|ismi|adi|adinin|name)\b")
 # this blocker to the repair that can actually clear it.
 NAME_GENDER_REASON = "answer depends on gender inferred from a personal name"
 
-# What this rule refuses is a RELATION, not two words in a box: the rationale
-# offers a particular person's NAME as the evidence for a gender.
+# ── The hidden-world invariant ───────────────────────────────────────────────
 #
-# Matching "name-word near gender-word" was wrong in both directions, and
-# Turkish is where both show. `isim` is the ordinary grammatical term for a
-# noun, so the perfectly safe "«mujer» dişil bir isim olduğu için" — the exact
-# rationale a corrected adjective-agreement item has to write — was refused with
-# no edit available that could clear it. Meanwhile Turkish is agglutinative, so
-# the genuinely unsafe "Ayşe kadın ismidir" was ACCEPTED: `ismidir` is not
-# `\bismi\b`. Widening the lexicon would only trade one direction for the other,
-# and it would have to be widened again for every taught language.
+# Every blocker in this layer refuses an item because the learner cannot reach
+# the keyed answer from what is in front of them. That is a statement about the
+# ANSWER, so each blocker owes two things, not one:
 #
-# So the predicate is the relation itself. A statement is unsafe when it claims
-# a gender AND refers to a person the item names — the proper-name token the
-# stem puts in front of the learner. "Ayşe kadın ismidir" names Ayşe; "dişil
-# isim «mujer»" names nobody. The name-word list is kept, but only for the
-# weaker case where the rationale says "the name is feminine" without repeating
-# it, and even then the item must actually introduce a person.
+#   1. the risky inference is present, and
+#   2. that inference could change WHICH OPTION IS CORRECT.
+#
+# (2) is what the name/gender rule was missing, and missing it is what refused
+# "The House and Locations / Prepositions of Place / pages[3]" in production. A
+# preposition item whose subject happens to be called Ana, whose rationale
+# explains the gender of a completely different noun («mesa» is feminine, so it
+# takes «la»), was refused: a person appeared in the stem, gender vocabulary
+# appeared in the rationale, and nothing checked that the two had anything to do
+# with each other or with the answer. The answer was `debajo de`, chosen against
+# `encima de`, `al lado de` and `detrás de` — no fact about anybody's gender can
+# select among those.
+#
+# Turkish is where the co-occurrence approach also broke in the opposite
+# direction: `isim` is the ordinary grammatical term for a noun, so the safe
+# rationale an agreement item has to write was refused, while agglutination hid
+# the genuinely unsafe "Ayşe kadın ismidir" (`ismidir` is not `\bismi\b`).
+# Widening lexicons only trades one direction for the other, once per taught
+# language, so the predicate is the relation instead: a statement is unsafe when
+# it claims a gender, refers to a person the item names, AND the gender could
+# decide the answer.
 _STATEMENT_SPLIT = re.compile(r"[.!?;:\n\r…]+")
 _WORD_TOKEN = re.compile(r"[^\W\d_]+", re.UNICODE)
 
@@ -147,6 +156,26 @@ def _lexical_tokens(page: Dict[str, Any]) -> set:
     return out
 
 
+def _quoted_common_tokens(text: Any) -> set:
+    """Quoted tokens that are ordinary words, not quoted proper nouns.
+
+    "«книga» dişil bir isimdir" cites a noun the material teaches. "'Марina'
+    bir kadın ismidir" cites a PERSON. Capitalisation is the only
+    lexicon-free way to tell them apart, and it is the one the writing system
+    already provides.
+    """
+    out = set()
+    for quoted in re.findall(r"[«\"'‘“]([^»\"'’”]{1,40})[»\"'’”]",
+                             str(text or "")):
+        for raw in _WORD_TOKEN.findall(quoted):
+            if raw[:1].isupper():
+                continue
+            folded = _fold(raw)
+            if folded:
+                out.add(folded)
+    return out
+
+
 def _quoted_tokens(text: Any) -> set:
     out = set()
     for quoted in re.findall(r"[«\"'‘“]([^»\"'’”]{1,40})[»\"'’”]",
@@ -164,9 +193,12 @@ def personal_name_tokens(page: Dict[str, Any], stem: str) -> set:
     """
     if not isinstance(page, dict):
         return set()
-    skip = _lexical_tokens(page) | _quoted_tokens(stem)
+    # Quoted COMMON words are the material citing its own vocabulary («mesa»,
+    # «книга»). A quoted proper noun ('Анна') is the rationale citing the very
+    # person this rule is about, so excluding it would hide the defect.
+    skip = _lexical_tokens(page) | _quoted_common_tokens(stem)
     for key in _V57_EXPLANATION_KEYS:
-        skip |= _quoted_tokens(page.get(key))
+        skip |= _quoted_common_tokens(page.get(key))
     names = set()
     for raw in _WORD_TOKEN.findall(str(stem or "")):
         if len(raw) < 3 or not raw[:1].isupper() or raw.isupper():
@@ -177,23 +209,137 @@ def personal_name_tokens(page: Dict[str, Any], stem: str) -> set:
     return names
 
 
+def _normalised_options(page: Dict[str, Any]) -> List[str]:
+    options = page.get("options") or page.get("choices") or []
+    if isinstance(options, dict):
+        options = list(options.values())
+    if not isinstance(options, (list, tuple)):
+        options = [options]
+    out = []
+    for value in options:
+        folded = " ".join(_WORD_TOKEN.findall(_fold(value)))
+        if folded:
+            out.append(folded)
+    return out
+
+
+def _same_paradigm(a: str, b: str) -> bool:
+    """Whether two options are forms of one word rather than different words."""
+    if a == b:
+        return False
+    shared = 0
+    for left, right in zip(a, b):
+        if left != right:
+            break
+        shared += 1
+    shorter = min(len(a), len(b))
+    if shorter < 3 or shared < 3:
+        return False
+    return (shared >= 0.6 * shorter
+            and (len(a) - shared) <= 3 and (len(b) - shared) <= 3)
+
+
+def answer_turns_on_form(page: Dict[str, Any]) -> bool:
+    """Whether choosing among the options is choosing a FORM of one word.
+
+    This is the deterministic, language-agnostic half of the hidden-world
+    invariant for gender: a fact about somebody's gender can only decide the
+    answer when at least two options are the same stem with different endings.
+    `alta / alto / altos / altas` is such a set. `debajo de / encima de /
+    al lado de / detrás de` is not — those are four different words, and no
+    inference about a person selects among them.
+
+    Nothing here knows any language. It compares the option strings to each
+    other, which is exactly what a learner choosing between them does.
+    """
+    options = _normalised_options(page)
+    return any(
+        _same_paradigm(options[i], options[j])
+        for i in range(len(options))
+        for j in range(i + 1, len(options))
+    )
+
+
+def _options_are_gender_values(page: Dict[str, Any],
+                               gender_words: "re.Pattern[str]") -> bool:
+    """Whether picking an option IS picking a gender.
+
+    `kadın / erkek / genç / yaşlı` is not a form paradigm — those are four
+    different words — but two of them are the genders themselves, so inferring
+    a person's gender answers the question outright. Uses the gender lexicon
+    this rule already has; nothing is added to it.
+    """
+    matched = 0
+    for option in _normalised_options(page):
+        if gender_words.search(option) or any(
+            noun in option for noun in _V57_GENDER_NOUNS
+        ):
+            matched += 1
+    return matched >= 2
+
+
+def question_is_about_a_quoted_word(stem: Any) -> bool:
+    """Whether the item asks about a word it quotes, rather than about a person.
+
+    "Ella trabaja en un hospital. ¿Qué significa «hospital»?" mentions a
+    workplace and quotes the very token it is asking the learner to gloss. The
+    answer is a translation; no fact about the speaker's life can change it.
+    The quoted token has to appear unquoted in the same stem, so an item that
+    merely quotes what it is asking for — "¿Cuál es su «nacionalidad»?" — is
+    not exempted.
+    """
+    text = str(stem or "")
+    quoted = _quoted_tokens(text)
+    if not quoted:
+        return False
+    plain = re.sub(r"[«\"'‘“][^»\"'’”]{1,40}[»\"'’”]", " ", text)
+    return bool(quoted & set(_WORD_TOKEN.findall(_fold(plain))))
+
+
 def _name_gender_rationale(explanation: Any, name_words: "re.Pattern[str]",
-                           gender_words: "re.Pattern[str]", names: set) -> bool:
-    """Whether one statement grounds a gender claim in a person the item names."""
+                           gender_words: "re.Pattern[str]", names: set,
+                           page: Dict[str, Any]) -> bool:
+    """Whether one statement grounds a gender claim in a person the item names.
+
+    Both halves of the invariant are required: the statement must tie a gender
+    claim to a person this item introduces, and the gender must be able to
+    decide the answer — either because the options are forms of one word, or
+    because that very statement names the keyed answer.
+    """
     if not names:
         # No person is introduced, so no gender claim in the rationale can be
         # reasoning from a personal name. Grammatical terminology is free.
         return False
+    # Could a gender fact change which option is correct? Three ways, checked
+    # against the option set rather than against any language's vocabulary.
+    decisive = (answer_turns_on_form(page)
+                or _options_are_gender_values(page, gender_words))
+    answer_tokens = set(_WORD_TOKEN.findall(_fold(page.get("answer"))))
+    choice_tokens = set(answer_tokens)
+    for option in _normalised_options(page):
+        choice_tokens.update(option.split())
     for statement in _STATEMENT_SPLIT.split(str(explanation or "")):
         folded = _fold(statement)
         if not gender_words.search(folded):
             continue
         tokens = set(_WORD_TOKEN.findall(folded))
+        # ...or the statement asserts the gender of the keyed answer itself.
+        if not decisive and not (answer_tokens and answer_tokens <= tokens):
+            continue
         if tokens & names:
             return True
         # "The name is feminine" — the rationale points at the person the item
-        # names without repeating it. Only reachable because a name exists.
-        if name_words.search(folded):
+        # names without repeating it. Only reachable because a name exists, and
+        # only when the statement is not attributing that gender to some OTHER
+        # word it quotes: "«книга» dişil bir isimdir" is about a noun the
+        # material is citing, and `isim`/`name` there is the grammatical term.
+        # Quoting one of the choices ("so «alta»") is not that — the statement
+        # is still talking about the person. Capitalised function words at the
+        # start of a stem ("Какая форма?") look like proper nouns to any
+        # lexicon-free detector, so this is what keeps them from turning
+        # ordinary grammar prose into a refusal.
+        cited = _quoted_common_tokens(statement) - choice_tokens
+        if not cited and name_words.search(folded):
             return True
     return False
 
@@ -248,11 +394,16 @@ def unsafe_reason(page: Dict[str, Any], stem: str, is_tr: bool) -> str:
     explicit_gender = bool(_GENDER_WORDS.search(prompt))
     if not explicit_gender and _name_gender_rationale(
         explanation, _NAME_WORDS, _GENDER_WORDS,
-        personal_name_tokens(page, stem),
+        personal_name_tokens(page, stem), page,
     ):
         return NAME_GENDER_REASON
 
-    if _has_biography_marker(prompt, _BIOGRAPHY) and _IDENTITY.search(expl):
+    # Same invariant: the biographical fact must be able to decide the answer.
+    # A gloss item that quotes the very word it asks about ("Ella trabaja en un
+    # hospital. ¿Qué significa «hospital»?") is asking for a translation, and no
+    # fact about the speaker's life selects among its options.
+    if _has_biography_marker(prompt, _BIOGRAPHY) and _IDENTITY.search(expl) \
+            and not question_is_about_a_quoted_word(stem):
         return "answer depends on an identity fact inferred from a biographical one"
 
     options = page.get("options") or page.get("choices") or []
@@ -340,12 +491,14 @@ def hidden_world_reason(page: Dict[str, Any]) -> str:
     # locale pair with a grammar word in the other and refuse both exports.
     names = personal_name_tokens(page, _v57_stem(page))
     if not explicit_gender and any(
-        _name_gender_rationale(page.get(key), _V57_NAME_WORDS, _V57_GENDER_WORDS, names)
+        _name_gender_rationale(page.get(key), _V57_NAME_WORDS, _V57_GENDER_WORDS,
+                               names, page)
         for key in _V57_EXPLANATION_KEYS
     ):
         return NAME_GENDER_REASON
 
-    if _has_biography_marker(prompt, _V57_BIOGRAPHY) and _V57_IDENTITY.search(expl):
+    if _has_biography_marker(prompt, _V57_BIOGRAPHY) and _V57_IDENTITY.search(expl) \
+            and not question_is_about_a_quoted_word(_v57_stem(page)):
         return "answer depends on an identity fact inferred from a biographical one"
     return ""
 

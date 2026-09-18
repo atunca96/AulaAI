@@ -2262,17 +2262,25 @@ def _v56q_hidden_name_gender(page):
 def _v56q_unsafe_mcq(page, material_language="tr"):
     if not _v56q_page_is_mcq(page):
         return False
+    # The hidden-world half of this predicate used to be a private copy of the
+    # v54 lexical rules plus a second name/gender heuristic. Two copies of one
+    # decision is exactly the divergence `render_contract` exists to end — and
+    # this is a SILENT drop point, so a copy that drifts removes questions from
+    # an export the gate has already certified. Ask the one predicate the render
+    # loop and the publication gate both ask.
     try:
-        if _v54_unsafe_mcq(page, material_language):
+        from services.authoring import render_contract as _RC
+        if _RC.hidden_world_reason(page):
             return True
     except Exception:
         pass
+    # These two are this layer's own and are not modelled anywhere else: a
+    # malformed option string, and a rationale that admits one of its own
+    # distractors is not a real word.
     options = page.get("options") or page.get("choices") or []
     if isinstance(options, list) and any(_v56q_bad_option(v) for v in options if isinstance(v, str)):
         return True
     if _v56q_explanation_admits_malformed_distractor(page):
-        return True
-    if _v56q_hidden_name_gender(page):
         return True
     return False
 

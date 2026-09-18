@@ -360,6 +360,53 @@ finally:
 check(raised is not None, "a corrupt schema is refused rather than guessed at")
 
 
+print("\n[9b] classification: a blocker's strategies match its editable surface")
+# The dispatcher is only as good as its classification. The name/gender class
+# owns two surfaces (the stem that introduces the person, the rationale that
+# reasons from them), so it gets the atomic page repair AND the stem-only
+# repair as a genuine second route rather than a dead end.
+ng_page = {"type": "mcq", "title": "Agreement", "title_tr": "Uyum",
+           "prompt": "Ana es ___. (alto)", "answer": "alta",
+           "options": ["alta", "alto", "altos", "altas"],
+           "distractors": ["alto", "altos", "altas"],
+           "explanation": "Ana is a feminine name, so «alta».",
+           "explanation_tr": "Ana kadın ismidir; «alta».",
+           "why": "Agreement.", "why_tr": "Uyum."}
+rows = Q._detect_topic_blockers(spanish_topic([ng_page], title="Cls"),
+                               language="Spanish", track="tr", canonical="Spanish")
+render_rows = [r for r in rows if r["kind"] == "render"]
+check(render_rows and render_rows[0]["strategies"] ==
+      ["render_name_gender", "render_stem"],
+      f"name/gender has a bounded fallback ({[r['strategies'] for r in render_rows]})")
+print("\n[9c] the production topic that failed on ca87655 now costs nothing")
+# "The House and Locations / Prepositions of Place / pages[3]": a preposition
+# item whose subject is called Ana and whose rationale explains another noun's
+# gender. It was refused, repaired, and refused again by the repair's own probe.
+prep = spanish_topic([
+    {"type": "text", "text": "Prepositions locate things.",
+     "text_tr": "Edatlar yer belirtir."},
+    {"type": "mcq", "title": "Practice", "title_tr": "Alıştırma",
+     "prompt": "Ana está ___ la mesa.", "answer": "debajo de",
+     "options": ["debajo de", "encima de", "al lado de", "detrás de"],
+     "distractors": ["encima de", "al lado de", "detrás de"],
+     "explanation": "«mesa» is a feminine noun, so it takes «la».",
+     "explanation_tr": "«mesa» dişil bir isim olduğu için «la» alır.",
+     "why": "Position under.", "why_tr": "Altında olma."},
+], title="Prepositions of Place")
+prep_provider = Provider({})
+try:
+    Q._call_review = prep_provider
+    prep_applied = Q.converge_topic(topic=prep, language="Spanish", level="A1",
+                                    track="tr", budget=Q.ReviewBudget(0.22),
+                                    unit_title="The House and Locations")
+finally:
+    Q._call_review = ORIG_CALL
+check(prep_applied == 0 and prep_provider.calls == [],
+      f"no blocker, no repair, no model call ({prep_provider.calls})")
+check(Q._topic_render_blockers(prep["content"]) == [],
+      "and the renderer contract admits it in both exports")
+
+
 print("\n[10] a clean course is a no-op")
 topic = spanish_topic(clean_pages(), title="Clean")
 snapshot = copy.deepcopy(topic["content"])
