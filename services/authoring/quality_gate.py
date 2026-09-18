@@ -127,6 +127,16 @@ _LESSON_REVIEW_SCHEMA = {
     },
     "required": ["topics"],
 }
+_EXACT_TARGET_REPAIR_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "value": {"type": "string", "minLength": 1},
+        "reason": {"type": "string"},
+    },
+    "required": ["value", "reason"],
+}
+
 _ASSESSMENT_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -527,6 +537,24 @@ Contract:
 """
 
 
+_EXACT_TARGET_REPAIR_SYSTEM = """You repair exactly ONE existing learner-visible
+TARGET-language string that failed AulaAI's deterministic publication audit.
+
+Hard contract:
+- The replacement MUST be written in the taught language named by
+  `taught_language`. Do not write it in English or Turkish unless that is the
+  taught language.
+- If the field is prompt/question/stem, write a natural question in the taught
+  language that remains answerable from the immutable page context. Preserve
+  the keyed answer, options and distractors; only the requested field changes.
+- Remove instructional/meta prose such as explanations about what the learner
+  should do. The replacement itself must be the learner-facing target-language
+  content.
+- Preserve the original pedagogical intent and CEFR level.
+- Do not add labels, commentary, markdown or alternate versions.
+- Return JSON only: {"value":"NON-EMPTY REPLACEMENT","reason":"brief reason"}.
+"""
+
 _ASSESSMENT_REVIEW_SYSTEM = """You are AulaAI's independent assessment examiner.
 The lesson material and a ten-question unit assessment were authored by another
 model. Verify ALL ten questions against the unit evidence.
@@ -772,63 +800,69 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                         if len(current_records) != 1:
                             continue
 
-                        one_payload = {
-                            "language": language,
+                        before = _get_path(content, list(marker))
+                        if not isinstance(before, str) or not before.strip():
+                            continue
+
+                        page_context: Dict[str, Any] = {}
+                        if len(marker) >= 2 and marker[0] == "pages" and \
+                                isinstance(marker[1], int):
+                            pages = content.get("pages")
+                            page_index = marker[1]
+                            if isinstance(pages, list) and 0 <= page_index < len(pages) and \
+                                    isinstance(pages[page_index], dict):
+                                page = pages[page_index]
+                                # Immutable semantic evidence for repairing a prompt/stem.
+                                # Keep this compact, but include answerability context.
+                                for key in (
+                                    "type", "title", "title_tr", "prompt", "question", "stem",
+                                    "answer", "options", "choices", "distractors",
+                                    "target", "term", "word", "example",
+                                    "translation", "translation_tr",
+                                ):
+                                    value = page.get(key)
+                                    if value not in (None, "", []):
+                                        page_context[key] = value
+
+                        exact_payload = {
+                            "taught_language": language,
                             "level": level,
-                            "unit": unit.get("title"),
                             "regional_variety": profile.variety if profile else "",
-                            "instruction_track": track,
-                            "topics": [{
-                                "topic_id": str(topic["id"]),
-                                "title": str(topic.get("title") or ""),
-                                "records": current_records,
-                                "deterministic_blockers": path_findings,
-                                "render_contract_blockers": [],
-                            }],
-                            "instruction": (
-                                "Repair exactly this one learner-visible path. "
-                                "You MUST return one non-empty replacement patch for the "
-                                "record path supplied. Do not patch any other path."
-                            ),
+                            "topic_title": str(topic.get("title") or ""),
+                            "path": list(marker),
+                            "field": str(marker[-1]) if marker else "",
+                            "current_value": before,
+                            "blockers": path_findings,
+                            "immutable_page_context": page_context,
                         }
                         one = _call_review(
                             model=REPAIR_MODEL,
-                            system=_LESSON_REVIEW_SYSTEM,
-                            payload=one_payload,
-                            max_tokens=1400,
+                            system=_EXACT_TARGET_REPAIR_SYSTEM,
+                            payload=exact_payload,
+                            max_tokens=700,
                             effort="low",
                             budget=budget,
                             stage=(
                                 f"review_preflight_exact:{topic.get('title')}:"
                                 + ".".join(map(str, marker))
                             ),
-                            response_schema=_LESSON_REVIEW_SCHEMA,
-                            response_name="lesson_preflight_exact_repair",
+                            response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+                            response_name="lesson_preflight_exact_target_value",
                         )
-                        one_rows = one.get("topics")
-                        if not isinstance(one_rows, list) or len(one_rows) != 1 or \
-                                str(one_rows[0].get("topic_id") or "") != str(topic["id"]):
+                        replacement = one.get("value")
+                        if not isinstance(replacement, str) or not replacement.strip():
                             raise QualityGateError(
-                                f"preflight exact repair coverage failed for "
+                                f"preflight exact repair returned empty value for "
                                 f"{topic.get('title')} {list(marker)!r}"
                             )
-                        one_patches = []
-                        for patch in one_rows[0].get("patches") or []:
-                            if not isinstance(patch, dict):
-                                raise QualityGateError(
-                                    "preflight exact repair patch is not an object"
-                                )
-                            patch = dict(patch)
-                            patch["topic_id"] = str(topic["id"])
-                            one_patches.append(patch)
+                        replacement = replacement.strip()
+                        if replacement == before:
+                            continue
 
-                        before = _get_path(content, list(marker))
-                        changed = _apply_patches(
-                            {str(topic["id"]): topic}, one_patches
-                        )
+                        _set_path(content, list(marker), replacement, old=before)
                         after = _get_path(content, list(marker))
-                        if changed and before != after:
-                            applied += changed
+                        if after != before:
+                            applied += 1
                             progress = True
                             R.repair_lesson(content, language=language)
 
