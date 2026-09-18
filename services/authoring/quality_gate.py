@@ -29,6 +29,7 @@ import json
 import math
 import re
 import threading
+import time
 import unicodedata
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -932,12 +933,33 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
         flush=True,
     )
     try:
-        response = T.call_model(
-            [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            max_tokens=max_tokens, temperature=0.0, model=model, cache_system=True,
-            timeout=180, attempts=2, reasoning_effort=effort,
-            response_schema=response_schema, response_name=response_name,
-        )
+        response = None
+        for admission_attempt in range(3):
+            response = T.call_model(
+                [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                max_tokens=max_tokens, temperature=0.0, model=model, cache_system=True,
+                timeout=180, attempts=2, reasoning_effort=effort,
+                response_schema=response_schema, response_name=response_name,
+            )
+            error_text = str(getattr(response, "error", "") or "")
+            transient_429 = (
+                not response.ok
+                and float(getattr(response, "cost", 0.0) or 0.0) == 0.0
+                and "429" in error_text
+                and (
+                    "openrouter_admission_control" in error_text
+                    or "could not verify available credits" in error_text.casefold()
+                )
+            )
+            if not transient_429 or admission_attempt == 2:
+                break
+            delay = 2.0 * (admission_attempt + 1)
+            print(
+                f"[QUALITY-CALL] RETRY {stage} transient OpenRouter admission 429; "
+                f"sleeping {delay:.0f}s",
+                flush=True,
+            )
+            time.sleep(delay)
     except Exception:
         budget.release(reservation)
         raise
