@@ -245,6 +245,45 @@ def test_assessment_shortfall_topup():
     check(len(result.items) == 3, "the third attempt completes the requested count")
 
 
+def test_unit_assessment_reuses_clean_lesson_mcq():
+    print("\n[3d] a 9/10 unit assessment is completed from an already-published lesson MCQ")
+    import json
+    import services.ai_engine as ae
+
+    generated = [{
+        "id": f"g{i}", "type": "mcq",
+        "prompt": f"¿Qué opción corresponde a la situación número {i}?",
+        "answer": f"respuesta {i}",
+        "distractors": [f"alternativa {i}a", f"alternativa {i}b", f"alternativa {i}c"],
+        "options": [f"respuesta {i}", f"alternativa {i}a", f"alternativa {i}b", f"alternativa {i}c"],
+        "why": "The taught form fits.", "why_tr": "Öğretilen biçim uygundur.",
+    } for i in range(9)]
+
+    lesson = {"pages": [
+        {"type": "overview", "text": "Greeting practice.", "text_tr": "Selamlaşma alıştırması."},
+        {"type": "mcq", "prompt": "¿Qué dices al despedirte?",
+         "answer": "Hasta luego",
+         "options": ["Hasta luego", "Buenos días", "Por favor", "Mucho gusto"],
+         "explanation": "It is a standard farewell.",
+         "explanation_tr": "Standart bir vedalaşma ifadesidir."},
+    ]}
+    topics = [{"title": "Saludos", "content": json.dumps(lesson, ensure_ascii=False)}]
+
+    original = ae._engine.generate_assessment
+    try:
+        ae._engine.generate_assessment = lambda **kwargs: E.AssessmentResult(
+            items=list(generated), attempts=3, cost=0.01)
+        result = ae.generate_unit_assessment(
+            "First Encounters", topics, "Spanish", level="A1",
+            material_language="tr", count=10)
+    finally:
+        ae._engine.generate_assessment = original
+
+    check(len(result) == 10, "the unit assessment reaches the required ten questions")
+    check(any(q.get("answer") == "Hasta luego" for q in result),
+          "the missing slot came from a clean lesson MCQ, not invented fallback content")
+
+
 # ── 4. Course planning ───────────────────────────────────────────────────────
 
 def test_planning():
@@ -491,6 +530,7 @@ def main():
     test_prompts()
     test_bilingual_authoring_contract()
     test_assessment_shortfall_topup()
+    test_unit_assessment_reuses_clean_lesson_mcq()
     test_planning()
     test_curriculum_titles_are_bilingual()
     test_budget()
