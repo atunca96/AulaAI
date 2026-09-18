@@ -45,12 +45,12 @@ __all__ = [
 # The one model this system runs on. Pinned here rather than read from the
 # environment at each call site, so "which model produced this material" has a
 # single answer that a reader can find.
-MODEL = "google/gemini-3.8-flash"
+MODEL = "openai/gpt-5.6-terra"
 
 # USD per million tokens, as OpenRouter publishes them. `cache_read` is the
 # discounted rate for input served from a cached prefix.
 RATES: Dict[str, Dict[str, float]] = {
-    "google/gemini-3.8-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.1875},
+    # Pinned to OpenRouter OpenAI Flex in transport.py.\n    "openai/gpt-5.6-terra": {"input": 1.00, "output": 6.00, "cache_read": 0.10},\n    "google/gemini-3.8-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.1875},
     "google/gemini-3.7-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.1875},
     "google/gemini-3.5-flash": {"input": 1.50, "output": 9.00, "cache_read": 0.375},
     "google/gemini-2.5-flash": {"input": 0.30, "output": 2.50, "cache_read": 0.075},
