@@ -554,7 +554,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         # ── PHASE 2c: FAIL-CLOSED PUBLICATION QUALITY GATE ──
         # Generation is cheap and broad; review is narrow and independent.
         # Every unit is reviewed by GPT-5.6 Luna, all ten assessment questions
-        # are adversarially checked, and one compact Terra pass verifies rules,
+        # are adversarially checked, and deterministic publication integrity verifies rules,
         # IPA and MCQs. A failed/incomplete review aborts publication rather
         # than silently shipping a classroom we did not actually verify.
         _run_publication_quality_gate(
