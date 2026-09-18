@@ -181,20 +181,23 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
         return Response(error="OPENROUTER_API_KEY missing", model=target)
 
     body = list(messages)
-    if cache_system and body and body[0].get("role") == "system":
+    # OpenAI prompt caching is automatic. Anthropic-style cache_control blocks
+    # are useful for Claude but can make OpenAI upstream requests invalid.
+    if cache_system and body and body[0].get("role") == "system" and \
+            not target.lower().startswith("openai/"):
         body = [_cacheable(body[0])] + body[1:]
 
     payload: Dict[str, Any] = {
         "model": target,
         "messages": body,
         "max_tokens": int(max_tokens),
-        "temperature": float(temperature),
         "response_format": {"type": "json_object"},
         # Ask for the real cost and the real cache split. Without this the
         # ledger is an estimate of an invoice we could simply have been told.
         "usage": {"include": True},
     }
     if "gemini" in target.lower() or "google" in target.lower():
+        payload["temperature"] = float(temperature)
         payload["provider"] = {"order": ["Google AI Studio", "Google"], "allow_fallbacks": True}
         payload["reasoning"] = {"effort": "low"}
     elif target == "openai/gpt-5.6-terra":
@@ -207,6 +210,8 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
             "max_price": {"prompt": 1.0, "completion": 6.0},
         }
         payload["reasoning"] = {"effort": "low"}
+    else:
+        payload["temperature"] = float(temperature)
 
     seconds = timeout or (180 if max_tokens > 8000 else (120 if max_tokens > 3000 else 60))
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
