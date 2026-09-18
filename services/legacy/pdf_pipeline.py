@@ -30,6 +30,54 @@ def file_log(msg):
 def _log(msg):
     file_log(msg)
 
+
+def _run_quality_units_serially(*, units, reviewer, stage, on_complete,
+                                quality_error_cls):
+    """Run quality-unit work fail-fast, with one bounded retry per unit.
+
+    The old max_workers=1 ThreadPoolExecutor still submitted every unit up front.
+    If unit N failed, executor shutdown waited for already-queued N+1.. units,
+    hiding the real terminal error behind later successful model-call logs and
+    wasting review budget. Serial execution makes the failure boundary exact.
+    """
+    total = len(units)
+    applied = 0
+    done = 0
+    for unit in units:
+        try:
+            applied += reviewer(unit)
+        except quality_error_cls as first_error:
+            message = str(first_error)
+            lowered = message.casefold()
+            hard_budget_failure = any(token in lowered for token in (
+                "budget", "ceiling", "no publication-review budget", "headroom",
+            ))
+            if hard_budget_failure:
+                _log(
+                    f"[QUALITY-GATE] {stage} hard-failed for {unit['title']}: "
+                    f"{message}"
+                )
+                raise
+            _log(
+                f"[QUALITY-GATE] {stage} first attempt failed for {unit['title']}: "
+                f"{message}; retrying this unit once."
+            )
+            try:
+                applied += reviewer(unit)
+            except quality_error_cls as retry_error:
+                _log(
+                    f"[QUALITY-GATE] {stage} retry failed for {unit['title']}: "
+                    f"{retry_error}"
+                )
+                raise
+        done += 1
+        _log(
+            f"[QUALITY-GATE] {stage} {done}/{total} complete "
+            f"({unit['title']})."
+        )
+        on_complete(done, total, unit)
+    return applied
+
 def generate_classroom_code():
     return "".join([str(random.randint(0, 9)) for _ in range(5)])
 
@@ -857,41 +905,45 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             track=material_language, budget=budget,
         )
 
-    _log(f"[QUALITY-GATE] lesson review running with {review_workers} concurrent unit worker(s).")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=review_workers) as pool:
-        future_map = {pool.submit(_review_lessons, unit): unit for unit in units}
-        done = 0
-        for future in concurrent.futures.as_completed(future_map):
-            unit = future_map[future]
-            lesson_patches += future.result()
-            done += 1
-            _log(f"[QUALITY-GATE] lesson review {done}/{len(units)} complete ({unit['title']}).")
-            with db_connection() as db:
-                db.execute(
-                    "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-                    (f"Quality review: lessons {done}/{len(units)}", course_id),
-                )
-                db.commit()
+    _log("[QUALITY-GATE] lesson review running serially with fail-fast unit boundaries.")
+
+    def _lesson_complete(done, total, unit):
+        with db_connection() as db:
+            db.execute(
+                "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                (f"Quality review: lessons {done}/{total}", course_id),
+            )
+            db.commit()
+
+    lesson_patches += _run_quality_units_serially(
+        units=units,
+        reviewer=_review_lessons,
+        stage="lesson review",
+        on_complete=_lesson_complete,
+        quality_error_cls=Q.QualityGateError,
+    )
 
     # Assessment payloads are the largest review calls. Run them one at a time:
     # concurrent worst-case budget reservations can reject a healthy third unit
     # even though the first two calls release their reservations seconds later.
     assessment_workers = 1
-    _log(f"[QUALITY-GATE] assessment review running with {assessment_workers} concurrent unit worker(s).")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=assessment_workers) as pool:
-        future_map = {pool.submit(_review_assessment, unit): unit for unit in units}
-        done = 0
-        for future in concurrent.futures.as_completed(future_map):
-            unit = future_map[future]
-            assessment_patches += future.result()
-            done += 1
-            _log(f"[QUALITY-GATE] assessment review {done}/{len(units)} complete ({unit['title']}).")
-            with db_connection() as db:
-                db.execute(
-                    "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-                    (f"Quality review: assessments {done}/{len(units)}", course_id),
-                )
-                db.commit()
+    _log("[QUALITY-GATE] assessment review running serially with fail-fast unit boundaries.")
+
+    def _assessment_complete(done, total, unit):
+        with db_connection() as db:
+            db.execute(
+                "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                (f"Quality review: assessments {done}/{total}", course_id),
+            )
+            db.commit()
+
+    assessment_patches += _run_quality_units_serially(
+        units=units,
+        reviewer=_review_assessment,
+        stage="assessment review",
+        on_complete=_assessment_complete,
+        quality_error_cls=Q.QualityGateError,
+    )
 
     reviewed_units = [{"title": u["title"], "topics": u["topics"]} for u in units]
     with db_connection() as db:
