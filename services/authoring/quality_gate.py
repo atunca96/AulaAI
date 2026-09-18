@@ -315,7 +315,11 @@ Coverage numbers must exactly equal the counts stated in the user message.
 Patch only certain errors; do not stylistically rewrite correct material. Use
 only paths present in the ledger and copy old exactly. If a rule is too broad,
 replace it with an accurate scoped rule. If an MCQ has multiple correct options,
-repair the item so exactly one remains correct.
+repair the item so exactly one remains correct. If you change an assessment
+answer/options/distractors, patch every affected field so the stored key,
+options and distractors remain exactly consistent. If you change an English or
+Turkish rule/explanation, patch its paired field too so both instructional
+tracks continue to teach the same claim.
 """
 
 
@@ -376,7 +380,21 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
     for row in rows:
         if not isinstance(row, dict):
             raise QualityGateError("lesson review row is not an object")
-        patches.extend(row.get("patches") or [])
+        row_topic_id = str(row.get("topic_id") or "")
+        for patch in (row.get("patches") or []):
+            if not isinstance(patch, dict):
+                raise QualityGateError("lesson semantic patch is not an object")
+            patch = dict(patch)
+            # The enclosing row already identifies the topic. Accept reviewers
+            # that omit the redundant id inside each nested patch, but never
+            # accept a contradictory id.
+            if patch.get("topic_id") not in (None, "", row_topic_id):
+                raise QualityGateError(
+                    f"lesson patch topic mismatch: row={row_topic_id}, "
+                    f"patch={patch.get('topic_id')}"
+                )
+            patch["topic_id"] = row_topic_id
+            patches.append(patch)
     applied = _apply_patches(by_id, patches)
 
     # Any deterministic defect the semantic editor did not cure gets one very
@@ -405,7 +423,17 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         rows2 = retry.get("topics")
         if not isinstance(rows2, list) or len(rows2) != 1 or                 str(rows2[0].get("topic_id") or "") != str(topic["id"]):
             raise QualityGateError(f"blocker retry coverage failed for {topic.get('title')}")
-        applied += _apply_patches(by_id, rows2[0].get("patches") or [])
+        retry_patches = []
+        for patch in (rows2[0].get("patches") or []):
+            if not isinstance(patch, dict):
+                raise QualityGateError("blocker retry patch is not an object")
+            patch = dict(patch)
+            patch_id = str(patch.get("topic_id") or str(topic["id"]))
+            if patch_id != str(topic["id"]):
+                raise QualityGateError("blocker retry patch changed topic id")
+            patch["topic_id"] = str(topic["id"])
+            retry_patches.append(patch)
+        applied += _apply_patches(by_id, retry_patches)
         still = A.blocking(_audit_topic(topic, language=language, track=track))
         if still:
             raise QualityGateError(
@@ -449,7 +477,11 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         stage=f"luna_assessment:{unit_title}",
     )
     checked = data.get("checked_questions")
-    if checked != list(range(1, 11)):
+    try:
+        checked_normalized = sorted({int(v) for v in (checked or [])})
+    except (TypeError, ValueError):
+        checked_normalized = []
+    if checked_normalized != list(range(1, 11)):
         raise QualityGateError(
             f"{unit_title}: assessment reviewer did not explicitly verify all 10 questions"
         )
@@ -515,7 +547,13 @@ def final_terra_verify(*, units: List[Dict[str, Any]], language: str, level: str
         stage="terra_final_verify",
     )
     coverage = data.get("coverage")
-    if coverage != counts:
+    try:
+        coverage_normalized = {
+            key: int((coverage or {}).get(key)) for key in ("rules", "phonetics", "assessments")
+        }
+    except (TypeError, ValueError):
+        coverage_normalized = {}
+    if coverage_normalized != counts:
         raise QualityGateError(
             f"Terra verification coverage mismatch: got {coverage!r}, expected {counts!r}"
         )
