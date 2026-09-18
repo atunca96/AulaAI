@@ -400,7 +400,7 @@ def _editorial_slash_candidate(a: Any, b: Any) -> Optional[str]:
         return None
 
     def has_editorial_slash(text: str) -> bool:
-        return bool(re.search(r"(?<=\\w)[^\\W\\d_]+/[^\\W\\d_]+(?=\\W|$)", text, re.UNICODE))
+        return bool(re.search(r"(?<=\w)[^\W\d_]+/[^\W\d_]+(?=\W|$)", text, re.UNICODE))
 
     ah = has_editorial_slash(a)
     bh = has_editorial_slash(b)
