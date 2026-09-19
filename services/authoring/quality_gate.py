@@ -1937,15 +1937,19 @@ def _ungrounded_explanation_names(page: Any) -> List[str]:
 def _rationale_has_specific_evidence(page: Any) -> bool:
     """Bind rationale specificity to the final stored artifact.
 
-    Across the stored rationale locales, require at least one learner-visible
-    content token beyond the keyed answer itself. Answer-plus-boilerplate
-    therefore fails without any phrase blacklist or language-specific lexicon.
+    Strip an exact occurrence of the keyed answer from each rationale before
+    testing overlap with learner-visible evidence. This rejects answer-plus-
+    boilerplate templates while still allowing a real grammar explanation to
+    discuss forms INSIDE a multiword/sentence answer (for example repeated
+    particles or verbs) after quoting that answer once.
     """
     from services.authoring import render_contract as RC
 
     if not isinstance(page, dict) or not RC.mcq_like(page):
         return True
 
+    answer = str(page.get("answer") or "").strip()
+    folded_answer = RC._fold(answer)
     rationale_tokens: set = set()
     present = False
     for key in tuple(dict.fromkeys(_NAME_GENDER_EN_KEYS + _NAME_GENDER_TR_KEYS)):
@@ -1953,15 +1957,18 @@ def _rationale_has_specific_evidence(page: Any) -> bool:
         if not isinstance(value, str) or not value.strip():
             continue
         present = True
-        rationale_tokens |= set(RC._WORD_TOKEN.findall(RC._fold(value)))
+        folded = RC._fold(value)
+        if folded_answer:
+            # Remove only the verbatim keyed-answer occurrence. If the
+            # explanation separately cites one of its internal forms as
+            # evidence, that second occurrence remains and can prove specificity.
+            folded = folded.replace(folded_answer, " ", 1)
+        rationale_tokens |= set(RC._WORD_TOKEN.findall(folded))
     if not present:
         return True
 
     visible = _visible_evidence_tokens(page)
-    answer_tokens = set(
-        RC._WORD_TOKEN.findall(RC._fold(str(page.get("answer") or "")))
-    )
-    return bool((rationale_tokens - answer_tokens) & (visible - answer_tokens))
+    return bool(rationale_tokens & visible)
 
 
 _EXPLANATION_SPECIFICITY_REASON = (
