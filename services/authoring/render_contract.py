@@ -323,27 +323,24 @@ def _name_gender_rationale(explanation: Any, name_words: "re.Pattern[str]",
 
         tokens = set(_WORD_TOKEN.findall(folded))
         candidate_hits = tokens & names
+        explicitly_about_a_name = bool(name_words.search(folded))
+
+        # An explicit personal-name reference may be anaphoric ("ismi", "adı",
+        # "the name") and need not repeat the person's token in this statement.
+        # Bare Turkish "isim" is intentionally absent from the personal-name
+        # lexicon because it is also the ordinary grammatical word for "noun".
+        if explicitly_about_a_name:
+            return True
+
         if not candidate_hits:
-            # A bare metalanguage word such as Turkish "isim" (= noun/name)
-            # is not evidence that this statement is about a PERSON.
             continue
 
-        explicitly_about_a_name = bool(name_words.search(folded))
         quoted = _quoted_tokens(statement)
 
         # A capitalised token quoted as language material is a citation, not a
         # personhood signal. This is crucial for languages whose ordinary nouns
-        # are capitalised. However an explicit statement that the quoted token
-        # is a NAME remains unsafe.
+        # are capitalised.
         person_hits = candidate_hits - quoted
-
-        if explicitly_about_a_name:
-            # An explicit personal-name reference may be anaphoric ("ismi",
-            # "adı", "the name") and need not repeat the person's token in the
-            # same statement. Bare Turkish "isim" is intentionally NOT in the
-            # personal-name lexicon because it is also the ordinary word for
-            # "noun".
-            return True
         if decisive and person_hits:
             return True
 
