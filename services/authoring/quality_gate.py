@@ -460,6 +460,75 @@ def _review_attestation_store(key: str, *, stage: str) -> None:
         print(f"[QUALITY-CACHE] STORE-SKIP {stage} error={type(exc).__name__}", flush=True)
 
 
+def _review_response_get(key: str) -> Optional[Dict[str, Any]]:
+    """Return a previously VALIDATED reviewer response for this exact input.
+
+    Responses enter this table only after their patches were applied and the
+    stage completed all authoritative proof steps. A cache hit therefore replays
+    a previously accepted semantic decision, then the normal validators run
+    again. Any prompt/model/schema/input change changes the key.
+    """
+    try:
+        with _REVIEW_ATTEST_LOCK:
+            os.makedirs(os.path.dirname(_REVIEW_ATTEST_DB), exist_ok=True)
+            conn = sqlite3.connect(_REVIEW_ATTEST_DB, timeout=2.0)
+            try:
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS review_response_cache ("
+                    "digest TEXT PRIMARY KEY, response_json TEXT NOT NULL, "
+                    "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+                )
+                row = conn.execute(
+                    "SELECT response_json FROM review_response_cache WHERE digest = ?",
+                    (key,),
+                ).fetchone()
+            finally:
+                conn.close()
+        if not row:
+            return None
+        value = json.loads(row[0])
+        return value if isinstance(value, dict) else None
+    except Exception as exc:
+        print(f"[QUALITY-CACHE] REPLAY-MISS error={type(exc).__name__}", flush=True)
+        return None
+
+
+def _review_response_store(key: str, data: Dict[str, Any], *, stage: str) -> None:
+    """Persist only a response whose complete stage has already passed."""
+    if not isinstance(data, dict):
+        return
+    try:
+        raw = json.dumps(data, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":"))
+        with _REVIEW_ATTEST_LOCK:
+            os.makedirs(os.path.dirname(_REVIEW_ATTEST_DB), exist_ok=True)
+            conn = sqlite3.connect(_REVIEW_ATTEST_DB, timeout=2.0)
+            try:
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS review_response_cache ("
+                    "digest TEXT PRIMARY KEY, response_json TEXT NOT NULL, "
+                    "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO review_response_cache"
+                    "(digest,response_json,created_at) VALUES "
+                    "(?,?,CURRENT_TIMESTAMP)",
+                    (key, raw),
+                )
+                conn.execute(
+                    "DELETE FROM review_response_cache WHERE digest IN ("
+                    "SELECT digest FROM review_response_cache "
+                    "ORDER BY created_at DESC LIMIT -1 OFFSET 4000)"
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        print(f"[QUALITY-CACHE] REPLAY-STORE {stage} {key[:12]}", flush=True)
+    except Exception as exc:
+        print(f"[QUALITY-CACHE] REPLAY-STORE-SKIP {stage} "
+              f"error={type(exc).__name__}", flush=True)
+
+
 def _field_spec(key: str, container: str = "") -> Optional[S.FieldSpec]:
     return S.spec_for(str(key), container)
 
@@ -3579,8 +3648,16 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             response_schema=_LESSON_REVIEW_SCHEMA,
             response_name="lesson_review",
         )
+        replay_data = _review_response_get(lesson_cache_key)
         lesson_cache_hit = _review_attestation_has(lesson_cache_key)
-        if lesson_cache_hit:
+        if replay_data is not None:
+            print(
+                f"[QUALITY-CACHE] REPLAY lesson {unit_title}:{topic.get('title')} "
+                f"{lesson_cache_key[:12]}",
+                flush=True,
+            )
+            data = replay_data
+        elif lesson_cache_hit:
             print(
                 f"[QUALITY-CACHE] HIT lesson {unit_title}:{topic.get('title')} "
                 f"{lesson_cache_key[:12]}",
@@ -3684,6 +3761,10 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         )
         _review_attestation_store(
             final_lesson_key,
+            stage=f"lesson:{unit_title}:{topic.get('title')}",
+        )
+        _review_response_store(
+            lesson_cache_key, data,
             stage=f"lesson:{unit_title}:{topic.get('title')}",
         )
 
@@ -3878,23 +3959,30 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                 "escalation_schema": _EXACT_CATEGORICAL_REVIEW_SCHEMA,
             },
         )
-        if _review_attestation_has(risk_cache_key):
+        risk_replay = _review_response_get(risk_cache_key)
+        if risk_replay is not None:
+            print(
+                f"[QUALITY-CACHE] REPLAY risk {unit_title}:{topic.get('title')} "
+                f"{risk_cache_key[:12]}",
+                flush=True,
+            )
+            data = risk_replay
+        elif _review_attestation_has(risk_cache_key):
             print(
                 f"[QUALITY-CACHE] HIT risk {unit_title}:{topic.get('title')} "
                 f"{risk_cache_key[:12]}",
                 flush=True,
             )
-            # The exact final semantic state already passed broad risk review,
-            # every required categorical escalation, and convergence. Re-run
-            # convergence/deterministic proof, but do not buy the same judgement.
+            # The exact final semantic state already passed the complete risk
+            # stage. Re-run convergence/deterministic proof only.
             applied += converge_topic(
                 topic=topic, language=language, level=level, track=track,
                 budget=budget, unit_title=unit_title,
             )
             topic[_RISK_REVIEW_DONE_KEY] = True
             continue
-
-        data = _call_review(
+        else:
+            data = _call_review(
             model=REVIEW_MODEL,
             system=_RISK_REVIEW_SYSTEM,
             payload=risk_payload,
@@ -4091,6 +4179,10 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                 final_risk_key,
                 stage=f"risk:{unit_title}:{topic.get('title')}",
             )
+        _review_response_store(
+            risk_cache_key, data,
+            stage=f"risk:{unit_title}:{topic.get('title')}",
+        )
         topic[_RISK_REVIEW_DONE_KEY] = True
 
     return applied
@@ -4919,8 +5011,16 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         response_schema=_ASSESSMENT_REVIEW_SCHEMA,
         response_name="assessment_review",
     )
+    assessment_replay = _review_response_get(assessment_cache_key)
     assessment_cache_hit = _review_attestation_has(assessment_cache_key)
-    if assessment_cache_hit:
+    if assessment_replay is not None:
+        print(
+            f"[QUALITY-CACHE] REPLAY assessment {unit_title} "
+            f"{assessment_cache_key[:12]}",
+            flush=True,
+        )
+        data = assessment_replay
+    elif assessment_cache_hit:
         print(
             f"[QUALITY-CACHE] HIT assessment {unit_title} "
             f"{assessment_cache_key[:12]}",
@@ -5090,6 +5190,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     )
     _review_attestation_store(
         final_assessment_key, stage=f"assessment:{unit_title}"
+    )
+    _review_response_store(
+        assessment_cache_key, data, stage=f"assessment:{unit_title}"
     )
     return applied
 
