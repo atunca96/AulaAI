@@ -23,8 +23,8 @@ topic={
         "answer":"peruana",
         "options":["peruana","española","francesa","alemana"],
         "distractors":["española","francesa","alemana"],
-        "explanation":"The repaired stem states «Lucía es peruana», which directly supplies the nationality «peruana».",
-        "explanation_tr":"Düzeltilmiş soru kökü «Lucía es peruana» diyerek milliyet cevabı «peruana»yı doğrudan verir."
+        "explanation":"The visible word «nacionalidad» asks which nationality option is intended.",
+        "explanation_tr":"Görünür «nacionalidad» sözcüğü hangi milliyet seçeneğinin istendiğini belirtir."
     }]},
     "is_assessment":False,
 }
