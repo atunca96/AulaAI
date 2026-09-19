@@ -19,7 +19,7 @@ if ROOT not in sys.path:
 from services.authoring import quality_gate as Q
 
 
-def page(prompt: str, n: int, explanation: str = "The taught fact determines the answer."):
+def page(prompt: str, n: int, explanation: str = "The visible cue 'frase' determines the taught form."):
     return {
         "type": "mcq",
         "title": f"Question {n}",
@@ -32,7 +32,9 @@ def page(prompt: str, n: int, explanation: str = "The taught fact determines the
                         else ["opción b", "opción c", "opción d"]),
         "explanation": explanation,
         "why": explanation,
-        "why_tr": "Öğretilen bilgi doğru cevabı belirler.",
+        "why_tr": ("Görünür 'nacionalidad' ipucu uyruğu belirler."
+                   if n == 1 else
+                   "Görünür 'frase' ipucu öğretilmiş biçimi belirler."),
     }
 
 
@@ -43,7 +45,7 @@ content = {
     "pages": [
         {"type": "overview", "title": "Unit Assessment", "title_tr": "Ünite Değerlendirmesi",
          "text": "Check your learning.", "text_tr": "Öğrendiklerinizi kontrol edin."},
-        page(bad_prompt, 1, "Her nationality is Turkish."),
+        page(bad_prompt, 1, "The visible cue 'nacionalidad' asks for nationality."),
     ] + [page(f"Completa la frase {n}.", n) for n in range(2, 11)]
 }
 
