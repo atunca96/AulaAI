@@ -310,8 +310,12 @@ def _name_gender_rationale(explanation: Any, name_words: "re.Pattern[str]",
         # No person is introduced, so no gender claim in the rationale can be
         # reasoning from a personal name. Grammatical terminology is free.
         return False
-    # Could a gender fact change which option is correct? Three ways, checked
-    # against the option set rather than against any language's vocabulary.
+    # Could a gender fact actually decide which option is correct?
+    # This must come from the OPTION STRUCTURE, not from the ordinary fact that
+    # a rationale mentions its keyed answer. Every competent grammar rationale
+    # names the answer it is explaining; treating that as dependency evidence
+    # makes capitalised common nouns look like people and refuses correct
+    # agreement/case explanations.
     decisive = (answer_turns_on_form(page)
                 or _options_are_gender_values(page, gender_words))
     answer_tokens = set(_WORD_TOKEN.findall(_fold(page.get("answer"))))
@@ -323,23 +327,24 @@ def _name_gender_rationale(explanation: Any, name_words: "re.Pattern[str]",
         if not gender_words.search(folded):
             continue
         tokens = set(_WORD_TOKEN.findall(folded))
-        # ...or the statement asserts the gender of the keyed answer itself.
-        if not decisive and not (answer_tokens and answer_tokens <= tokens):
-            continue
-        if tokens & names:
+        explicitly_about_a_name = bool(name_words.search(folded))
+
+        # A bare grammatical explanation such as "Wohnung is feminine, so
+        # «die»" must not become a personal-name inference merely because
+        # Wohnung is capitalised and the explanation names the keyed answer.
+        # If the option structure itself makes gender decisive, a statement
+        # tying the gender claim to a candidate person is enough. Otherwise we
+        # require the rationale to explicitly assert that a NAME supplies the
+        # gender fact.
+        if tokens & names and (decisive or explicitly_about_a_name):
             return True
-        # "The name is feminine" — the rationale points at the person the item
-        # names without repeating it. Only reachable because a name exists, and
-        # only when the statement is not attributing that gender to some OTHER
-        # word it quotes: "«книга» dişil bir isimdir" is about a noun the
-        # material is citing, and `isim`/`name` there is the grammatical term.
-        # Quoting one of the choices ("so «alta»") is not that — the statement
-        # is still talking about the person. Capitalised function words at the
-        # start of a stem ("Какая форма?") look like proper nouns to any
-        # lexicon-free detector, so this is what keeps them from turning
-        # ordinary grammar prose into a refusal.
+
+        # "The name is feminine" may omit the person's token while still making
+        # the forbidden inference. Keep that route, but only when the statement
+        # explicitly talks about a name and is not instead citing another
+        # learner-visible vocabulary word.
         cited = _quoted_common_tokens(statement) - choice_tokens
-        if not cited and name_words.search(folded):
+        if not cited and explicitly_about_a_name:
             return True
     return False
 
