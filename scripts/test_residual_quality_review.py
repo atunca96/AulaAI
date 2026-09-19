@@ -34,6 +34,25 @@ _specific_page["explanation_tr"]="'Herr Weber geht früher schlafen, um morgen f
 assert not Q._rationale_has_specific_evidence(_generic_page)
 assert Q._rationale_has_specific_evidence(_specific_page)
 
+# Production regression: a bilingual rationale may name a grammar category
+# such as "Konjunktiv II". The cross-locale proper-noun guard must not mistake
+# that capitalized shared grammar label for an invented person.
+_konjunktiv_page={
+    "type":"mcq",
+    "prompt":"Frau Schneider ist unzufrieden mit ihrem aktuellen Gehalt. Welcher Satz drückt ihren Wunsch korrekt aus?",
+    "answer":"Ich hätte gern ein höheres Gehalt für meine Arbeit.",
+    "options":[
+        "Ich hätte gern ein höheres Gehalt für meine Arbeit.",
+        "Ich würde gern ein höheres Gehalt für meine Arbeit haben.",
+        "Ich wäre gern ein höheres Gehalt für meine Arbeit.",
+        "Ich habe gern ein höheres Gehalt für meine Arbeit.",
+    ],
+    "explanation":"The sentence ‘Ich hätte gern ein höheres Gehalt für meine Arbeit.’ is correct because Konjunktiv II of ‘haben’ (‘hätte’) combined with ‘gern’ expresses a polite wish about possession.",
+    "explanation_tr":"‘Ich hätte gern ein höheres Gehalt für meine Arbeit.’ cümlesi doğrudur; çünkü ‘haben’ fiilinin Konjunktiv II hali olan ‘hätte’ ile ‘gern’ kullanımı bir sahiplik dileğini ifade eder.",
+}
+assert Q._ungrounded_explanation_names(_konjunktiv_page) == []
+assert Q._rationale_has_specific_evidence(_konjunktiv_page)
+
 try:
     Q._audit_topic=lambda topic, language, track: []
     Q._topic_render_blockers=lambda content: []
