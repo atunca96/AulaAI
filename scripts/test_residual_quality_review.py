@@ -62,10 +62,10 @@ try:
         if stage.startswith("review_explanation_grounding:"):
             return {
                 "explanation_en": (
-                    "The stem explicitly says the keys are «al lado del sofá»."
+                    "The stem says «debajo del periódico, al lado del sofá», which places the keys beside the sofa."
                 ),
                 "explanation_tr": (
-                    "Soru kökü anahtarların açıkça «al lado del sofá» olduğunu söylüyor."
+                    "Soru kökündeki «debajo del periódico, al lado del sofá» ifadesi anahtarların konumunu açıkça gösterir."
                 ),
             }
         if stage.startswith("review_rationale_exact:"):
