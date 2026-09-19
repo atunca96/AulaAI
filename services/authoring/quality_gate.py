@@ -42,6 +42,10 @@ from services.authoring import budget as B
 from services.authoring import repair as R
 from services.authoring import schema as S
 from services.authoring import transport as T
+from services.authoring.quality_contract import (
+    SHARED_QUALITY_CONTRACT,
+    REPAIR_QUALITY_GUARDRAILS,
+)
 
 
 REVIEW_MODEL = "google/gemini-3.7-flash"
@@ -285,6 +289,8 @@ _MISSING_TRANSCRIPTION_REPAIR_SCHEMA = {
 _MISSING_TRANSCRIPTION_REPAIR_SYSTEM = """You fill ONLY missing IPA cells in one
 learner-visible pronunciation table.
 
+""" + REPAIR_QUALITY_GUARDRAILS + """
+
 For every supplied row, transcribe the exact written term in the declared
 language and regional variety. Return one IPA value per row_id. Do not respell,
 translate, omit, merge or add rows. Preserve the table's existing bracket style
@@ -360,14 +366,15 @@ _ASSESSMENT_REVIEW_SCHEMA = {
                 "properties": {
                     "question": {"type": "integer"},
                     "single_answer": {"type": "boolean"},
+                    "form_and_agreement_correct": {"type": "boolean"},
                     "distractors_plausible": {"type": "boolean"},
                     "rationale_specific": {"type": "boolean"},
                     "cefr_fit": {"type": "boolean"},
                     "reason": {"type": "string"},
                 },
                 "required": [
-                    "question", "single_answer", "distractors_plausible",
-                    "rationale_specific", "cefr_fit", "reason"
+                    "question", "single_answer", "form_and_agreement_correct",
+                    "distractors_plausible", "rationale_specific", "cefr_fit", "reason"
                 ],
             },
         },
@@ -1435,6 +1442,8 @@ _LESSON_REVIEW_SYSTEM = """You are AulaAI's independent publication editor.
 The course was authored by another model. Your job is to find and correct
 learner-visible errors, not to praise or rewrite stylistically.
 
+""" + SHARED_QUALITY_CONTRACT + """
+
 Supported taught languages are exactly: English, Spanish, German, French,
 Italian, Portuguese, Russian, Chinese, Japanese, Arabic, Turkish, Dutch,
 Swedish, Korean and Greek.
@@ -1525,6 +1534,8 @@ Contract:
 _RISK_REVIEW_SYSTEM = """You are AulaAI's pedagogical-rule verifier.
 Another editor already reviewed these lessons. This pass exists only for factual
 grammar/usage claims that can harm a learner if they are overgeneralized.
+
+""" + SHARED_QUALITY_CONTRACT + """
 
 Supported taught languages are exactly: English, Spanish, German, French,
 Italian, Portuguese, Russian, Chinese, Japanese, Arabic, Turkish, Dutch,
@@ -1643,6 +1654,8 @@ Return JSON only: {"value":"IPA","reason":"brief factual reason"}.
 _EXACT_TARGET_REPAIR_SYSTEM = """You repair exactly ONE existing learner-visible
 TARGET-language string that failed AulaAI's deterministic publication audit.
 
+""" + REPAIR_QUALITY_GUARDRAILS + """
+
 Hard contract:
 - The replacement MUST be written in the taught language named by
   `taught_language`. Do not write it in English or Turkish unless that is the
@@ -1684,10 +1697,15 @@ _EXACT_DUPLICATE_STEM_REPAIR_SYSTEM = """You repair exactly ONE learner-visible
 MCQ stem because AulaAI's deterministic publication proof found the same
 normalized stem elsewhere in the classroom.
 
+""" + REPAIR_QUALITY_GUARDRAILS + """
+
 Hard contract:
 - Return ONLY one replacement string for the existing stem field.
 - Write the stem in the taught language.
 - Preserve the keyed answer, options and distractors exactly.
+- If the rewritten stem exposes a grammatical controller/trigger needed by the
+  keyed answer, preserve or make explicit the correct feature evidence; never
+  create a stem whose key only works under an unstated agreement/identity guess.
 - Keep the same CEFR level and the same skill/fact being tested, but phrase the
   question so it is genuinely distinct from every forbidden duplicate stem.
 - The replacement must still have exactly one defensible answer using only the
@@ -1701,6 +1719,8 @@ Hard contract:
 _ASSESSMENT_REVIEW_SYSTEM = """You are AulaAI's independent assessment examiner.
 The lesson material and a ten-question unit assessment were authored by another
 model. Verify ALL ten questions against the unit evidence.
+
+""" + SHARED_QUALITY_CONTRACT + """
 
 Supported taught languages are exactly: English, Spanish, German, French,
 Italian, Portuguese, Russian, Chinese, Japanese, Arabic, Turkish, Dutch,
@@ -1735,6 +1755,10 @@ Language-awareness contract:
 For every question check:
 - there is exactly ONE correct option in context, not merely one keyed option;
 - the keyed answer is actually correct;
+- FORM/AGREEMENT PROOF: when any option is inflected or agreement-sensitive,
+  identify the learner-visible controller/trigger in the stem/context and verify
+  every relevant grammatical feature. Do not substitute semantic sex for
+  grammatical gender and do not infer an identity feature from a name;
 - no distractor is also correct, synonymous in context, or made correct by the
   wording (the classic failure is asking which h is silent when every option's
   h is silent);
@@ -1760,8 +1784,8 @@ For every question check:
 Return JSON only:
 {"checked_questions":[1,2,3,4,5,6,7,8,9,10],
  "quality_checks":[
-   {"question":1,"single_answer":true,"distractors_plausible":true,
-    "rationale_specific":true,"cefr_fit":true,
+   {"question":1,"single_answer":true,"form_and_agreement_correct":true,
+    "distractors_plausible":true,"rationale_specific":true,"cefr_fit":true,
     "reason":"brief final-state judgement"}
  ],
  "patches":[
@@ -5009,8 +5033,12 @@ written headword, declared language and regional variety.
 
 Complex entries may contain numbers, symbols, punctuation or several words.
 Check the whole expression, not merely whether the string looks IPA-like.
-Correct malformed segments, omitted material, wrong sounds, impossible symbols
-or transcription that belongs to a different written form. For any written
+Verify every segment in its actual phonological context, including standard
+context-sensitive allophony/assimilation when the declared transcription depth
+represents it; a plausible isolated phoneme is still wrong if that segment
+cannot occur there in the declared variety/convention. Correct malformed
+segments, omitted material, wrong sounds, impossible symbols or transcription
+that belongs to a different written form. For any written
 digit sequence, independently verify every spoken number segment and its IPA:
 digits/groups must be represented in the same order, no digit may disappear or
 be invented, and a valid number word written in malformed pseudo-IPA is still a
@@ -5753,8 +5781,8 @@ def _require_assessment_quality_proof(data: Dict[str, Any], *,
         seen.add(q)
         failed = [
             key for key in (
-                "single_answer", "distractors_plausible",
-                "rationale_specific", "cefr_fit"
+                "single_answer", "form_and_agreement_correct",
+                "distractors_plausible", "rationale_specific", "cefr_fit"
             )
             if row.get(key) is not True
         ]
@@ -5868,6 +5896,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
                 {
                     "question": q,
                     "single_answer": True,
+                    "form_and_agreement_correct": True,
                     "distractors_plausible": True,
                     "rationale_specific": True,
                     "cefr_fit": True,
