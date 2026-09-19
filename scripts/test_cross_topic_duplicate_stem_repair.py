@@ -97,5 +97,6 @@ assert applied==1, applied
 assert t1["content"]["pages"][0]["prompt"]=="¿De dónde ___ tú?"
 assert t2["content"]["pages"][0]["prompt"]=="¿Tú de dónde eres?"
 assert Q._duplicate_mcq_occurrences(units)==[]
-assert len(calls)==1
-print("[DUPLICATE-STEM-REPAIR] cross-topic duplicate repaired before final publication proof")
+assert len(calls)==2, len(calls)
+assert "rejected_candidate" in calls[1]["payload"]
+print("[DUPLICATE-STEM-REPAIR] wrong-language candidate rejected; corrective stem proved before commit")
