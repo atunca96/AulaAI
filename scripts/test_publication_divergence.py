@@ -367,6 +367,36 @@ def test_the_renderer_has_only_one_drop_point():
               f"and so does the contract, in both locales: "
               f"{RC.page_is_renderable(page, True)[1][:52]}")
 
+    # A capitalised COMMON NOUN plus a grammatical-gender rationale is not
+    # personal-name inference. Sentence-initial capitalisation alone must never
+    # turn ordinary grammar explanation into a hidden-world identity claim.
+    grammar_page = mcq(
+        20,
+        "Casa es ___.",
+        ["grande", "pequeña", "nueva", "vieja"],
+        answer="grande",
+        explanation="Casa is feminine; the keyed answer is «grande».",
+        explanation_tr="Casa dişil bir isimdir; doğru cevap «grande».",
+    )
+    check(all(RC.page_is_renderable(grammar_page, is_tr)[0]
+              for is_tr in RC.EXPORT_LOCALES),
+          "capitalised common noun + grammar rationale is not treated as a person")
+
+    # But an actual rationale that explicitly claims a PERSONAL NAME supplies
+    # gender remains blocked. This proves the fix narrows the predicate rather
+    # than disabling it.
+    unsafe_name = mcq(
+        21,
+        "Ana es ___.",
+        ["alta", "alto", "altos", "altas"],
+        answer="alta",
+        explanation="Ana is a feminine name, so «alta».",
+        explanation_tr="Ana kadın ismidir; bu yüzden «alta».",
+    )
+    check(not any(RC.page_is_renderable(unsafe_name, is_tr)[0]
+                  for is_tr in RC.EXPORT_LOCALES),
+          "explicit personal-name gender inference is still refused")
+
     # The filter itself is gone: `_normalize_pages` must now hand every stored
     # page to the render loop, which is the only place a drop may be decided.
     content = {"pages": [dict(probes[0]), mcq(9, "¿Cómo estás?", ["bien", "mal", "asi", "ya"])]}
