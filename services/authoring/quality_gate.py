@@ -5449,7 +5449,11 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
             "unit": unit_title,
             "items": payload_items,
         },
-        max_tokens=1200,
+        # Production regularly exhausted 1200 and paid a second 2000-token
+        # transport round-trip. Providers bill actual output, while the budget
+        # still reserves the declared worst case, so give the first call the
+        # headroom it already needed without changing any review contract.
+        max_tokens=2000,
         effort="low",
         budget=budget,
         stage=f"review_complex_notation:{unit_title}",
@@ -5876,11 +5880,11 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     else:
         data = _call_review(
             model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
-            # Structured assessment output must carry explicit 1..10 coverage
-            # plus any patches. 1600 was empirically too tight on reasoning-capable
-            # Gemini routes and caused paid truncation/retry cycles. Headroom is
-            # cheaper than paying for a cut-off answer twice.
-            max_tokens=2400, effort="low", budget=budget,
+            # Production repeatedly exhausts 2400 while returning the required
+            # ten-question proof, then succeeds at 3200. Start at the proven
+            # ceiling: evidence/schema/quality requirements are identical, and
+            # billing is based on actual output rather than unused headroom.
+            max_tokens=3200, effort="low", budget=budget,
             stage=f"review_assessment:{unit_title}",
             response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
         )
