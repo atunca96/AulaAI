@@ -98,7 +98,7 @@ def _fold(text: Any) -> str:
 
 
 _GENDER_WORDS = re.compile(r"\b(kadin|erkek|disil|eril|female|male|woman|man)\b")
-_NAME_WORDS = re.compile(r"\b(isim|ismi|adi|adinin|name)\b")
+_NAME_WORDS = re.compile(r"\b(ismi|adi|adinin|name)\b")
 
 # The one refusal an item cannot argue with: the rationale says the personal
 # name is what tells the learner the gender. Named once so the gate can route
@@ -338,6 +338,11 @@ def _name_gender_rationale(explanation: Any, name_words: "re.Pattern[str]",
         person_hits = candidate_hits - quoted
 
         if explicitly_about_a_name:
+            # An explicit personal-name reference may be anaphoric ("ismi",
+            # "adı", "the name") and need not repeat the person's token in the
+            # same statement. Bare Turkish "isim" is intentionally NOT in the
+            # personal-name lexicon because it is also the ordinary word for
+            # "noun".
             return True
         if decisive and person_hits:
             return True
@@ -441,7 +446,7 @@ _V57_EXPLANATION_KEYS = ("explanation_tr", "analysis_tr", "explanation_en",
 
 _V57_GENDER_WORDS = re.compile(
     r"\b(kadin|erkek|disil|eril|female|male|woman|man|feminine|masculine)\b")
-_V57_NAME_WORDS = re.compile(r"\b(isim|ismi|adi|adinin|name)\b")
+_V57_NAME_WORDS = re.compile(r"\b(ismi|adi|adinin|name)\b")
 _V57_GENDER_NOUNS = (
     "женщина", "мужчина", "девушка", "мальчик", "девочка", "мать", "отец", "мама",
     "папа", "сестра", "брат", "бабушка", "дедушка", "wife", "husband", "mother",
@@ -643,10 +648,10 @@ def _name_gender_statements(explanation: Any, name_words: "re.Pattern[str]",
         person_hits = sorted((tokens & names) - set(quoted_tokens))
         quoted_common = sorted(_quoted_common_tokens(statement))
 
-        # The live predicate now requires an actual candidate-person token.
-        # Explicit name language may validate a quoted candidate as a name;
-        # otherwise quoted tokens are treated as language material.
-        route_explicit_name = bool(names_in_statement) and explicitly_about_a_name
+        # Explicit personal-name wording may be anaphoric and omit the person's
+        # token ("ismi", "adı", "the name"). Bare Turkish "isim" is excluded
+        # from the name-word lexicon because it also means the grammatical NOUN.
+        route_explicit_name = explicitly_about_a_name
         route_decisive_person = bool(person_hits) and decisive
 
         rows.append({
