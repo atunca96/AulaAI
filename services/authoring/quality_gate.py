@@ -1287,8 +1287,29 @@ def _audit_topic(topic: Dict[str, Any], *, language: str, track: str) -> List[A.
     return A.audit_lesson(content, language=language, track=track)
 
 
+_SEMANTIC_PROXY_CODES = frozenset({
+    "instructional_prose_in_target_field",
+    "stem_in_instructional_language",
+})
+
+
 def _findings_payload(findings: Iterable[A.Finding]) -> List[Dict[str, Any]]:
     return [f.as_dict() for f in findings if f.severity == A.BLOCK]
+
+
+def _semantic_proxy_findings_payload(
+        findings: Iterable[A.Finding]) -> List[Dict[str, Any]]:
+    """Advisory language-identity suspicions for the semantic reviewer.
+
+    The EN/TR function-word detector is useful routing evidence but cannot
+    prove that Spanish/German/Dutch/etc. prose is written in the wrong language.
+    These findings therefore stay visible to the LLM without becoming
+    deterministic publication blockers.
+    """
+    return [
+        f.as_dict() for f in findings
+        if f.code in _SEMANTIC_PROXY_CODES
+    ]
 
 
 def _finding_path_prefix(path: str) -> List[Any]:
@@ -1449,6 +1470,13 @@ Italian, Portuguese, Russian, Chinese, Japanese, Arabic, Turkish, Dutch,
 Swedish, Korean and Greek.
 
 Language-awareness contract:
+- `semantic_proxy_findings` are ADVISORY suspicions from a cheap EN/TR
+  function-word detector, not deterministic facts. Inspect the actual string
+  using your knowledge of the DECLARED taught language. If it is genuinely
+  English/Turkish instructional prose in a target-language field, patch it into
+  natural taught-language content. If it is valid taught-language prose that
+  merely shares function words with EN/TR, leave it unchanged. Never rewrite a
+  correct target-language sentence merely to satisfy the proxy.
 - Judge target-language content by the grammar, writing system, morphology,
   syntax, punctuation and standard usage of the DECLARED taught language, not
   by English or Turkish expectations.
@@ -1747,6 +1775,13 @@ Italian, Portuguese, Russian, Chinese, Japanese, Arabic, Turkish, Dutch,
 Swedish, Korean and Greek.
 
 Language-awareness contract:
+- `semantic_proxy_findings` are ADVISORY suspicions from a cheap EN/TR
+  function-word detector, not deterministic facts. Inspect the actual string
+  using your knowledge of the DECLARED taught language. If it is genuinely
+  English/Turkish instructional prose in a target-language field, patch it into
+  natural taught-language content. If it is valid taught-language prose that
+  merely shares function words with EN/TR, leave it unchanged. Never rewrite a
+  correct target-language sentence merely to satisfy the proxy.
 - Judge target-language content by the grammar, writing system, morphology,
   syntax, punctuation and standard usage of the DECLARED taught language, not
   by English or Turkish expectations.
@@ -4603,6 +4638,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 "title": str(topic.get("title") or ""),
                 "records": _assessment_evidence_records(topic["content"], track=track),
                 "deterministic_blockers": _findings_payload(findings),
+                "semantic_proxy_findings": _semantic_proxy_findings_payload(findings),
                 "render_contract_blockers": _topic_render_blockers(topic["content"]),
             }],
         }
@@ -4718,6 +4754,7 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 "title": str(topic.get("title") or ""),
                 "records": _assessment_evidence_records(topic["content"], track=track),
                 "deterministic_blockers": _findings_payload(final_findings),
+                "semantic_proxy_findings": _semantic_proxy_findings_payload(final_findings),
                 "render_contract_blockers": _topic_render_blockers(topic["content"]),
             }],
         }
@@ -6259,6 +6296,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             "title": str(topic.get("title") or ""),
             "evidence": _assessment_evidence_digest(topic["content"], track=track),
         })
+    assessment_findings = A.audit_lesson(
+        content, language=language, track=track
+    )
     payload = {
         "language": language, "level": level, "unit": unit_title,
         "regional_variety": (S.profile_for_language(language).variety
@@ -6269,6 +6309,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         # These are deterministic facts about what the renderer would refuse,
         # not semantic guesses. Give them to Gemini up front so it can repair the
         # item instead of letting the final gate discover the same problem too late.
+        "semantic_proxy_findings": _semantic_proxy_findings_payload(
+            assessment_findings
+        ),
         "render_contract_blockers": _assessment_render_blockers(content),
     }
     assessment_cache_key = _review_attestation_key(
@@ -6463,6 +6506,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             }
             for topic in lesson_topics
         ],
+        "semantic_proxy_findings": _semantic_proxy_findings_payload(
+            A.audit_lesson(content, language=language, track=track)
+        ),
         "render_contract_blockers": _assessment_render_blockers(content),
     }
     final_assessment_key = _review_attestation_key(
