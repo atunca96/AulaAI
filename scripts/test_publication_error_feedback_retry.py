@@ -79,34 +79,54 @@ units = [{"title": "Family", "topics": [topic]}]
 assert RC.hidden_world_reason(topic["content"]["pages"][4]) == RC.NAME_GENDER_REASON
 
 orig_call = Q._call_review
-seen = {}
+seen = []
 
 
 def fake_call(**kwargs):
-    seen["stage"] = kwargs["stage"]
-    seen["payload"] = kwargs["payload"]
     payload = kwargs["payload"]
-    assert payload["publication_error"] == ERROR
-    assert payload["retry_attempt"] == 2
+    seen.append((kwargs["stage"], payload["publication_error"]))
+
     assert payload["topic_title"] == topic["title"]
     assert payload["renderer_diagnostics"], payload
-    assert any(
-        row.get("reason") == RC.NAME_GENDER_REASON
-        for row in payload["validator_blockers"]
+
+    if payload["retry_attempt"] == 2:
+        assert payload["publication_error"] == ERROR
+        assert any(
+            row.get("reason") == RC.NAME_GENDER_REASON
+            for row in payload["validator_blockers"]
+        )
+        current = topic["content"]["pages"][4]["explanation_tr"]
+        return {
+            "topic_id": topic["id"],
+            "patches": [{
+                "path": ["pages", "4", "explanation_tr"],
+                "old": current,
+                "value": (
+                    "«abuela» sözcüğü dişil ve tekildir; bu nedenle onunla uyumlu "
+                    "birinci çoğul şahıs iyelik sıfatı «nuestra»dır."
+                ),
+                "reason": (
+                    "The rationale now names a lexical word/noun unambiguously "
+                    "instead of wording that can mean a personal name."
+                ),
+            }],
+        }
+
+    assert payload["retry_attempt"] == 3
+    assert (
+        "answer depends on an identity fact inferred from a biographical one"
+        in payload["publication_error"]
     )
-    current = topic["content"]["pages"][4]["explanation_tr"]
+    current_prompt = topic["content"]["pages"][4]["prompt"]
     return {
         "topic_id": topic["id"],
         "patches": [{
-            "path": ["pages", "4", "explanation_tr"],
-            "old": current,
-            "value": (
-                "«abuela» sözcüğü dişil ve tekildir; bu nedenle onunla uyumlu "
-                "birinci çoğul şahıs iyelik sıfatı «nuestra»dır."
-            ),
+            "path": ["pages", "4", "prompt"],
+            "old": current_prompt,
+            "value": 'Completa la frase: "Esta mujer es ________ abuela."',
             "reason": (
-                "The rationale now names a lexical word/noun unambiguously "
-                "instead of wording that can mean a personal name."
+                "Remove the unrelated biography marker while keeping the "
+                "feminine singular grammatical controller explicit."
             ),
         }],
     }
@@ -114,6 +134,7 @@ def fake_call(**kwargs):
 
 try:
     Q._call_review = fake_call
+
     changed = Q.repair_publication_refusal_feedback(
         units=units,
         language="Spanish",
@@ -123,20 +144,53 @@ try:
         retry_attempt=2,
         budget=Q.ReviewBudget(1.0),
     )
+    assert changed == 1, changed
+
+    page = topic["content"]["pages"][4]
+    # The first would-be user error is gone. If another independent validator
+    # predicate now fires, that becomes the next retry's exact input rather
+    # than a terminal result.
+    first_remaining = RC.hidden_world_reason(page)
+    assert first_remaining != RC.NAME_GENDER_REASON, RC.explain_hidden_world(page)
+    assert first_remaining == (
+        "answer depends on an identity fact inferred from a biographical one"
+    ), RC.explain_hidden_world(page)
+
+    error2 = (
+        "Family Members and Possessive Adjectives: publication blockers are "
+        "not converging; unresolved=[{'code': 'render_contract', "
+        "'where': 'pages[4]', 'reason': '"
+        + first_remaining
+        + "'}]"
+    )
+    changed2 = Q.repair_publication_refusal_feedback(
+        units=units,
+        language="Spanish",
+        level="A1",
+        track="tr",
+        publication_error=error2,
+        retry_attempt=3,
+        budget=Q.ReviewBudget(1.0),
+    )
+    assert changed2 == 1, changed2
 finally:
     Q._call_review = orig_call
 
-assert changed == 1, changed
 page = topic["content"]["pages"][4]
 assert RC.hidden_world_reason(page) == "", RC.explain_hidden_world(page)
 assert RC.page_is_renderable(page, True)[0]
 assert RC.page_is_renderable(page, False)[0]
-assert seen["stage"].startswith(
+assert seen[0][0].startswith(
     "publication_feedback_retry:2:Family Members and Possessive Adjectives"
 )
+assert seen[0][1] == ERROR
+assert "identity fact inferred from a biographical one" in seen[1][1]
 assert page["answer"] == "nuestra"
 assert page["options"] == ["nuestra", "nuestro", "nuestras", "nuestros"]
-print("[PUBLICATION-FEEDBACK] exact refusal is pasted into retry prompt and repaired")
+print(
+    "[PUBLICATION-FEEDBACK] refusal chain is fed back verbatim until the "
+    "unchanged renderer contract is clean"
+)
 
 
 # The outer pipeline must keep content refusals in quality_review rather than
