@@ -814,10 +814,18 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             f"no publication-review budget remains: generation already spent "
             f"${generation_spend:.4f} before the curriculum reserve"
         )
-    budget = Q.ReviewBudget(min(Q.QUALITY_REVIEW_CEILING_USD, review_headroom))
+    # QUALITY_REVIEW_CEILING_USD is the historical/nominal target, not a
+    # second hard stop inside the already-enforced $0.60 classroom ceiling.
+    # The quality pipeline now includes semantic review, risk review, assessment
+    # proof and bounded transport recovery; refusing a required retry merely
+    # because it crosses the old $0.22 sub-cap wastes the calls already paid for.
+    # Use the real class-wide headroom as the hard publication-review ceiling.
+    budget = Q.ReviewBudget(review_headroom)
     _log(
         f"[QUALITY-GATE] generation=${generation_spend:.4f}; "
-        f"review ceiling=${budget.ceiling:.4f}; curriculum reserve=$0.0200"
+        f"review hard ceiling=${budget.ceiling:.4f}; "
+        f"nominal review target=${Q.QUALITY_REVIEW_CEILING_USD:.4f}; "
+        f"curriculum reserve=$0.0200"
     )
     with db_connection() as db:
         chapters = db.execute(
@@ -1002,6 +1010,10 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         on_complete=_lesson_complete,
         quality_error_cls=Q.QualityGateError,
     )
+    _log(
+        f"[QUALITY-BUDGET] after lessons spent=${budget.spent:.4f}; "
+        f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
+    )
 
     risk_patches = 0
     _log("[QUALITY-GATE] pedagogical-risk review running serially.")
@@ -1011,6 +1023,10 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         stage="risk review",
         on_complete=lambda done, total, unit: None,
         quality_error_cls=Q.QualityGateError,
+    )
+    _log(
+        f"[QUALITY-BUDGET] after risk review spent=${budget.spent:.4f}; "
+        f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
     )
 
     # Assessment payloads are the largest review calls. Run them one at a time:
@@ -1033,6 +1049,10 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         stage="assessment review",
         on_complete=_assessment_complete,
         quality_error_cls=Q.QualityGateError,
+    )
+    _log(
+        f"[QUALITY-BUDGET] after assessments spent=${budget.spent:.4f}; "
+        f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
     )
 
     reviewed_units = [{"title": u["title"], "topics": u["topics"]} for u in units]
