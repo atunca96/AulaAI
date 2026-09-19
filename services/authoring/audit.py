@@ -250,18 +250,65 @@ def _notation_pairs(lesson: Any) -> Iterable[Tuple[dict, str, str]]:
 # know which rows of a table are real words. A lesson that has to invent a form
 # to demonstrate a rule has chosen the wrong rule or the wrong example.
 
-_HYPOTHETICAL = tuple(re.compile(p, re.IGNORECASE) for p in (
-    r"\bvarsay[ıi]msal\b", r"\bhipotetik\b", r"\buydurma\b", r"\bger[çc]ek\s+bir\s+kelime\s+de[ğg]il",
-    r"\bhypothetical\b", r"\bnot\s+a\s+real\s+word\b", r"\binvented\b", r"\bmade[- ]up\b",
+#
+# The list held two different kinds of marker, and only one of them is evidence
+# on its own.
+#
+# A CLAIM that a form is not real is evidence anywhere: "not a real word",
+# "invented", "does not exist". A GRAMMATICAL CATEGORY NAME is not — and
+# "varsayımsal", "hypothetical", "hipotetik", "hipotético" are exactly that in
+# most of the taught languages: Konjunktiv II, subjuntivo, subjonctif,
+# congiuntivo, υποθετικός, dilek-şart. A B1 German unit called "Polite Requests
+# and Hypotheticals: Konjunktiv II" cannot describe its own subject without
+# them, and it was refused publication for doing so; "Konjunktiv II expresses a
+# hypothetical situation" read as the lesson calling its own example fake.
+#
+# What separates the two is not a longer word list but WHERE the word sits.
+# The defect that created this rule was `gueso` printed in a table of Spanish
+# words and labelled "(varsayımsal: sert-g peynir)" — a GLOSS, the label on a
+# term the lesson is teaching, where calling something imagined does mean the
+# entry is not a real word. The false positive is INSTRUCTION prose explaining
+# a rule, where the same adjective names the mood under discussion.
+#
+# So the category words still block in a gloss, exactly as before, and never in
+# explanatory prose. Non-existence claims block in both.
+_NOT_A_REAL_FORM = tuple(re.compile(p, re.IGNORECASE) for p in (
+    r"\buydurma\b", r"\bger[çc]ek\s+bir\s+kelime\s+de[ğg]il",
+    r"\bger[çc]ek\s+bir\s+s[öo]zc[üu]k\s+de[ğg]il",
+    r"\bnot\s+a\s+real\s+word\b", r"\binvented\b", r"\bmade[- ]up\b",
     r"\bdoes\s+not\s+exist\b", r"\bnon-?word\b", r"\bfictitious\b",
-    r"\bhipot[ée]tico\b", r"\bno\s+es\s+una\s+palabra\s+real\b",
+    r"\bno\s+es\s+una\s+palabra\s+real\b", r"\bnot\s+an?\s+actual\s+word\b",
+    # The same claim in the instruction tracks, anchored on the thing said not
+    # to exist. Bare "yoktur" is ordinary Turkish for "there isn't" and would
+    # refuse half the prose in the product, so the noun has to be there: it is
+    # a WORD or a FORM that is being denied, not an object in an example.
+    r"\b(?:kelime|s[öo]zc[üu]k|yap[ıi]|bi[çc]im|form)\w*\s+(?:yok|bulunmaz|"
+    r"mevcut\s+de[ğg]il)",
+    r"\bno\s+existe\s+(?:esta|esa|este|ese)\s+(?:palabra|forma)\b",
 ))
 
+# Evidence only where a term is being labelled, never where a rule is explained.
+_HYPOTHETICAL_LABEL = tuple(re.compile(p, re.IGNORECASE) for p in (
+    r"\bvarsay[ıi]msal\b", r"\bhipotetik\b",
+    r"\bhypothetical\b", r"\bhipot[ée]tic[oa]\b",
+))
 
-def hypothetical_markers(text: str) -> List[str]:
+_HYPOTHETICAL = _NOT_A_REAL_FORM + _HYPOTHETICAL_LABEL
+
+
+def hypothetical_markers(text: str, role: str = "") -> List[str]:
+    """Markers saying the material's own example is not a real form.
+
+    `role` is the field's role. In a gloss — the label on a term the lesson is
+    teaching — naming something imagined says the entry is not a real word. In
+    instruction prose the same adjective names the mood being taught, so only
+    an explicit non-existence claim counts there. Callers that pass no role get
+    the strict superset, which keeps every existing caller's behaviour.
+    """
     if not isinstance(text, str) or not text:
         return []
-    return [m.pattern for m in _HYPOTHETICAL if m.search(text)]
+    patterns = _HYPOTHETICAL if role != S.INSTRUCTION else _NOT_A_REAL_FORM
+    return [m.pattern for m in patterns if m.search(text)]
 
 
 # ── Unicode integrity ────────────────────────────────────────────────────────
@@ -576,7 +623,7 @@ def _audit_typed_strings(node: Any, *, language: str, track: str,
                 out.append(Finding("second_pronunciation_system", BLOCK, path=path, field=field,
                                    role=spec.role,
                                    detail=f"ad-hoc respelling {token!r} beside IPA", value=text))
-            for _marker in hypothetical_markers(text):
+            for _marker in hypothetical_markers(text, spec.role):
                 out.append(Finding("invented_form_taught", BLOCK, path=path, field=field,
                                    role=spec.role,
                                    detail="the lesson marks its own example as not a real word",
