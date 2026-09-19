@@ -348,30 +348,48 @@ def test_assessment_grounding_uses_exact_repair_before_generic_retry():
 
 def test_preflight_same_path_blockers_are_repaired_atomically():
     print("\n[Q3c] same-path deterministic blockers are one atomic repair decision")
+    bad_prompt = "Choose the correct family member."
+    good_prompt = "¿Qué miembro de la familia es correcto?"
     page = {
         "type": "mcq",
         "title": "Question",
         "title_tr": "Soru",
-        "prompt": "Choose the correct greeting.",
-        "options": ["hola", "adiós", "gracias", "por favor"],
-        "answer": "hola",
-        "distractors": ["adiós", "gracias", "por favor"],
-        "explanation": "«Hola» is the standard greeting in this item.",
-        "explanation_tr": "Bu maddede standart selamlama «hola»dır.",
+        "prompt": bad_prompt,
+        "options": ["madre", "padre", "hermano", "abuela"],
+        "answer": "madre",
+        "distractors": ["padre", "hermano", "abuela"],
+        "explanation": "The keyed family term is «madre».",
+        "explanation_tr": "İşaretli aile terimi «madre»dir.",
     }
     topic = {"id": "family", "title": "Family Members",
              "content": {"pages": [page]}, "is_assessment": False}
-    units = [{"title": "Unit 1", "topics": [topic]}]
+    units = [{"title": "Family and Descriptions", "topics": [topic]}]
 
-    initial = A.blocking(A.audit_lesson(
-        topic["content"], language="Spanish", track="tr"))
-    codes = [f.code for f in initial]
-    check("instructional_prose_in_target_field" in codes and
-          "stem_in_instructional_language" in codes,
-          f"fixture carries both blockers on the same prompt ({codes})")
-
-    original = Q.T.call_model
+    original_call = Q.T.call_model
+    original_audit = Q._audit_topic
+    original_repair = Q.R.repair_lesson
     exact_payloads = []
+
+    def fake_audit(current_topic, *, language, track):
+        prompt = current_topic["content"]["pages"][0]["prompt"]
+        if prompt != bad_prompt:
+            return []
+        return [
+            A.Finding(
+                "instructional_prose_in_target_field", A.BLOCK,
+                path="pages[0]", field="prompt", role="target",
+                detail="reads as en", value=prompt,
+            ),
+            A.Finding(
+                "stem_in_instructional_language", A.BLOCK,
+                path="pages[0]", field="prompt", role="target",
+                detail="stem reads as en", value=prompt,
+            ),
+        ]
+
+    initial = A.blocking(fake_audit(topic, language="Spanish", track="tr"))
+    check(len(initial) == 2,
+          "fixture carries two authoritative blockers on the same prompt")
 
     def provider(messages, **kwargs):
         payload = json.loads(messages[-1]["content"])
@@ -383,12 +401,11 @@ def test_preflight_same_path_blockers_are_repaired_atomically():
                 model=kwargs.get("model", ""),
             )
         exact_payloads.append(payload)
-        if "rejected_candidate" not in payload:
-            # Simulate a no-op/insufficient first repair. It must never be
-            # committed to canonical content.
-            value = payload["current_value"]
-        else:
-            value = "¿Cuál es el saludo correcto?"
+        value = (
+            payload["current_value"]
+            if "rejected_candidate" not in payload
+            else good_prompt
+        )
         return T.Response(
             data={"value": value, "reason": "Clear every blocker on this prompt."},
             input_tokens=250, output_tokens=50, cost=0.0002,
@@ -397,23 +414,29 @@ def test_preflight_same_path_blockers_are_repaired_atomically():
 
     try:
         Q.T.call_model = provider
+        Q._audit_topic = fake_audit
+        Q.R.repair_lesson = lambda content, language: content
         budget = Q.ReviewBudget(0.05)
         applied = Q.repair_deterministic_preflight(
             units=units, language="Spanish", level="A1",
             track="tr", budget=budget)
     finally:
-        Q.T.call_model = original
+        Q.T.call_model = original_call
+        Q._audit_topic = original_audit
+        Q.R.repair_lesson = original_repair
 
     check(len(exact_payloads) == 2,
           f"one bounded corrective retry was used ({len(exact_payloads)} calls)")
-    check(len(exact_payloads[0].get("blockers") or []) >= 2,
-          "all same-path blockers were supplied in one exact decision")
-    check(topic["content"]["pages"][0]["prompt"] == "¿Cuál es el saludo correcto?",
+    check(bool(exact_payloads) and
+          len(exact_payloads[0].get("blockers") or []) == 2,
+          "both same-path blockers were supplied in one exact decision")
+    check(applied == 1 and
+          topic["content"]["pages"][0]["prompt"] == good_prompt,
           "only the candidate that cleared the whole path was committed")
-    remaining = A.blocking(A.audit_lesson(
-        topic["content"], language="Spanish", track="tr"))
+    remaining = A.blocking(fake_audit(topic, language="Spanish", track="tr"))
     check(not remaining,
-          f"authoritative re-audit is clean ({A.summarise(remaining) if remaining else {}})")
+          "authoritative re-audit is clean after the atomic commit")
+
 
 
 def test_single_semantic_review_model():
