@@ -861,6 +861,23 @@ def _run_publication_until_ready(course_id, language, level, material_language,
     from services.authoring import publication_state as PS
 
     retry_attempt = 0
+    # Progress, not attempts, is what bounds this loop.
+    #
+    # The inner convergence controller learned this already: a repair that
+    # rewrites content without clearing the same validator makes the defect
+    # look new, and the same strategies become eligible again. `_blocker_
+    # fingerprint` fixed that by keying on the invariant instead of the bytes.
+    # This outer loop never got the same treatment, so a refusal the feedback
+    # repair cannot clear was retried forever — observed live at "automatic
+    # repair retry 31", each attempt opening a fresh QUALITY_SELF_HEAL_ATTEMPT_
+    # BUDGET.
+    #
+    # A refusal whose exact text recurs is a refusal the repair did not move.
+    # Some recurrence is legitimate: the first attempt may write a patch the
+    # second one completes. Beyond a few, the pair is not converging and every
+    # further attempt is money for nothing.
+    seen_refusals = {}
+    stall_ceiling = max(1, int(os.getenv("QUALITY_SELF_HEAL_STALL_CEILING", "3")))
     while True:
         try:
             _run_publication_quality_gate(
@@ -886,6 +903,20 @@ def _run_publication_until_ready(course_id, language, level, material_language,
                 f"[QUALITY-SELF-HEAL] retry {retry_attempt} intercepted "
                 f"publication refusal: {publication_error}"
             )
+
+            # Identity is the refusal itself, not the attempt number. Ordinals
+            # and timestamps would make every recurrence look new, which is the
+            # mistake that produced the 24-round inner loop.
+            signature = " ".join(publication_error.split())[:400]
+            seen_refusals[signature] = seen_refusals.get(signature, 0) + 1
+            if seen_refusals[signature] > stall_ceiling:
+                _log(
+                    f"[QUALITY-SELF-HEAL] the same refusal has now survived "
+                    f"{seen_refusals[signature]} repair attempts; the feedback "
+                    f"repair is not moving it. Stopping rather than paying for "
+                    f"further identical attempts: {publication_error}"
+                )
+                raise
 
             # Never surface the refusal in the course card. Logs retain the full
             # diagnostic; the UI only reports that quality repair is continuing.

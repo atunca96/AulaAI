@@ -70,6 +70,7 @@ VERIFICATION_STEPS = [
     "scripts/test_duplicate_prose.py",
     "scripts/test_artifact_audit.py",
     "scripts/test_selfheal_incremental_cost.py",
+    "scripts/test_selfheal_stall_ceiling.py",
     "scripts/test_embedded_patch_corruption.py",
     "scripts/test_camel_hump_patch_reconcile.py",
     "scripts/test_sentence_camel_corruption.py",
