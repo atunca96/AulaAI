@@ -1928,25 +1928,69 @@ def _ungrounded_explanation_names(page: Any) -> List[str]:
     return sorted(t for t in set.intersection(*per_locale) if t not in visible)
 
 
+def _rationale_has_specific_evidence(page: Any) -> bool:
+    """Bind rationale specificity to the final stored artifact.
+
+    Across the stored rationale locales, require at least one learner-visible
+    content token beyond the keyed answer itself. Answer-plus-boilerplate
+    therefore fails without any phrase blacklist or language-specific lexicon.
+    """
+    from services.authoring import render_contract as RC
+
+    if not isinstance(page, dict) or not RC.mcq_like(page):
+        return True
+
+    rationale_tokens: set = set()
+    present = False
+    for key in tuple(dict.fromkeys(_NAME_GENDER_EN_KEYS + _NAME_GENDER_TR_KEYS)):
+        value = page.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        present = True
+        rationale_tokens |= set(RC._WORD_TOKEN.findall(RC._fold(value)))
+    if not present:
+        return True
+
+    visible = _visible_evidence_tokens(page)
+    answer_tokens = set(
+        RC._WORD_TOKEN.findall(RC._fold(str(page.get("answer") or "")))
+    )
+    return bool((rationale_tokens - answer_tokens) & (visible - answer_tokens))
+
+
+_EXPLANATION_SPECIFICITY_REASON = (
+    "answer rationale does not cite item-specific learner-visible evidence"
+)
+
+
 def _explanation_grounding_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Rows shaped like renderer blockers, so the existing plumbing carries them."""
+    """Final-artifact rationale invariants, shaped like renderer blockers."""
     from services.authoring import render_contract as RC
 
     pages = content.get("pages") if isinstance(content, dict) else None
     out: List[Dict[str, Any]] = []
     for page_index, page in enumerate(pages or []):
         names = _ungrounded_explanation_names(page)
-        if not names:
-            continue
-        out.append({
-            "page_index": page_index,
-            "title": str(page.get("title") or f"page {page_index}"),
-            "locale": "both",
-            "why": _EXPLANATION_GROUNDING_REASON,
-            "detail": ", ".join(names),
-            "stem": RC.resolve_stem(page, True) or RC.resolve_stem(page, False),
-            "answer": str(page.get("answer") or ""),
-        })
+        if names:
+            out.append({
+                "page_index": page_index,
+                "title": str(page.get("title") or f"page {page_index}"),
+                "locale": "both",
+                "why": _EXPLANATION_GROUNDING_REASON,
+                "detail": ", ".join(names),
+                "stem": RC.resolve_stem(page, True) or RC.resolve_stem(page, False),
+                "answer": str(page.get("answer") or ""),
+            })
+        if not _rationale_has_specific_evidence(page):
+            out.append({
+                "page_index": page_index,
+                "title": str(page.get("title") or f"page {page_index}"),
+                "locale": "both",
+                "why": _EXPLANATION_SPECIFICITY_REASON,
+                "detail": "rationale overlaps the item only through the keyed answer",
+                "stem": RC.resolve_stem(page, True) or RC.resolve_stem(page, False),
+                "answer": str(page.get("answer") or ""),
+            })
     return out
 
 
@@ -3116,7 +3160,10 @@ def _detect_topic_blockers(topic: Dict[str, Any], *, language: str, track: str,
                 ["render_name_gender", "render_stem", "render_rescue"]
                 if why == _name_gender_reason()
                 else ["explanation_grounding", "render_rescue"]
-                if why == _EXPLANATION_GROUNDING_REASON
+                if why in {
+                    _EXPLANATION_GROUNDING_REASON,
+                    _EXPLANATION_SPECIFICITY_REASON,
+                }
                 else ["render_stem", "render_rescue"]
             ),
         })
@@ -5163,13 +5210,17 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     grounding_pages = sorted({
         int(row["page_index"])
         for row in render_blockers
-        if row.get("why") == _EXPLANATION_GROUNDING_REASON
+        if row.get("why") in {
+            _EXPLANATION_GROUNDING_REASON, _EXPLANATION_SPECIFICITY_REASON
+        }
         and isinstance(row.get("page_index"), int)
     })
     for page_index in grounding_pages:
         rows = [
             row for row in render_blockers
-            if row.get("why") == _EXPLANATION_GROUNDING_REASON
+            if row.get("why") in {
+                _EXPLANATION_GROUNDING_REASON, _EXPLANATION_SPECIFICITY_REASON
+            }
             and row.get("page_index") == page_index
         ]
         if not rows:
