@@ -27,7 +27,7 @@ try:
              "explanation_tr":"Ella kadın bir öğrencidir, bu yüzden cevap mexicana'dır."},
             {"type":"lesson","items":[
                 {"term":"Teléfono: 612 34 56 78",
-                 "phonetic":"[teˈlefono sejisˈθjentos ˈdoθe]",
+                 "phonetic":"[teˈlefono sejsˈθjentos ˈdoθe tɾejnˈtai̯ˈkwatɾo θiŋkwenˈtai̯ˈsejs setenˈtai̯ ˈotʃo]",
                  "translation":"Telefon"}
             ]},
         ]},
