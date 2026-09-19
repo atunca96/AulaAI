@@ -191,9 +191,25 @@ _MCq_RATIONALE_REVIEW_SCHEMA = {
             "type": "array",
             "items": {"type": "string"},
         },
+        "quality_checks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "item_id": {"type": "string"},
+                    "grounded": {"type": "boolean"},
+                    "rationale_specific": {"type": "boolean"},
+                    "reason": {"type": "string"},
+                },
+                "required": [
+                    "item_id", "grounded", "rationale_specific", "reason"
+                ],
+            },
+        },
         "patches": {"type": "array", "items": _RATIONALE_PATCH_SCHEMA},
     },
-    "required": ["checked_ids", "patches"],
+    "required": ["checked_ids", "quality_checks", "patches"],
 }
 
 _COMPLEX_NOTATION_REVIEW_SCHEMA = {
@@ -4051,10 +4067,12 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             patches.append(item)
         applied += _apply_patches({topic_id: topic}, patches)
 
-        # Broad risk review remains the semantic authority. Escalate only a
-        # narrow, server-selected class: an absolute claim with a strongly
-        # overlapping same-page sibling. This catches likely scope
-        # contradictions without opening one model call per absolute sentence.
+        # Broad risk review cannot be its own final authority on categorical
+        # truth. Every SERVER-FLAGGED absolute claim receives one compact,
+        # independent exact judgement. Same-page sibling evidence is included
+        # when available but is not required: the live pronunciation defect was
+        # a standalone universal claim and previously escaped for exactly that
+        # reason. Ordinary non-absolute prose is unchanged and incurs no call.
         current_records = _risk_review_records(
             topic.get("content") or {}, topic_type=str(topic.get("type") or "")
         )
@@ -4081,8 +4099,6 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                         "value": sibling.get("value"),
                     })
             evidence = _scope_overlap_evidence(value, siblings)
-            if not evidence:
-                continue
 
             exact = _call_review(
                 model=ESCALATION_MODEL,
@@ -4094,9 +4110,12 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                     "current": value,
                     "same_page_siblings": evidence,
                     "instruction": (
-                        "Targeted scope escalation: decide whether the current "
-                        "absolute claim improperly broadens the same rule stated "
-                        "by the supplied sibling evidence."
+                        "Targeted scope escalation: independently test whether "
+                        "this absolute/categorical learner-visible claim is "
+                        "exceptionlessly true for the declared language and "
+                        "regional variety. Actively search for standard "
+                        "counterexamples or conditioning factors. Sibling "
+                        "evidence, when present, is supporting context only."
                     ),
                 },
                 max_tokens=650,
@@ -4191,12 +4210,13 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
 
 _EXACT_CATEGORICAL_REVIEW_SYSTEM = """You are AulaAI's final semantic arbiter
 for one categorical pedagogical claim. Judge ONLY the supplied current claim
-against the declared language, level, regional variety and its same-page sibling
-claims.
+against the declared language, level and regional variety. Same-page sibling
+claims may be supplied as supporting evidence but can be empty.
 
 A categorical claim is publication-safe only if it is true for the whole class
-of forms it names. Actively search for standard counterexamples and exception
-classes. If a sibling claim narrows the same category with wording equivalent to
+of forms it names. Actively search for standard counterexamples, contextual
+conditioning and exception classes even when no sibling evidence is supplied.
+If a sibling claim narrows the same category with wording equivalent to
 many, most, usually, often, some, except, or a named subclass, the target claim
 must not silently broaden that category to all members unless that broader claim
 is genuinely universal.
@@ -4242,6 +4262,12 @@ For every item:
 - verify that each explanation justifies the keyed answer from information
   visible in the stem/options or from the grammatical/lexical fact directly
   tested by those words;
+- require a SPECIFIC discriminating rationale: it must name the actual visible
+  clue, grammatical relation, lexical distinction, form, case, agreement,
+  meaning contrast, or other concrete fact that selects the keyed answer.
+  Generic statements equivalent to "the answer is correct", "it matches the
+  question/rule/material", "it matches the information shown", or merely
+  restating the keyed answer are NOT publication quality and MUST be patched;
 - remove invented people, subjects, scenarios, biographical facts or contextual
   details that do not appear in the item;
 - do not infer gender, identity, nationality, profession or other properties
@@ -4255,6 +4281,10 @@ For every item:
 
 Return JSON only:
 {"checked_ids":["q0"],
+ "quality_checks":[
+   {"item_id":"q0","grounded":true,"rationale_specific":true,
+    "reason":"brief final-state judgement"}
+ ],
  "patches":[
    {"item_id":"q0","field":"explanation_tr",
     "old":"EXACT OLD","value":"GROUNDED REPLACEMENT","reason":"brief reason"}
@@ -4262,6 +4292,10 @@ Return JSON only:
 
 Contract:
 - checked_ids MUST contain every supplied item_id exactly once. Copy opaque IDs exactly.
+- quality_checks MUST contain every supplied item_id exactly once and no others.
+  Judge the FINAL state after your own patches. Both grounded and
+  rationale_specific must be true. If either is false in the input, patch the
+  explanation first; never certify a generic rationale as specific.
 - Every patch MUST identify only item_id + field. Never reconstruct or return a topic_id, page index or path; the server owns those coordinates.
 - Patch ONLY an existing field listed inside that item's explanations object.
 - Never change stems, answers, options, distractors, titles or structure.
@@ -4369,6 +4403,10 @@ def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
             f"missing_ids={sorted(expected_ids - checked_ids)[:5]} "
             f"extra_ids={sorted(checked_ids - expected_ids)[:5]}"
         )
+    _require_rationale_quality_proof(
+        data, expected_ids=expected_ids,
+        unit_title=unit_title, stage="rationale grounding reviewer"
+    )
 
     by_id = {str(topic["id"]): topic for topic in topics}
     item_by_id = {row["item_id"]: row for row in items}
@@ -4427,6 +4465,10 @@ def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
                 raise QualityGateError(
                     f"{unit_title}: exact rationale retry coverage mismatch for {row['item_id']}"
                 )
+            _require_rationale_quality_proof(
+                retry, expected_ids={row["item_id"]},
+                unit_title=unit_title, stage="exact rationale retry"
+            )
             retry_patches = retry.get("patches") or []
             if not retry_patches:
                 continue
@@ -4894,6 +4936,44 @@ def _checked_all_ten(data: Dict[str, Any], *, unit_title: str, stage: str) -> No
             f"{unit_title}: {stage} did not explicitly verify all 10 questions"
         )
 
+
+
+def _require_rationale_quality_proof(data: Dict[str, Any], *,
+                                    expected_ids: set,
+                                    unit_title: str, stage: str) -> None:
+    rows = data.get("quality_checks")
+    if not isinstance(rows, list):
+        raise QualityGateError(
+            f"{unit_title}: {stage} omitted rationale quality_checks"
+        )
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise QualityGateError(
+                f"{unit_title}: {stage} rationale proof row is not an object"
+            )
+        item_id = str(row.get("item_id") or "")
+        if not item_id or item_id in seen:
+            raise QualityGateError(
+                f"{unit_title}: {stage} invalid rationale proof id {item_id!r}"
+            )
+        seen.add(item_id)
+        failed = [
+            key for key in ("grounded", "rationale_specific")
+            if row.get(key) is not True
+        ]
+        if failed:
+            raise QualityGateError(
+                f"{unit_title}: {stage} final rationale proof failed "
+                f"{item_id}: {','.join(failed)} - "
+                f"{str(row.get('reason') or '')[:180]}"
+            )
+    if seen != set(expected_ids):
+        raise QualityGateError(
+            f"{unit_title}: {stage} rationale proof coverage mismatch; "
+            f"missing={sorted(set(expected_ids)-seen)[:5]} "
+            f"extra={sorted(seen-set(expected_ids))[:5]}"
+        )
 
 
 def _require_assessment_quality_proof(data: Dict[str, Any], *,
