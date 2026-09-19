@@ -465,6 +465,23 @@ check(raised is not None and "not converging" in str(raised),
       "persistent blocker fails after finite strategies, not after the global round cap")
 
 
+print("\n[9f] locale-specific renderer stem aliases are repaired together")
+alias_page = {
+    "type": "mcq",
+    "title": "Agreement",
+    "title_tr": "Uyum",
+    "prompt_tr": "Ana es ___. (alto)",
+    "prompt_en": "Ana es ___. (alto)",
+    "answer": "alta",
+    "options": ["alta", "alto", "altos", "altas"],
+    "distractors": ["alto", "altos", "altas"],
+    "explanation": "Ana is a feminine name, so «alta».",
+    "explanation_tr": "Ana kadın ismidir; bu yüzden «alta».",
+}
+check(Q._active_renderer_stem_keys(alias_page) == ["prompt_tr", "prompt_en"],
+      "repair resolves the exact stem aliases selected by TR and EN exports")
+
+
 print("\n[10] a clean course is a no-op")
 topic = spanish_topic(clean_pages(), title="Clean")
 snapshot = copy.deepcopy(topic["content"])
