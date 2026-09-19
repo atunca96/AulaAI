@@ -73,7 +73,7 @@ try:
                 "patches":[{
                     "item_id":"q1","field":"explanation_en",
                     "old":"The material says the keys are here.",
-                    "value":"The stem explicitly says the keys are «al lado del sofá».",
+                    "value":"The stem says «debajo del periódico, al lado del sofá», which places them beside the sofa.",
                     "reason":"Ground the rationale in the assessment stem."
                 }],
             }
@@ -105,7 +105,7 @@ try:
                      "reason":"Simulate a batch reviewer copying old from another item."},
                     {"item_id":"q1","field":"explanation_tr",
                      "old":"Ders materyalinde anahtarların burada olduğu belirtilir.",
-                     "value":"Soru kökü anahtarların açıkça «al lado del sofá» olduğunu söylüyor.",
+                     "value":"Soru kökündeki «debajo del periódico, al lado del sofá» ifadesi konumu açıkça kanıtlar.",
                      "reason":"Gerekçeyi assessment kökündeki açık kanıta bağla."},
                 ],
             }
