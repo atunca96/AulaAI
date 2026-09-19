@@ -416,6 +416,55 @@ check(Q._topic_render_blockers(prep["content"]) == [],
       "and the renderer contract admits it in both exports")
 
 
+print("\n[9e] blocker identity stays stable across non-clearing rewrites")
+loop_topic = spanish_topic([{
+    "type": "mcq", "title": "Agreement", "title_tr": "Uyum",
+    "prompt": "Ana es ___. (alto)", "answer": "alta",
+    "options": ["alta", "alto", "altos", "altas"],
+    "distractors": ["alto", "altos", "altas"],
+    "explanation": "Ana is a feminine name, so «alta».",
+    "explanation_tr": "Ana kadın ismidir; bu yüzden «alta».",
+    "why": "Agreement.", "why_tr": "Uyum.",
+}], title="StableFingerprint")
+orig_detect = Q._detect_topic_blockers
+orig_strategies = Q._REPAIR_STRATEGIES.copy()
+calls = []
+def fake_detect(topic, *, language, track, canonical):
+    return [{
+        "kind": "render", "code": "render_contract",
+        "where": "pages[0]", "reason": Q._name_gender_reason(),
+        "render_rows": [{"page_index": 0, "why": Q._name_gender_reason()}],
+        "strategies": ["render_name_gender", "render_stem"],
+    }]
+def mutating_strategy(name):
+    def _run(*, topic, **kwargs):
+        calls.append(name)
+        page = topic["content"]["pages"][0]
+        page["prompt"] = page["prompt"] + "!"
+        return 1
+    return _run
+try:
+    Q._detect_topic_blockers = fake_detect
+    Q._REPAIR_STRATEGIES["render_name_gender"] = mutating_strategy("render_name_gender")
+    Q._REPAIR_STRATEGIES["render_stem"] = mutating_strategy("render_stem")
+    raised = None
+    try:
+        Q.converge_topic(
+            topic=loop_topic, language="Spanish", level="A1", track="tr",
+            budget=Q.ReviewBudget(0.22), unit_title="Unit 1",
+        )
+    except Q.QualityGateError as exc:
+        raised = exc
+finally:
+    Q._detect_topic_blockers = orig_detect
+    Q._REPAIR_STRATEGIES.clear()
+    Q._REPAIR_STRATEGIES.update(orig_strategies)
+check(calls == ["render_name_gender", "render_stem"],
+      f"same logical blocker gets each strategy once despite content mutation ({calls})")
+check(raised is not None and "not converging" in str(raised),
+      "persistent blocker fails after finite strategies, not after the global round cap")
+
+
 print("\n[10] a clean course is a no-op")
 topic = spanish_topic(clean_pages(), title="Clean")
 snapshot = copy.deepcopy(topic["content"])
