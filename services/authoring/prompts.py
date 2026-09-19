@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import List, Optional, Sequence
 
 from services.authoring import schema as S
+from services.authoring.quality_contract import SHARED_QUALITY_CONTRACT
 
 __all__ = [
     "build_lesson_system", "build_lesson_user",
@@ -268,6 +269,8 @@ def build_lesson_system(*, language: str, level: str, track: str = "tr",
 
 {_tracks_block(language, track)}
 
+{SHARED_QUALITY_CONTRACT}
+
 ── CEFR {level} ──
 {_level_block(level)}
 
@@ -296,11 +299,15 @@ def build_lesson_system(*, language: str, level: str, track: str = "tr",
 
 ── BEFORE YOU RETURN ──
 Re-read your own draft once, silently, in this same response, and repair it. Verify, one
-at a time: every string is on the right track; every transcription is IPA and agrees with
-every other transcription of the same form; no table has a half-filled column; no form is
-invented; nothing exceeds the CEFR ceiling; every assessment item has exactly one
-defensible answer that you re-derived from the stem without looking at the key. Make no
-second call, add no audit fields, and return the repaired JSON only."""
+at a time: every string is on the right track; every inflected form agrees with its actual
+learner-visible grammatical controller/trigger; every English/Turkish instructional field
+reads naturally on its own while preserving the same fact; every categorical teaching
+claim has the scope it can really support; every transcription matches the exact written
+form, declared variety and relevant phonological context and agrees with every other
+transcription of that form; no table has a half-filled column; no form is invented; nothing
+exceeds the CEFR ceiling; every assessment item has exactly one defensible answer that you
+re-derived from the stem without looking at the key. Make no second call, add no audit
+fields, and return the repaired JSON only."""
 
 
 def lesson_schema_block(language: str, track: str = "tr") -> str:
@@ -415,6 +422,8 @@ def build_assessment_system(*, language: str, level: str, track: str = "tr") -> 
 
 {_tracks_block(language, track)}
 
+{SHARED_QUALITY_CONTRACT}
+
 ── CEFR {level} ──
 {_level_block(level)}
 
@@ -447,9 +456,12 @@ def build_assessment_system(*, language: str, level: str, track: str = "tr") -> 
   the same reasoning path, however differently worded.
 
 ── BEFORE YOU RETURN ──
-Re-solve every item from its stem and options without looking at your own key, then make
-the key and the explanation agree with what you derived. Discard and replace any item that
-fails a rule above rather than emitting it. Return the JSON only."""
+Re-solve every item from its stem and options without looking at your own key. For any
+answer involving inflection or agreement, explicitly verify the learner-visible
+controller/trigger and every relevant grammatical feature before trusting the option.
+Then make the key and both instructional-language explanations agree with what you
+derived. Discard and replace any item that fails a rule above rather than emitting it.
+Return the JSON only."""
 
 
 def assessment_schema_block(language: str, track: str = "tr") -> str:
