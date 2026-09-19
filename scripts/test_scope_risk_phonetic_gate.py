@@ -73,7 +73,21 @@ try:
     assert any(r["field"]=="rule_tr" for r in risk_records)
 
     def fake_risk_call(**kwargs):
+        stage=kwargs["stage"]
         payload=kwargs["payload"]
+        if stage.startswith("review_categorical_exact:"):
+            current=payload["current"]
+            if "only change for number" in current or "yalnızca tekillik-çoğulluğa" in current:
+                return {
+                    "verdict":"fix",
+                    "value":(
+                        "Many adjectives ending in -e are gender-invariable; consonant-ending adjectives vary by class."
+                        if "only change for number" in current else
+                        "-e ile biten birçok sıfat cinsiyete göre değişmez; ünsüzle biten sıfatlarda davranış sınıfa göre değişir."
+                    ),
+                    "reason":"The claim was too broad."
+                }
+            return {"verdict":"ok","value":current,"reason":"Scoped claim is correct."}
         assert payload["topics"][0]["topic_id"]=="g1"
         checked_ids=[
             rec["record_id"]
