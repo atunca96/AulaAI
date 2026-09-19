@@ -4544,13 +4544,51 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             f"{A.summarise(blockers)}"
         )
 
-    # A renderer-contract blocker is deterministic but not necessarily an
-    # audit.py blocker. The fresh production classroom exposed exactly that
-    # gap: Gemini reviewed all ten items, then the final boundary correctly
-    # refused one hidden-world inference. Give the exact rejected item and
-    # reason one bounded targeted Gemini repair pass while the full unit evidence
-    # is still available. Fail closed if it cannot make all ten renderable.
+    # Assessment rationales use the same deterministic grounding contract as
+    # lesson MCQs. Repair EVERY grounding blocker in this unit with the proven
+    # page-scoped strategy before falling back to the broad assessment editor.
+    # This prevents one invented-person rationale from consuming the unit's only
+    # generic retry and avoids surfacing the same repairable class one question
+    # at a time across later retries.
     render_blockers = _assessment_render_blockers(content)
+    grounding_pages = sorted({
+        int(row["page_index"])
+        for row in render_blockers
+        if row.get("why") == _EXPLANATION_GROUNDING_REASON
+        and isinstance(row.get("page_index"), int)
+    })
+    for page_index in grounding_pages:
+        rows = [
+            row for row in render_blockers
+            if row.get("why") == _EXPLANATION_GROUNDING_REASON
+            and row.get("page_index") == page_index
+        ]
+        if not rows:
+            continue
+        applied += _strategy_explanation_grounding(
+            topic=assessment_topic,
+            blocker={"render_rows": rows},
+            language=language,
+            level=level,
+            track=track,
+            budget=budget,
+            unit_title=unit_title,
+        )
+
+    if grounding_pages:
+        R.repair_lesson(content, language=language)
+        post_findings = A.audit_lesson(content, language=language, track=track)
+        post_blockers = A.blocking(post_findings)
+        if post_blockers:
+            raise QualityGateError(
+                f"{unit_title}: assessment grounding repair introduced deterministic blockers: "
+                f"{A.summarise(post_blockers)}"
+            )
+        render_blockers = _assessment_render_blockers(content)
+
+    # Any OTHER renderer-contract blocker is deterministic but not necessarily
+    # an audit.py blocker. Give the remaining set one bounded targeted assessment
+    # repair pass while the full unit evidence is still available.
     if render_blockers:
         retry_payload = {
             "language": language, "level": level, "unit": unit_title,
