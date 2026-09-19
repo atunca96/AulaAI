@@ -1078,7 +1078,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         # invariants are re-proved here, against the same stored rows the
         # renderer is about to read, microseconds before it reads them.
         from services.authoring import publication_state as _PS
-        raw_benchmark = os.getenv("AULAAI_RAW_BENCHMARK", "").strip().lower() in ("1", "true", "on", "yes")
+        raw_benchmark = __import__("os").getenv("AULAAI_RAW_BENCHMARK", "").strip().lower() in ("1", "true", "on", "yes")
         try:
             certified = _PS.assert_exportable(course_id)
         except _PS.NotPublishable as refusal:
