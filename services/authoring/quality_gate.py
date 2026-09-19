@@ -3194,12 +3194,24 @@ def _scope_overlap_evidence(current: str, siblings: List[Dict[str, Any]]) -> Lis
     scored.sort(key=lambda row: row[0], reverse=True)
     return [row[1] for row in scored[:2]]
 
-def _digit_ipa_structurally_suspicious(value: str) -> bool:
-    """Catch pseudo-IPA that fuses several independently stressed words."""
-    if not isinstance(value, str):
+def _digit_notation_requires_escalation(term: str, value: str) -> bool:
+    """Select digit expressions that deserve an independent second judgement.
+
+    A previous detector only noticed multiple stress marks inside one
+    whitespace token. Real PDF layout split malformed Spanish number IPA across
+    spaces, so a phone number escaped despite being exactly the high-risk case.
+    Multi-group/long digit expressions (phones, codes, dates, account-like
+    strings) are rare and semantically dense enough to justify one compact
+    independent call. Short ordinary numbers such as an age do not.
+    """
+    if not isinstance(term, str) or not isinstance(value, str):
         return False
     body = value.strip().strip("[]/")
-    return any(token.count("ˈ") >= 2 for token in body.split())
+    if any(token.count("ˈ") >= 2 for token in body.split()):
+        return True
+    digit_groups = re.findall(r"\d+", term)
+    digit_count = sum(len(group) for group in digit_groups)
+    return digit_count >= 4 or len(digit_groups) >= 2
 
 
 def _risk_review_records(content: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -3818,7 +3830,7 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
                     raise QualityGateError(
                         f"{unit_title}: digit notation verifier marked ok but changed value"
                     )
-                if _digit_ipa_structurally_suspicious(candidate):
+                if _digit_notation_requires_escalation(row["term"], candidate):
                     data = _call_review(
                         model=ESCALATION_MODEL,
                         system=_DIGIT_NOTATION_VERIFY_SYSTEM,
@@ -3837,8 +3849,8 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
                                 "boundaries and the complete digit reading."
                             ),
                         },
-                        max_tokens=1000,
-                        effort="high",
+                        max_tokens=650,
+                        effort="low",
                         budget=budget,
                         stage=f"review_complex_digit_escalation:{unit_title}:{index}:{round_index}",
                         response_schema=_DIGIT_NOTATION_VERIFY_SCHEMA,
