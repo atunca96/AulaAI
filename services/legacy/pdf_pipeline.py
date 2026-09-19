@@ -842,6 +842,32 @@ Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".
 
 
 
+def _publication_retry_unit_titles(units, publication_error):
+    """Return the smallest unit scope named by an authoritative refusal.
+
+    Refusals are not guaranteed to name the synthetic assessment topic; many
+    assessment errors begin with the chapter/unit title (for example
+    "People and Nationalities ... Q9"). Match both unit titles and contained
+    topic titles, then resume only those units. Empty means "scope unknown" and
+    deliberately falls back to a full gate rather than guessing.
+    """
+    error_text = str(publication_error or "")
+    matched = []
+    for unit in units or []:
+        unit_title = str(unit.get("title") or "")
+        topics = unit.get("topics") or []
+        direct_unit = bool(unit_title and unit_title in error_text)
+        direct_topic = any(
+            str(topic.get("title") or "")
+            and str(topic.get("title") or "") in error_text
+            for topic in topics
+        )
+        if direct_unit or direct_topic:
+            matched.append(unit_title)
+    # Preserve curriculum order while de-duplicating.
+    return list(dict.fromkeys(title for title in matched if title))
+
+
 def _run_publication_until_ready(course_id, language, level, material_language,
                                  gen_id=None, progress=None, total_steps=None,
                                  generation_spend_override=None):
@@ -878,11 +904,13 @@ def _run_publication_until_ready(course_id, language, level, material_language,
     # further attempt is money for nothing.
     seen_refusals = {}
     stall_ceiling = max(1, int(os.getenv("QUALITY_SELF_HEAL_STALL_CEILING", "3")))
+    retry_unit_titles = None
     while True:
         try:
             _run_publication_quality_gate(
                 course_id, language, level, material_language, gen_id=gen_id,
                 generation_spend_override=generation_spend_override,
+                unit_titles=retry_unit_titles,
             )
 
             # Do the persisted proof BEFORE mark_ready. mark_ready records a
@@ -935,6 +963,21 @@ def _run_publication_until_ready(course_id, language, level, material_language,
 
             try:
                 units = PS.load_persisted_units(course_id)
+                retry_unit_titles = _publication_retry_unit_titles(
+                    units, publication_error
+                )
+                if retry_unit_titles:
+                    _log(
+                        f"[QUALITY-SELF-HEAL] retry {retry_attempt} resume scope: "
+                        f"{', '.join(retry_unit_titles)} only; unchanged units "
+                        f"will not re-enter semantic review."
+                    )
+                else:
+                    _log(
+                        f"[QUALITY-SELF-HEAL] retry {retry_attempt} could not "
+                        f"resolve an exact unit scope; falling back to the full "
+                        f"gate for safety."
+                    )
                 # Fresh bounded budget per feedback attempt. The outer retry is
                 # unbounded; a single bad provider response cannot reserve an
                 # unbounded amount at once.
@@ -969,8 +1012,8 @@ def _run_publication_until_ready(course_id, language, level, material_language,
                     bump_version()
                     _log(
                         f"[QUALITY-SELF-HEAL] retry {retry_attempt} persisted "
-                        f"{changed} feedback-driven patch(es); rerunning the "
-                        f"full publication proof."
+                        f"{changed} feedback-driven patch(es); rerunning only "
+                        f"the implicated unit review plus global integrity."
                     )
                 else:
                     _log(
@@ -1022,7 +1065,7 @@ def _run_publication_until_ready(course_id, language, level, material_language,
 
 
 def _run_publication_quality_gate(course_id, language, level, material_language, gen_id=None,
-                                  generation_spend_override=None):
+                                  generation_spend_override=None, unit_titles=None):
     """Review, patch and re-audit every learner-visible field before READY."""
     from services.authoring import quality_gate as Q
 
@@ -1115,11 +1158,35 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             + ", ".join(missing)
         )
 
+    all_units = units
+    requested_titles = {
+        str(title) for title in (unit_titles or []) if str(title).strip()
+    }
+    if requested_titles:
+        active_units = [
+            unit for unit in all_units
+            if str(unit.get("title") or "") in requested_titles
+        ]
+        if not active_units:
+            _log(
+                f"[QUALITY-RESUME] requested units not found "
+                f"{sorted(requested_titles)!r}; using full gate for safety."
+            )
+            active_units = all_units
+        else:
+            _log(
+                f"[QUALITY-RESUME] semantic retry limited to "
+                f"{len(active_units)}/{len(all_units)} unit(s): "
+                + ", ".join(str(u.get("title") or "") for u in active_units)
+            )
+    else:
+        active_units = all_units
+
     # Cheap fail-fast pass: deterministic lesson blockers are exact and known
     # before broad semantic review. Repair them first, prove them clean, and
     # persist that proven correction as a checkpoint. A provider failure here
     # now costs one tiny repair call instead of repeating the full ~$0.12 review.
-    preflight_units = [{"title": u["title"], "topics": u["topics"]} for u in units]
+    preflight_units = [{"title": u["title"], "topics": u["topics"]} for u in active_units]
     preflight_patches = Q.repair_deterministic_preflight(
         units=preflight_units,
         language=language,
@@ -1129,7 +1196,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     )
     if preflight_patches:
         with db_connection() as db:
-            for unit in units:
+            for unit in active_units:
                 for topic in unit["lessons"]:
                     db.execute(
                         "UPDATE topics SET content = ? WHERE id = ?",
@@ -1193,7 +1260,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         )
 
     _log(
-        f"[QUALITY-GATE] reviewing {len(units)} unit(s) with {Q.REVIEW_MODEL}; "
+        f"[QUALITY-GATE] reviewing {len(active_units)} active unit(s) with {Q.REVIEW_MODEL}; "
         f"targeted repairs use {Q.REPAIR_MODEL}."
     )
     lesson_patches = 0
@@ -1260,7 +1327,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             db.commit()
 
     lesson_patches += _run_quality_units_parallel_snapshots(
-        units=units,
+        units=active_units,
         reviewer=_review_lessons,
         stage="lesson review",
         on_complete=_lesson_complete,
@@ -1280,7 +1347,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     with db_connection() as db:
         db.execute(
             "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-            (f"Quality review: pedagogical risks 0/{len(units)}", course_id),
+            (f"Quality review: pedagogical risks 0/{len(active_units)}", course_id),
         )
         db.commit()
     def _risk_complete(done, total, unit):
@@ -1292,7 +1359,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             db.commit()
 
     risk_patches += _run_quality_units_parallel_snapshots(
-        units=units,
+        units=active_units,
         reviewer=_review_risks,
         stage="risk review",
         on_complete=_risk_complete,
@@ -1312,7 +1379,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     with db_connection() as db:
         db.execute(
             "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-            (f"Quality review: pronunciation 0/{len(units)}", course_id),
+            (f"Quality review: pronunciation 0/{len(active_units)}", course_id),
         )
         db.commit()
     def _notation_complete(done, total, unit):
@@ -1324,7 +1391,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             db.commit()
 
     complex_notation_patches += _run_quality_units_parallel_snapshots(
-        units=units,
+        units=active_units,
         reviewer=_review_complex_notation,
         stage="complex pronunciation review",
         on_complete=_notation_complete,
@@ -1347,7 +1414,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     with db_connection() as db:
         db.execute(
             "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-            (f"Quality review: assessments 0/{len(units)}", course_id),
+            (f"Quality review: assessments 0/{len(active_units)}", course_id),
         )
         db.commit()
 
@@ -1360,7 +1427,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             db.commit()
 
     assessment_patches += _run_quality_units_serially(
-        units=units,
+        units=active_units,
         reviewer=_review_assessment,
         stage="assessment review",
         on_complete=_assessment_complete,
@@ -1383,7 +1450,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     with db_connection() as db:
         db.execute(
             "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-            (f"Quality review: rationale grounding 0/{len(units)}", course_id),
+            (f"Quality review: rationale grounding 0/{len(active_units)}", course_id),
         )
         db.commit()
     def _rationale_complete(done, total, unit):
@@ -1395,7 +1462,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             db.commit()
 
     rationale_patches += _run_quality_units_parallel_snapshots(
-        units=units,
+        units=active_units,
         reviewer=_review_rationales,
         stage="rationale grounding review",
         on_complete=_rationale_complete,
@@ -1407,7 +1474,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
     )
 
-    reviewed_units = [{"title": u["title"], "topics": u["topics"]} for u in units]
+    reviewed_units = [{"title": u["title"], "topics": u["topics"]} for u in all_units]
     with db_connection() as db:
         db.execute(
             "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
@@ -1468,7 +1535,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     # partially edited mixture is written and the outer build marks the class
     # failed instead of ready.
     with db_connection() as db:
-        for unit in units:
+        for unit in all_units:
             for topic in unit["topics"]:
                 db.execute(
                     "UPDATE topics SET content = ? WHERE id = ?",
