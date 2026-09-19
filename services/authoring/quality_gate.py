@@ -147,6 +147,18 @@ _RISK_REVIEW_SCHEMA = {
     "required": ["topic_id", "checked_ids", "scope_checked_ids", "patches"],
 }
 
+_RATIONALE_PATCH_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "item_id": {"type": "string"},
+        "field": {"type": "string"},
+        "old": {"type": "string"},
+        "value": {"type": "string"},
+        "reason": {"type": "string"},
+    },
+    "required": ["item_id", "field", "old", "value", "reason"],
+}
 _MCq_RATIONALE_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -155,7 +167,7 @@ _MCq_RATIONALE_REVIEW_SCHEMA = {
             "type": "array",
             "items": {"type": "string"},
         },
-        "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
+        "patches": {"type": "array", "items": _RATIONALE_PATCH_SCHEMA},
     },
     "required": ["checked_ids", "patches"],
 }
@@ -3333,16 +3345,16 @@ For every item:
 Return JSON only:
 {"checked_ids":["q0"],
  "patches":[
-   {"topic_id":"EXACT ID","path":["pages","0","explanation_tr"],
+   {"item_id":"q0","field":"explanation_tr",
     "old":"EXACT OLD","value":"GROUNDED REPLACEMENT","reason":"brief reason"}
  ]}
 
 Contract:
-- checked_ids MUST contain every supplied item_id exactly once. Copy opaque IDs
-  exactly; do not reconstruct topic/page coordinates.
-- Patch ONLY existing explanation/analysis fields supplied for that item.
+- checked_ids MUST contain every supplied item_id exactly once. Copy opaque IDs exactly.
+- Every patch MUST identify only item_id + field. Never reconstruct or return a topic_id, page index or path; the server owns those coordinates.
+- Patch ONLY an existing field listed inside that item's explanations object.
 - Never change stems, answers, options, distractors, titles or structure.
-- Copy old exactly, byte for byte.
+- Copy old exactly, byte for byte from that same item and field.
 """
 
 _COMPLEX_NOTATION_REVIEW_SYSTEM = """You are AulaAI's pronunciation verifier for
@@ -3448,28 +3460,78 @@ def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
         )
 
     by_id = {str(topic["id"]): topic for topic in topics}
-    allowed: Dict[Tuple[str, int], set] = {
-        (row["topic_id"], int(row["page_index"])): set(row["explanations"].keys())
-        for row in items
-    }
+    item_by_id = {row["item_id"]: row for row in items}
+
+    def _materialize_rationale_patch(raw: Dict[str, Any]) -> Dict[str, Any]:
+        item_id = str(raw.get("item_id") or "")
+        row = item_by_id.get(item_id)
+        if row is None:
+            raise QualityGateError(
+                f"rationale grounding patch has unknown item_id {item_id!r}"
+            )
+        field = str(raw.get("field") or "")
+        if field not in row["explanations"]:
+            raise QualityGateError(
+                f"rationale grounding may not patch {item_id} field {field!r}"
+            )
+        return {
+            "topic_id": row["topic_id"],
+            "path": ["pages", row["page_index"], field],
+            "old": raw.get("old"),
+            "value": raw.get("value"),
+            "reason": raw.get("reason") or "",
+        }
+
     patches = []
     for raw in (data.get("patches") or []):
         if not isinstance(raw, dict):
             raise QualityGateError("rationale grounding patch is not an object")
-        patch = dict(raw)
-        topic_id = str(patch.get("topic_id") or "")
-        topic = by_id.get(topic_id)
-        path = patch.get("path")
-        if topic is None or not isinstance(path, list):
-            raise QualityGateError("rationale grounding patch targets unknown content")
-        path = _coerce_patch_path(topic["content"], path)
-        if len(path) != 3 or path[0] != "pages" or not isinstance(path[1], int):
-            raise QualityGateError("rationale grounding patch must target one page field")
-        if str(path[2]) not in allowed.get((topic_id, path[1]), set()):
-            raise QualityGateError(
-                f"rationale grounding may not patch {topic_id} {path!r}"
+        patch = _materialize_rationale_patch(raw)
+        topic = by_id[patch["topic_id"]]
+        current = _get_path(topic["content"], patch["path"])
+        if current != patch["old"]:
+            row = item_by_id[str(raw.get("item_id") or "")]
+            retry = _call_review(
+                model=REVIEW_MODEL,
+                system=_RATIONALE_GROUNDING_REVIEW_SYSTEM,
+                payload={
+                    "language": language,
+                    "level": level,
+                    "regional_variety": profile.variety if profile else "",
+                    "unit": unit_title,
+                    "items": [row],
+                    "instruction": (
+                        "EXACT ITEM RETRY: review only this one item. Copy item_id "
+                        "and old field values exactly from the payload."
+                    ),
+                },
+                max_tokens=700,
+                effort="low",
+                budget=budget,
+                stage=f"review_rationale_exact:{unit_title}:{row['item_id']}",
+                response_schema=_MCq_RATIONALE_REVIEW_SCHEMA,
+                response_name="lesson_mcq_rationale_exact",
             )
-        patch["path"] = path
+            if set(retry.get("checked_ids") or []) != {row["item_id"]}:
+                raise QualityGateError(
+                    f"{unit_title}: exact rationale retry coverage mismatch for {row['item_id']}"
+                )
+            retry_patches = retry.get("patches") or []
+            if not retry_patches:
+                continue
+            if len(retry_patches) != 1:
+                raise QualityGateError(
+                    f"{unit_title}: exact rationale retry returned "
+                    f"{len(retry_patches)} patches for one item"
+                )
+            patch = _materialize_rationale_patch(retry_patches[0])
+            topic = by_id[patch["topic_id"]]
+            current = _get_path(topic["content"], patch["path"])
+            if current != patch["old"]:
+                raise QualityGateError(
+                    f"{unit_title}: exact rationale retry remained stale for "
+                    f"{row['item_id']} {patch['path']!r}"
+                )
         patches.append(patch)
 
     applied = _apply_patches(by_id, patches)
