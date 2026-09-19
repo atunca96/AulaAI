@@ -74,8 +74,14 @@ try:
     def fake_risk_call(**kwargs):
         payload=kwargs["payload"]
         assert payload["topics"][0]["topic_id"]=="g1"
-        return {"topics":[{
-            "topic_id":"g1","verdict":"fix","patches":[
+        checked_paths=[
+            [str(part) for part in rec["path"]]
+            for rec in payload["topics"][0]["records"]
+        ]
+        return {
+            "topic_id":"g1",
+            "checked_paths":checked_paths,
+            "patches":[
                 {
                     "path":["pages","0","rules","0","rule"],
                     "old":"Adjectives ending in -e or a consonant only change for number.",
@@ -89,7 +95,7 @@ try:
                     "reason":"Kural ünsüzle biten sıfatları aşırı genelliyordu.",
                 },
             ],
-        }]}
+        }
     Q._call_review=fake_risk_call
     applied=Q.review_unit_risk_claims(
         unit_title="Family and Personal Descriptions",
