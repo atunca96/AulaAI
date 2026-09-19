@@ -274,6 +274,60 @@ def test_gemini_assessment_review_removes_multi_correct_item():
           "the corrected assessment passes deterministic validation")
 
 
+def test_assessment_grounding_uses_exact_repair_before_generic_retry():
+    print("\n[Q3b] assessment grounding uses the proven exact rationale repair")
+    lesson_topic = {"id": "t1", "title": "Sounds", "content": lesson_fixture()}
+    lesson_topic["content"]["pages"][0]["items"][0]["phonetic"] = "[ˈonθe]"
+    assessment = {"id": "a1", "title": "Unit Assessment",
+                  "content": assessment_fixture(), "is_assessment": True}
+    # Keep the assessment's ordinary semantic fixture clean.
+    assessment["content"]["pages"][1]["options"] = ["hotel", "gato", "mesa", "casa"]
+    assessment["content"]["pages"][1]["distractors"] = ["gato", "mesa", "casa"]
+
+    page = assessment["content"]["pages"][6]
+    page["explanation"] = "Lucia chooses this answer because it matches the rule."
+    page["explanation_tr"] = "Lucia bu cevabı seçer çünkü kuralla eşleşir."
+
+    original = Q.T.call_model
+    calls = []
+
+    def provider(messages, **kwargs):
+        payload = json.loads(messages[-1]["content"])
+        if "current_explanation_en" in payload:
+            calls.append("grounding")
+            return T.Response(
+                data={
+                    "explanation_en": "The keyed answer follows from the information shown in the question.",
+                    "explanation_tr": "Doğru cevap soruda açıkça gösterilen bilgiye dayanır.",
+                    "reason": "Remove the invented person from both rationales.",
+                },
+                input_tokens=300, output_tokens=80, cost=0.0005,
+                model=kwargs.get("model", ""),
+            )
+        calls.append("assessment")
+        return T.Response(
+            data={"checked_questions": list(range(1, 11)), "patches": []},
+            input_tokens=1000, output_tokens=120, cost=0.001,
+            model=kwargs.get("model", ""),
+        )
+
+    try:
+        Q.T.call_model = provider
+        budget = Q.ReviewBudget(0.05)
+        applied = Q.review_unit_assessment(
+            unit_title="Unit 1", assessment_topic=assessment,
+            lesson_topics=[lesson_topic], language="Spanish", level="A1",
+            track="tr", budget=budget)
+    finally:
+        Q.T.call_model = original
+
+    check(calls == ["assessment", "grounding"],
+          f"assessment grounding is repaired before any generic renderer retry ({calls})")
+    check(applied == 2, "both locale rationales were repaired")
+    check(not Q._explanation_grounding_blockers(assessment["content"]),
+          "the repaired assessment has no ungrounded-person rationale")
+
+
 def test_single_semantic_review_model():
     print("\n[Q4] broad review and targeted repair have explicit Gemini roles")
     check(Q.REVIEW_MODEL == "google/gemini-3.7-flash",
@@ -421,6 +475,7 @@ def main():
     test_non_ipa_fails_closed()
     test_gemini_lesson_review_repairs_pdf_defects()
     test_gemini_assessment_review_removes_multi_correct_item()
+    test_assessment_grounding_uses_exact_repair_before_generic_retry()
     test_single_semantic_review_model()
     test_publication_integrity_keeps_ten_questions()
     test_publication_integrity_catches_renderer_silent_drop()
