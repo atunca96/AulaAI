@@ -1534,6 +1534,14 @@ Language-awareness contract:
 - Judge target-language content by the grammar, writing system, morphology,
   syntax, punctuation and standard usage of the DECLARED taught language, not
   by English or Turkish expectations.
+- A rule or formula must name a word by its CITATION FORM - the infinitive,
+  lemma or dictionary entry - never by one of its inflected forms. A published
+  German lesson listed the Prateritum of 'werden' correctly and then summarised
+  the rule as "conjugated 'wurden' + Partizip II", naming a plural form as the
+  thing to be conjugated, while its own example two lines below used 'wurde'.
+  A formula that contradicts the paradigm printed beside it teaches the learner
+  to conjugate an already-conjugated form. Patch the formula to the citation
+  form and leave the paradigm list and the examples untouched.
 - Legitimate language-specific features are not defects. This includes
   grammatical gender, noun/adjective/article agreement, case systems,
   declension, conjugation, relative-pronoun selection, word order, clitics,
