@@ -85,7 +85,7 @@ try:
                      "reason":"Gerekçeyi assessment kökündeki açık kanıta bağla."},
                 ],
             }
-        if stage.startswith("review_complex_digit_terra:"):
+        if stage.startswith("review_complex_digit_escalation:"):
             assert "612 34 56 78" in payload["term"]
             good="[teˈlefono ˈsejs ˈuno ˈðos ˈtɾes ˈkwatɾo ˈθiŋko ˈsejs ˈsjete ˈotʃo]"
             return {
