@@ -185,6 +185,22 @@ def _quoted_tokens(text: Any) -> set:
     return out
 
 
+def _quoted_language_tokens(text: Any) -> set:
+    """Quoted tokens that are clearly cited as language material.
+
+    A multi-token quoted phrase (for example an article+noun phrase) is a
+    linguistic citation. A single quoted capitalised token is NOT enough to
+    establish that: it may be a person's name repeated in the rationale.
+    """
+    out = set()
+    for quoted in re.findall(r"[«\"'‘“]([^»\"'’”]{1,40})[»\"'’”]",
+                             str(text or "")):
+        tokens = _WORD_TOKEN.findall(_fold(quoted))
+        if len(tokens) >= 2:
+            out.update(tokens)
+    return out
+
+
 def personal_name_tokens(page: Dict[str, Any], stem: str) -> set:
     """Folded tokens of the people this item names.
 
@@ -335,12 +351,14 @@ def _name_gender_rationale(explanation: Any, name_words: "re.Pattern[str]",
         if not candidate_hits:
             continue
 
-        quoted = _quoted_tokens(statement)
+        quoted_language = _quoted_language_tokens(statement)
 
-        # A capitalised token quoted as language material is a citation, not a
-        # personhood signal. This is crucial for languages whose ordinary nouns
-        # are capitalised.
-        person_hits = candidate_hits - quoted
+        # Quoting a SINGLE candidate token does not prove it is language
+        # material; rationales often quote a person's name. Only a clearly
+        # lexical multi-token citation is exempted here. This keeps genuine
+        # name->gender cases blocked while allowing cited noun phrases such as
+        # an article+noun expression to explain grammatical agreement.
+        person_hits = candidate_hits - quoted_language
         if decisive and person_hits:
             return True
 
@@ -642,7 +660,8 @@ def _name_gender_statements(explanation: Any, name_words: "re.Pattern[str]",
         explicitly_about_a_name = bool(name_hits)
         names_in_statement = sorted(tokens & names)
         quoted_tokens = sorted(_quoted_tokens(statement))
-        person_hits = sorted((tokens & names) - set(quoted_tokens))
+        quoted_language_tokens = sorted(_quoted_language_tokens(statement))
+        person_hits = sorted((tokens & names) - set(quoted_language_tokens))
         quoted_common = sorted(_quoted_common_tokens(statement))
 
         # Explicit personal-name wording may be anaphoric and omit the person's
@@ -661,6 +680,7 @@ def _name_gender_statements(explanation: Any, name_words: "re.Pattern[str]",
             "answer_tokens_all_present": bool(answer_tokens
                                               and answer_tokens <= tokens),
             "quoted_tokens": quoted_tokens,
+            "quoted_language_tokens": quoted_language_tokens,
             "quoted_common_tokens": quoted_common,
             "route_explicit_name": route_explicit_name,
             "route_decisive_person": route_decisive_person,
