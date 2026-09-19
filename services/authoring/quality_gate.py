@@ -3211,55 +3211,29 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                             "blockers": path_findings,
                             "immutable_page_context": page_context,
                         }
-                        one = _call_review(
-                            model=REPAIR_MODEL,
-                            system=_EXACT_TARGET_REPAIR_SYSTEM,
-                            payload=exact_payload,
-                            max_tokens=700,
-                            effort="low",
-                            budget=budget,
-                            stage=(
-                                f"review_preflight_exact:{topic.get('title')}:"
-                                + ".".join(map(str, marker))
-                            ),
-                            response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
-                            response_name="lesson_preflight_exact_target_value",
-                        )
-                        replacement = one.get("value")
-                        if not isinstance(replacement, str) or not replacement.strip():
-                            raise QualityGateError(
-                                f"preflight exact repair returned empty value for "
-                                f"{topic.get('title')} {list(marker)!r}"
+                        def _exact_candidate(payload: Dict[str, Any], *,
+                                             suffix: str = "") -> str:
+                            result = _call_review(
+                                model=REPAIR_MODEL,
+                                system=_EXACT_TARGET_REPAIR_SYSTEM,
+                                payload=payload,
+                                max_tokens=700,
+                                effort="low",
+                                budget=budget,
+                                stage=(
+                                    f"review_preflight_exact:{topic.get('title')}:"
+                                    + ".".join(map(str, marker)) + suffix
+                                ),
+                                response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+                                response_name="lesson_preflight_exact_target_value",
                             )
-                        replacement = replacement.strip()
-                        if replacement == before:
-                            continue
-
-                        # Never let path-at-a-time repairs fight each other across
-                        # convergence rounds. A single learner-visible field can
-                        # carry several deterministic findings at once (for
-                        # example a target-language stem that also reads as
-                        # instructional prose). The model already receives ALL
-                        # findings for this path; prove its candidate against ALL
-                        # of them on a copy before mutating canonical content.
-                        probe = copy.deepcopy(content)
-                        _set_path(probe, list(marker), replacement, old=before)
-                        R.repair_lesson(probe, language=language)
-
-                        probe_topic = dict(topic)
-                        probe_topic["content"] = probe
-                        probe_blockers = A.blocking(
-                            _audit_topic(probe_topic, language=language, track=track)
-                        )
-
-                        def _finding_hits_marker(finding: A.Finding) -> bool:
-                            paths = _repair_paths_for_finding(probe, finding)
-                            return any(tuple(p) == marker for p in paths)
-
-                        unresolved_here = [
-                            finding for finding in probe_blockers
-                            if _finding_hits_marker(finding)
-                        ]
+                            value = result.get("value")
+                            if not isinstance(value, str) or not value.strip():
+                                raise QualityGateError(
+                                    f"preflight exact repair returned empty value for "
+                                    f"{topic.get('title')} {list(marker)!r}"
+                                )
+                            return value.strip()
 
                         before_signature = {
                             (
@@ -3270,32 +3244,96 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                             )
                             for finding in still
                         }
-                        after_signature = {
-                            (
-                                finding.code,
-                                str(getattr(finding, "path", "") or ""),
-                                str(getattr(finding, "field", "") or ""),
-                                str(getattr(finding, "detail", "") or ""),
-                            )
-                            for finding in probe_blockers
-                        }
-                        introduced = after_signature - before_signature
 
-                        if unresolved_here or introduced or                                 len(after_signature) >= len(before_signature):
+                        def _prove_exact_candidate(replacement: str):
+                            if replacement == before:
+                                return None, [], set()
+                            probe = copy.deepcopy(content)
+                            _set_path(probe, list(marker), replacement, old=before)
+                            R.repair_lesson(probe, language=language)
+
+                            probe_topic = dict(topic)
+                            probe_topic["content"] = probe
+                            probe_blockers = A.blocking(
+                                _audit_topic(
+                                    probe_topic, language=language, track=track
+                                )
+                            )
+
+                            def _finding_hits_marker(finding: A.Finding) -> bool:
+                                paths = _repair_paths_for_finding(probe, finding)
+                                return any(tuple(p) == marker for p in paths)
+
+                            unresolved_here = [
+                                finding for finding in probe_blockers
+                                if _finding_hits_marker(finding)
+                            ]
+                            after_signature = {
+                                (
+                                    finding.code,
+                                    str(getattr(finding, "path", "") or ""),
+                                    str(getattr(finding, "field", "") or ""),
+                                    str(getattr(finding, "detail", "") or ""),
+                                )
+                                for finding in probe_blockers
+                            }
+                            introduced = after_signature - before_signature
+                            if unresolved_here or introduced or \
+                                    len(after_signature) >= len(before_signature):
+                                return None, unresolved_here, introduced
+                            return probe, [], set()
+
+                        replacement = _exact_candidate(exact_payload)
+                        probe, unresolved_here, introduced = _prove_exact_candidate(
+                            replacement
+                        )
+
+                        if probe is None:
+                            # One bounded corrective attempt gets the authoritative
+                            # audit result, not another vague "try again". This
+                            # prevents two findings on the same path from taking
+                            # turns undoing each other across convergence rounds.
+                            corrective_payload = dict(exact_payload)
+                            corrective_payload["rejected_candidate"] = replacement
+                            corrective_payload["authoritative_remaining_blockers"] = [
+                                finding.as_dict() for finding in unresolved_here
+                            ]
+                            corrective_payload["instruction"] = (
+                                "Your previous replacement was rejected by the "
+                                "authoritative deterministic audit. Return ONE "
+                                "replacement for this same path that clears ALL "
+                                "original blockers simultaneously and does not "
+                                "introduce any new blocker. Do not change any "
+                                "other field."
+                            )
                             print(
-                                f"[QUALITY-PATCH] REJECT atomic exact candidate "
+                                f"[QUALITY-PATCH] RETRY atomic exact candidate "
                                 f"{list(marker)!r}: unresolved_here="
                                 f"{A.summarise(unresolved_here) if unresolved_here else {}} "
-                                f"introduced={len(introduced)} "
-                                f"blockers={len(before_signature)}->{len(after_signature)}",
+                                f"introduced={len(introduced)}",
+                                flush=True,
+                            )
+                            replacement = _exact_candidate(
+                                corrective_payload, suffix=":corrective"
+                            )
+                            probe, unresolved_here, introduced = _prove_exact_candidate(
+                                replacement
+                            )
+
+                        if probe is None:
+                            print(
+                                f"[QUALITY-PATCH] REJECT atomic exact candidate "
+                                f"{list(marker)!r} after corrective attempt: "
+                                f"unresolved_here="
+                                f"{A.summarise(unresolved_here) if unresolved_here else {}} "
+                                f"introduced={len(introduced)}",
                                 flush=True,
                             )
                             continue
 
-                        # Commit exactly the candidate that passed authoritative
-                        # audit on the probe. No second normalization pass is
-                        # allowed to transform it into a different, unproved
-                        # value before the next full re-audit.
+                        # Commit only the exact snapshot that cleared every
+                        # blocker on this path and strictly reduced the complete
+                        # deterministic blocker set.
                         content.clear()
                         content.update(probe)
                         applied += 1
