@@ -95,6 +95,7 @@ def assessment_fixture():
             prompt = f"¿Qué opción corresponde al ejemplo número {i}?"
             answer = f"respuesta {i}"
             options = [answer, f"alternativa {i}a", f"alternativa {i}b", f"alternativa {i}c"]
+        cue = "pronuncia" if i == 1 else f"número {i}"
         pages.append({
             "type": "mcq",
             "title": f"Question {i}",
@@ -103,8 +104,12 @@ def assessment_fixture():
             "answer": answer,
             "options": options,
             "distractors": [o for o in options if o != answer],
-            "explanation": "The taught form is correct in this context.",
-            "explanation_tr": "Öğretilen biçim bu bağlamda doğrudur.",
+            "explanation": (
+                f"The visible cue «{cue}» identifies the distinction tested by the keyed option."
+            ),
+            "explanation_tr": (
+                f"Görünür «{cue}» ipucu, işaretli seçeneğin ölçtüğü ayrımı belirler."
+            ),
         })
     return {"pages": pages}
 
@@ -309,8 +314,8 @@ def test_assessment_grounding_uses_exact_repair_before_generic_retry():
             calls.append("grounding")
             return T.Response(
                 data={
-                    "explanation_en": "The keyed answer follows from the information shown in the question.",
-                    "explanation_tr": "Doğru cevap soruda açıkça gösterilen bilgiye dayanır.",
+                    "explanation_en": "The visible cue «número 6» identifies the requested example.",
+                    "explanation_tr": "Görünür «número 6» ipucu istenen örneği belirler.",
                     "reason": "Remove the invented person from both rationales.",
                 },
                 input_tokens=300, output_tokens=80, cost=0.0005,
