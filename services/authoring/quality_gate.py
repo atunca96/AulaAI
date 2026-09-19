@@ -146,9 +146,29 @@ _RISK_REVIEW_SCHEMA = {
             "type": "array",
             "items": {"type": "string"},
         },
+        "scope_checks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "record_id": {"type": "string"},
+                    "counterexample_tested": {"type": "boolean"},
+                    "final_scope_safe": {"type": "boolean"},
+                    "reason": {"type": "string"},
+                },
+                "required": [
+                    "record_id", "counterexample_tested",
+                    "final_scope_safe", "reason"
+                ],
+            },
+        },
         "patches": {"type": "array", "items": _NESTED_PATCH_SCHEMA},
     },
-    "required": ["topic_id", "checked_ids", "scope_checked_ids", "patches"],
+    "required": [
+        "topic_id", "checked_ids", "scope_checked_ids",
+        "scope_checks", "patches"
+    ],
 }
 
 _RATIONALE_PATCH_SCHEMA = {
@@ -251,9 +271,30 @@ _ASSESSMENT_REVIEW_SCHEMA = {
             "type": "array", "items": {"type": "integer"},
             "minItems": 10, "maxItems": 10,
         },
+        "quality_checks": {
+            "type": "array",
+            "minItems": 10,
+            "maxItems": 10,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "question": {"type": "integer"},
+                    "single_answer": {"type": "boolean"},
+                    "distractors_plausible": {"type": "boolean"},
+                    "rationale_specific": {"type": "boolean"},
+                    "cefr_fit": {"type": "boolean"},
+                    "reason": {"type": "string"},
+                },
+                "required": [
+                    "question", "single_answer", "distractors_plausible",
+                    "rationale_specific", "cefr_fit", "reason"
+                ],
+            },
+        },
         "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
     },
-    "required": ["checked_questions", "patches"],
+    "required": ["checked_questions", "quality_checks", "patches"],
 }
 
 class QualityGateError(RuntimeError):
@@ -1318,6 +1359,10 @@ Return JSON only:
 {"topic_id":"EXACT ID",
  "checked_ids":["r0"],
  "scope_checked_ids":["r0"],
+ "scope_checks":[
+   {"record_id":"r0","counterexample_tested":true,
+    "final_scope_safe":true,"reason":"brief factual scope judgement"}
+ ],
  "patches":[
    {"path":["pages","0","rules","0","rule_tr"],"old":"EXACT OLD VALUE",
     "value":"CORRECT REPLACEMENT","reason":"brief factual reason"}
@@ -1332,6 +1377,12 @@ Contract:
   server-flagged categorical claim received an explicit scope/counterexample
   check. You MAY also include other supplied record_id values if you judge those
   records categorical. Never invent an ID that is not present in records.
+- scope_checks MUST contain every supplied absolute_id exactly once and no other
+  IDs. counterexample_tested must be true only after actively trying to find a
+  standard counterexample or exception class. final_scope_safe judges the FINAL
+  value after applying your own patches. If the current wording is too broad,
+  patch it first and then mark final_scope_safe=true. Never mark an unsafe
+  unchanged absolute claim as safe merely because it is pedagogically convenient.
 - Use only paths present in the supplied records.
 - Copy old exactly, byte for byte.
 - Patch only correctness/scope errors, never style.
@@ -1467,10 +1518,23 @@ For every question check:
 
 Return JSON only:
 {"checked_questions":[1,2,3,4,5,6,7,8,9,10],
+ "quality_checks":[
+   {"question":1,"single_answer":true,"distractors_plausible":true,
+    "rationale_specific":true,"cefr_fit":true,
+    "reason":"brief final-state judgement"}
+ ],
  "patches":[
    {"topic_id":"ASSESSMENT TOPIC ID","path":["pages",1,"options"],
     "old":["..."],"value":["..."],"reason":"brief reason"}
  ]}
+
+quality_checks MUST contain question numbers 1..10 exactly once. Judge the
+FINAL state after applying your own patches, not merely the original input.
+Every boolean must be true in that final state. If any criterion is false in the
+input, repair that exact question and only then mark the corresponding final
+criterion true. Do not claim a distractor set is plausible when a learner can
+eliminate choices by unrelated category, malformed language or absurdity; do
+not claim a rationale is specific when it merely restates correctness.
 
 The overview is pages[0]; assessment question 1 is pages[1], question 10 is
 pages[10]. Any supplied English/Turkish counterpart whose value is empty must
@@ -3884,6 +3948,11 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                 f"missing_ids={sorted(missing_scope_ids)[:5]} "
                 f"unknown_ids={sorted(unknown_scope_ids)[:5]}"
             )
+        _require_risk_scope_proof(
+            data,
+            topic_title=str(topic.get("title") or ""),
+            expected_scope_ids=expected_scope_ids,
+        )
 
         patches = []
         for patch in (data.get("patches") or []):
@@ -4734,6 +4803,80 @@ def _checked_all_ten(data: Dict[str, Any], *, unit_title: str, stage: str) -> No
         )
 
 
+
+def _require_assessment_quality_proof(data: Dict[str, Any], *,
+                                      unit_title: str, stage: str) -> None:
+    rows = data.get("quality_checks")
+    if not isinstance(rows, list) or len(rows) != 10:
+        raise QualityGateError(
+            f"{unit_title}: {stage} returned invalid quality proof cardinality"
+        )
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise QualityGateError(
+                f"{unit_title}: {stage} quality proof row is not an object"
+            )
+        q = row.get("question")
+        if not isinstance(q, int) or q < 1 or q > 10 or q in seen:
+            raise QualityGateError(
+                f"{unit_title}: {stage} quality proof has invalid question {q!r}"
+            )
+        seen.add(q)
+        failed = [
+            key for key in (
+                "single_answer", "distractors_plausible",
+                "rationale_specific", "cefr_fit"
+            )
+            if row.get(key) is not True
+        ]
+        if failed:
+            raise QualityGateError(
+                f"{unit_title}: {stage} final quality proof failed Q{q}: "
+                f"{','.join(failed)} - {str(row.get('reason') or '')[:180]}"
+            )
+    if seen != set(range(1, 11)):
+        raise QualityGateError(
+            f"{unit_title}: {stage} quality proof coverage mismatch"
+        )
+
+
+def _require_risk_scope_proof(data: Dict[str, Any], *,
+                              topic_title: str,
+                              expected_scope_ids: set) -> None:
+    rows = data.get("scope_checks")
+    if not isinstance(rows, list):
+        raise QualityGateError(
+            f"{topic_title}: risk reviewer omitted scope_checks"
+        )
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise QualityGateError(
+                f"{topic_title}: risk scope proof row is not an object"
+            )
+        rid = str(row.get("record_id") or "")
+        if rid in seen:
+            raise QualityGateError(
+                f"{topic_title}: duplicate risk scope proof id {rid}"
+            )
+        seen.add(rid)
+        if row.get("counterexample_tested") is not True:
+            raise QualityGateError(
+                f"{topic_title}: no counterexample test for {rid}"
+            )
+        if row.get("final_scope_safe") is not True:
+            raise QualityGateError(
+                f"{topic_title}: unsafe categorical claim remains at {rid}: "
+                f"{str(row.get('reason') or '')[:180]}"
+            )
+    if seen != set(expected_scope_ids):
+        raise QualityGateError(
+            f"{topic_title}: risk scope proof coverage mismatch; "
+            f"missing={sorted(set(expected_scope_ids)-seen)[:5]} "
+            f"extra={sorted(seen-set(expected_scope_ids))[:5]}"
+        )
+
 def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
                            lesson_topics: List[Dict[str, Any]], language: str,
                            level: str, track: str, budget: ReviewBudget) -> int:
@@ -4783,7 +4926,21 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             f"{assessment_cache_key[:12]}",
             flush=True,
         )
-        data = {"checked_questions": list(range(1, 11)), "patches": []}
+        data = {
+            "checked_questions": list(range(1, 11)),
+            "quality_checks": [
+                {
+                    "question": q,
+                    "single_answer": True,
+                    "distractors_plausible": True,
+                    "rationale_specific": True,
+                    "cefr_fit": True,
+                    "reason": "exact final semantic state previously proved",
+                }
+                for q in range(1, 11)
+            ],
+            "patches": [],
+        }
     else:
         data = _call_review(
             model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
@@ -4796,6 +4953,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
         )
     _checked_all_ten(data, unit_title=unit_title, stage="assessment reviewer")
+    _require_assessment_quality_proof(
+        data, unit_title=unit_title, stage="assessment reviewer"
+    )
     by_id = {str(assessment_topic["id"]): assessment_topic}
     applied = _apply_patches(by_id, data.get("patches") or [])
 
@@ -4883,6 +5043,9 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         )
         _checked_all_ten(retry, unit_title=unit_title,
                          stage="assessment render-contract repair")
+        _require_assessment_quality_proof(
+            retry, unit_title=unit_title, stage="assessment render-contract repair"
+        )
         applied += _apply_patches(by_id, retry.get("patches") or [])
 
         R.repair_lesson(content, language=language)
@@ -4997,6 +5160,10 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                     response_name="final_assessment_repair",
                 )
                 _checked_all_ten(
+                    data, unit_title=str(unit.get("title") or ""),
+                    stage="final assessment repair",
+                )
+                _require_assessment_quality_proof(
                     data, unit_title=str(unit.get("title") or ""),
                     stage="final assessment repair",
                 )
