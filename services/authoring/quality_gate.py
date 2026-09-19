@@ -1174,8 +1174,8 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
     user = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     token_plan = [
         int(max_tokens),
-        max(int(max_tokens) + 800, int(math.ceil(max_tokens * 1.75))),
-        max(int(max_tokens) + 1400, int(math.ceil(max_tokens * 2.5))),
+        int(max_tokens) + 800,
+        int(max_tokens) + 1600,
     ]
     original_user = user
     original_stage = stage
@@ -3431,7 +3431,11 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
     }
     data = _call_review(
         model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
-        max_tokens=1600, effort="low", budget=budget,
+        # Structured assessment output must carry explicit 1..10 coverage
+        # plus any patches. 1600 was empirically too tight on reasoning-capable
+        # Gemini routes and caused paid truncation/retry cycles. Headroom is
+        # cheaper than paying for a cut-off answer twice.
+        max_tokens=2400, effort="low", budget=budget,
         stage=f"review_assessment:{unit_title}",
         response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
     )
