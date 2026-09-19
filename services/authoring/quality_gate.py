@@ -1261,13 +1261,16 @@ Hard contract:
 - Return ONLY one replacement string for the existing stem field.
 - Write the stem in the taught language.
 - Preserve the existing keyed answer, options and distractors.
-- The question must be answerable from the visible stem itself or from an
-  explicit country→nationality fact already present in the immutable page
-  context. Do NOT require the learner to infer nationality/identity from a
-  person's birthplace, residence, job, biography, name, or cultural background.
-- For a country/nationality item, prefer a direct vocabulary mapping question
-  (for example: country → nationality) instead of a biographical identity
-  question when that removes the inference.
+- The keyed answer must follow from learner-visible evidence in the rewritten
+  stem and from the grammatical/lexical fact the item is actually testing.
+- If the answer depends on a grammatical feature such as gender, case,
+  agreement, number, person, tense, aspect, register, script or word form, make
+  the relevant grammatical evidence explicit in the stem itself using natural
+  content for the declared taught language.
+- Do not require identity or world-knowledge inference from a personal name,
+  birthplace, residence, job, biography, culture or stereotype.
+- Preserve valid language-specific grammar and writing-system behavior. Do not
+  flatten a language-specific distinction merely to satisfy the renderer.
 - Do not reveal the keyed answer verbatim unless the original task already does.
 - Keep the CEFR level and pedagogical intent.
 - Return JSON only: {"value":"NON-EMPTY REPLACEMENT","reason":"brief reason"}.
@@ -1661,6 +1664,22 @@ def _explanation_grounding_blockers(content: Dict[str, Any]) -> List[Dict[str, A
     return out
 
 
+def _active_renderer_stem_keys(page: Dict[str, Any]) -> List[str]:
+    """Existing fields the renderer will actually select in either export locale."""
+    from services.authoring import render_contract as RC
+
+    keys: List[str] = []
+    for candidates in (RC._STEM_KEYS_TR, RC._STEM_KEYS_EN):
+        key = next(
+            (name for name in candidates
+             if isinstance(page.get(name), str) and page.get(name).strip()),
+            None,
+        )
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
 def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
                                       level: str, budget: ReviewBudget,
                                       blockers: Sequence[Dict[str, Any]],
@@ -1721,14 +1740,10 @@ def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
             )
             continue
 
-        stem_key = next(
-            (key for key in ("prompt", "question", "stem")
-             if isinstance(page.get(key), str) and page.get(key).strip()),
-            None,
-        )
-        if not stem_key:
+        stem_keys = _active_renderer_stem_keys(page)
+        if not stem_keys:
             continue
-
+        stem_key = stem_keys[0]
         before = str(page[stem_key]).strip()
         context = {}
         for key in (
@@ -1776,8 +1791,17 @@ def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
         if replacement == before:
             continue
 
-        _set_path(content, ["pages", page_index, stem_key], replacement, old=before)
-        applied += 1
+        changed = 0
+        for active_key in stem_keys:
+            active_before = str(page.get(active_key) or "").strip()
+            if active_before == replacement:
+                continue
+            _set_path(
+                content, ["pages", page_index, active_key], replacement,
+                old=page.get(active_key),
+            )
+            changed += 1
+        applied += changed
 
     return applied
 
@@ -1874,14 +1898,10 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
         print(f"[QUALITY-REPAIR] REJECT {message}", flush=True)
         return 0
 
-    stem_key = next(
-        (key for key in ("prompt", "question", "stem")
-         if isinstance(page.get(key), str) and page.get(key).strip()),
-        None,
-    )
-    if not stem_key:
+    stem_keys = _active_renderer_stem_keys(page)
+    if not stem_keys:
         return 0
-
+    stem_key = stem_keys[0]
     before_stem = str(page[stem_key]).strip()
     en_keys = [k for k in _NAME_GENDER_EN_KEYS
                if isinstance(page.get(k), str) and page.get(k).strip()]
@@ -1934,7 +1954,9 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
             f"field for page {page_index}"
         )
 
-    updates: Dict[str, Any] = {stem_key: stem.strip()}
+    updates: Dict[str, Any] = {
+        key: stem.strip() for key in stem_keys
+    }
     for key in en_keys:
         updates[key] = explanation_en.strip()
     for key in tr_keys:
@@ -1969,8 +1991,12 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
     # rationale. The renderer rule reads names off the stem, so a stale
     # "Ana is feminine" next to a stem about «mujer» would pass the contract
     # while still teaching the inference this repair exists to remove.
-    dropped = RC.personal_name_tokens(page, before_stem) - \
-        RC.personal_name_tokens(probe, str(probe.get(stem_key) or ""))
+    before_names = set()
+    after_names = set()
+    for key in stem_keys:
+        before_names |= RC.personal_name_tokens(page, str(page.get(key) or ""))
+        after_names |= RC.personal_name_tokens(probe, str(probe.get(key) or ""))
+    dropped = before_names - after_names
     if dropped:
         leftover = sorted(
             name for name in dropped
