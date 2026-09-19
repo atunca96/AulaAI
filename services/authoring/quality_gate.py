@@ -5382,6 +5382,48 @@ def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
     items = _lesson_mcq_rationale_items(topics)
     if not items:
         return 0
+
+    # Item-scoped, because the verdict is item-scoped. `_require_rationale_quality_proof`
+    # demands `grounded` and `rationale_specific` per item_id, and
+    # `attest_rationale_pages` records the exact semantic surface each verdict
+    # covered. So an item whose bytes already carry that proof has nothing left
+    # to learn from being sent again.
+    #
+    # This is the whole cost of the self-heal loop. The payload is built for the
+    # UNIT, so one repaired page in one lesson changed the payload and the unit's
+    # entire rationale review was bought a second time — ten items re-judged to
+    # re-learn one. Filtering to unproven items makes a retry pay for the item
+    # that changed and nothing else, and when every item is proven the call is
+    # not made at all.
+    #
+    # Nothing is skipped on unproven content: no proof means the item is sent,
+    # and any edit to a stem, option, answer or rationale drops its proof.
+    by_page: Dict[str, Any] = {}
+    for topic in topics:
+        pages = (topic.get("content") or {}).get("pages")
+        if isinstance(pages, list):
+            for index, page in enumerate(pages):
+                by_page[f"{topic.get('id')}:{index}"] = page
+
+    unproven = []
+    for row in items:
+        page = by_page.get(f"{row.get('topic_id')}:{row.get('page_index')}")
+        if page is not None and _rationale_proof_covers(page):
+            continue
+        unproven.append(row)
+    if not unproven:
+        print(f"[QUALITY-CACHE] HIT rationale {unit_title}: "
+              f"all {len(items)} item(s) already proven", flush=True)
+        return 0
+    if len(unproven) < len(items):
+        print(f"[QUALITY-CACHE] PARTIAL rationale {unit_title}: "
+              f"{len(unproven)}/{len(items)} item(s) need review", flush=True)
+    # Re-id over the filtered set so the coverage contract stays contiguous and
+    # `item_by_id` below routes patches to the same rows the model was shown.
+    for position, row in enumerate(unproven):
+        row["item_id"] = f"q{position}"
+    items = unproven
+
     profile = S.profile_for_language(language)
     rationale_payload = {
         "language": language,
