@@ -873,7 +873,10 @@ def _run_publication_until_ready(course_id, language, level, material_language,
             # transient repairable content failures invisible to the user.
             PS.verify_publishable(course_id)
             return PS.mark_ready(
-                course_id, gen_id, progress=progress, total_steps=total_steps
+                course_id, gen_id,
+                progress=progress,
+                total_steps=total_steps,
+                terminal_on_refusal=False,
             )
 
         except (Q.QualityGateError, PS.NotPublishable) as failure:
