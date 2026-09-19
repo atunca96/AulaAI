@@ -308,45 +308,40 @@ def _name_gender_rationale(explanation: Any, name_words: "re.Pattern[str]",
     because that very statement names the keyed answer.
     """
     if not names:
-        # No person is introduced, so no gender claim in the rationale can be
-        # reasoning from a personal name. Grammatical terminology is free.
+        # No candidate person is introduced, so no rationale can be refusing
+        # personal-name inference. Grammatical terminology is free.
         return False
+
     # Could a gender fact actually decide which option is correct?
-    # This must come from the OPTION STRUCTURE, not from the ordinary fact that
-    # a rationale mentions its keyed answer. Every competent grammar rationale
-    # names the answer it is explaining; treating that as dependency evidence
-    # makes capitalised common nouns look like people and refuses correct
-    # agreement/case explanations.
     decisive = (answer_turns_on_form(page)
                 or _options_are_gender_values(page, gender_words))
-    answer_tokens = set(_WORD_TOKEN.findall(_fold(page.get("answer"))))
-    choice_tokens = set(answer_tokens)
-    for option in _normalised_options(page):
-        choice_tokens.update(option.split())
+
     for statement in _STATEMENT_SPLIT.split(str(explanation or "")):
         folded = _fold(statement)
         if not gender_words.search(folded):
             continue
+
         tokens = set(_WORD_TOKEN.findall(folded))
+        candidate_hits = tokens & names
+        if not candidate_hits:
+            # A bare metalanguage word such as Turkish "isim" (= noun/name)
+            # is not evidence that this statement is about a PERSON.
+            continue
+
         explicitly_about_a_name = bool(name_words.search(folded))
+        quoted = _quoted_tokens(statement)
 
-        # A bare grammatical explanation such as "Wohnung is feminine, so
-        # «die»" must not become a personal-name inference merely because
-        # Wohnung is capitalised and the explanation names the keyed answer.
-        # If the option structure itself makes gender decisive, a statement
-        # tying the gender claim to a candidate person is enough. Otherwise we
-        # require the rationale to explicitly assert that a NAME supplies the
-        # gender fact.
-        if tokens & names and (decisive or explicitly_about_a_name):
+        # A capitalised token quoted as language material is a citation, not a
+        # personhood signal. This is crucial for languages whose ordinary nouns
+        # are capitalised. However an explicit statement that the quoted token
+        # is a NAME remains unsafe.
+        person_hits = candidate_hits - quoted
+
+        if explicitly_about_a_name:
+            return True
+        if decisive and person_hits:
             return True
 
-        # "The name is feminine" may omit the person's token while still making
-        # the forbidden inference. Keep that route, but only when the statement
-        # explicitly talks about a name and is not instead citing another
-        # learner-visible vocabulary word.
-        cited = _quoted_common_tokens(statement) - choice_tokens
-        if not cited and explicitly_about_a_name:
-            return True
     return False
 
 
@@ -644,13 +639,15 @@ def _name_gender_statements(explanation: Any, name_words: "re.Pattern[str]",
         name_hits = name_words.findall(folded)
         explicitly_about_a_name = bool(name_hits)
         names_in_statement = sorted(tokens & names)
+        quoted_tokens = sorted(_quoted_tokens(statement))
+        person_hits = sorted((tokens & names) - set(quoted_tokens))
         quoted_common = sorted(_quoted_common_tokens(statement))
-        cited = sorted(_quoted_common_tokens(statement) - choice_tokens)
 
-        # Route 1: a gender claim tied to a token this item treats as a person.
-        route_1 = bool(names_in_statement) and (decisive or explicitly_about_a_name)
-        # Route 2: "the name is feminine" without repeating the person's token.
-        route_2 = (not cited) and explicitly_about_a_name
+        # The live predicate now requires an actual candidate-person token.
+        # Explicit name language may validate a quoted candidate as a name;
+        # otherwise quoted tokens are treated as language material.
+        route_explicit_name = bool(names_in_statement) and explicitly_about_a_name
+        route_decisive_person = bool(person_hits) and decisive
 
         rows.append({
             "statement": _clip(statement.strip()),
@@ -658,13 +655,14 @@ def _name_gender_statements(explanation: Any, name_words: "re.Pattern[str]",
             "gender_word_hits": gender_hits,
             "name_word_hits": name_hits,
             "names_in_statement": names_in_statement,
+            "person_hits_unquoted": person_hits,
             "answer_tokens_all_present": bool(answer_tokens
                                               and answer_tokens <= tokens),
+            "quoted_tokens": quoted_tokens,
             "quoted_common_tokens": quoted_common,
-            "cited_minus_choices": cited,
-            "route_1_name_token_and_gate": route_1,
-            "route_2_name_word_uncited": route_2,
-            "fires": route_1 or route_2,
+            "route_explicit_name": route_explicit_name,
+            "route_decisive_person": route_decisive_person,
+            "fires": route_explicit_name or route_decisive_person,
         })
     return rows
 
@@ -731,10 +729,11 @@ def explain_hidden_world(page: Dict[str, Any]) -> Dict[str, Any]:
     decisive_values = _options_are_gender_values(page, _V57_GENDER_WORDS)
     firing = [
         {"field": f["field"], "statement": row["statement"],
-         "route_1": row["route_1_name_token_and_gate"],
-         "route_2": row["route_2_name_word_uncited"],
+         "route_explicit_name": row["route_explicit_name"],
+         "route_decisive_person": row["route_decisive_person"],
          "name_word_hits": row["name_word_hits"],
-         "names_in_statement": row["names_in_statement"]}
+         "names_in_statement": row["names_in_statement"],
+         "person_hits_unquoted": row["person_hits_unquoted"]}
         for f in fields for row in f["statements"] if row["fires"]
     ]
 
@@ -748,11 +747,10 @@ def explain_hidden_world(page: Dict[str, Any]) -> Dict[str, Any]:
         classification = "layer_disagreement_hidden_world_vs_unsafe_reason"
     elif decisive_form or decisive_values:
         classification = "decisive_option_shape"
-    elif all(row["route_2"] and not row["route_1"] for row in firing):
-        classification = "name_word_only_no_person_token"
-    elif any(row["name_word_hits"] and not (decisive_form or decisive_values)
-             for row in firing):
-        classification = "name_word_false_positive_with_capitalised_token"
+    elif any(row["route_explicit_name"] for row in firing):
+        classification = "explicit_personal_name_claim"
+    elif any(row["route_decisive_person"] for row in firing):
+        classification = "decisive_unquoted_person_candidate"
     else:
         classification = "unclassified"
 
