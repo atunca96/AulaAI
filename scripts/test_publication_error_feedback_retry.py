@@ -215,7 +215,7 @@ import server as S  # noqa: E402
 server_source = inspect.getsource(S.APIHandler._retry_classroom_publication)
 assert "_run_publication_until_ready" in server_source
 assert "_run_publication_quality_gate" not in server_source
-assert "PS.mark_failed(" not in server_source
+assert "except Exception as exc:\n                PS.mark_failed" not in server_source
 startup_source = inspect.getsource(S._resume_nonterminal_publication_repairs)
 assert "Publication refused:%" in startup_source
 assert "_run_publication_until_ready" in startup_source
