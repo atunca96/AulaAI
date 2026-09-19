@@ -185,6 +185,29 @@ _COMPLEX_NOTATION_REVIEW_SCHEMA = {
     "required": ["checked_ids", "patches"],
 }
 
+_EXACT_CATEGORICAL_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "verdict": {"type": "string", "enum": ["ok", "fix"]},
+        "value": {"type": "string"},
+        "reason": {"type": "string"},
+    },
+    "required": ["verdict", "value", "reason"],
+}
+
+_DIGIT_NOTATION_VERIFY_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "verdict": {"type": "string", "enum": ["ok", "fix"]},
+        "spoken_form": {"type": "string"},
+        "value": {"type": "string"},
+        "reason": {"type": "string"},
+    },
+    "required": ["verdict", "spoken_form", "value", "reason"],
+}
+
 _EXACT_TARGET_REPAIR_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -3322,6 +3345,51 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
     return applied
 
 
+
+_EXACT_CATEGORICAL_REVIEW_SYSTEM = """You are AulaAI's final semantic arbiter
+for one categorical pedagogical claim. Judge ONLY the supplied current claim
+against the declared language, level, regional variety and its same-page sibling
+claims.
+
+A categorical claim is publication-safe only if it is true for the whole class
+of forms it names. Actively search for standard counterexamples and exception
+classes. If a sibling claim narrows the same category with wording equivalent to
+many, most, usually, often, some, except, or a named subclass, the target claim
+must not silently broaden that category to all members unless that broader claim
+is genuinely universal.
+
+Return JSON only:
+{"verdict":"ok|fix","value":"FINAL CLAIM","reason":"brief factual reason"}
+
+Rules:
+- If verdict=ok, value MUST equal current exactly.
+- If verdict=fix, preserve the teaching point but narrow or qualify it enough to
+  be factually correct. Do not add unrelated material.
+- Do not depend on the source language wording; judge the linguistic rule itself.
+"""
+
+_DIGIT_NOTATION_VERIFY_SYSTEM = """You are AulaAI's final verifier for one
+digit-bearing pronunciation entry. Work from the exact written learner-visible
+term and current transcription.
+
+First derive a plain-language spoken_form for the complete written expression in
+the declared target language and regional variety. Then verify the IPA against
+that spoken_form token by token. Every written digit/group must be represented
+in order; no digit/group may disappear, merge into a different number, or be
+invented. Reject malformed pseudo-IPA even when it resembles the intended number
+word. If a label such as telephone/address/room precedes the digits, verify that
+label too.
+
+Return JSON only:
+{"verdict":"ok|fix","spoken_form":"HOW THE WHOLE TERM IS READ",
+ "value":"FINAL IPA","reason":"brief reason"}
+
+Rules:
+- If verdict=ok, value MUST equal current exactly.
+- If verdict=fix, value must be a complete replacement transcription for the
+  whole written term, not a partial fragment.
+- Preserve the classroom's bracket convention and declared regional variety.
+"""
 
 _RATIONALE_GROUNDING_REVIEW_SYSTEM = """You are AulaAI's answer-key grounding verifier.
 Review ONLY the supplied lesson MCQ rationales. The questions, keyed answers and
