@@ -3446,11 +3446,18 @@ def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
         patches.append(patch)
 
     applied = _apply_patches(by_id, patches)
+    # This verifier owns rationale grounding only. Do not invoke the whole
+    # convergence machine after a clean local repair: that can make an
+    # explanation edit pay for an unrelated bilingual/structural repair. If the
+    # new rationale itself still trips grounding or renderer semantics, then
+    # hand only that genuinely affected topic back to convergence.
     for topic in topics:
-        applied += converge_topic(
-            topic=topic, language=language, level=level, track=track,
-            budget=budget, unit_title=unit_title,
-        )
+        content = topic.get("content") or {}
+        if _explanation_grounding_blockers(content) or _topic_render_blockers(content):
+            applied += converge_topic(
+                topic=topic, language=language, level=level, track=track,
+                budget=budget, unit_title=unit_title,
+            )
     return applied
 
 
