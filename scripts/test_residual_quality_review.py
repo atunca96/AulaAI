@@ -33,6 +33,20 @@ try:
         ]},
     }
 
+
+    assessment={
+        "id":"a1","title":"Unit Assessment","type":"unit_assessment",
+        "is_assessment":True,
+        "content":{"pages":[
+            {"type":"mcq",
+             "question":"Carlos dice: «están debajo del periódico, al lado del sofá». ¿Dónde están?",
+             "answer":"Al lado del sofá.",
+             "options":["Al lado del sofá.","En el pasillo.","Fuera.","Delante del armario."],
+             "explanation_en":"The material says the keys are here.",
+             "explanation_tr":"Ders materyalinde anahtarların burada olduğu belirtilir."}
+        ]},
+    }
+
     def fake_call(**kwargs):
         stage=kwargs["stage"]
         payload=kwargs["payload"]
@@ -49,6 +63,14 @@ try:
                      "old":"Ella kadın bir öğrencidir, bu yüzden cevap mexicana'dır.",
                      "value":"«mexicano» sıfatının dişil tekil biçimi «mexicana»dır.",
                      "reason":"Soruda bulunmayan özne ve senaryoyu kaldır."},
+                    {"topic_id":"a1","path":["pages","0","explanation_en"],
+                     "old":"The material says the keys are here.",
+                     "value":"The stem explicitly says the keys are «al lado del sofá».",
+                     "reason":"Ground the rationale in the assessment stem."},
+                    {"topic_id":"a1","path":["pages","0","explanation_tr"],
+                     "old":"Ders materyalinde anahtarların burada olduğu belirtilir.",
+                     "value":"Soru kökü anahtarların açıkça «al lado del sofá» olduğunu söylüyor.",
+                     "reason":"Gerekçeyi assessment kökündeki açık kanıta bağla."},
                 ],
             }
         if stage.startswith("review_complex_digit_notation:") or stage.startswith("review_complex_notation:"):
@@ -67,12 +89,14 @@ try:
 
     Q._call_review=fake_call
     applied=Q.review_unit_mcq_rationales(
-        unit_title="Identity",topics=[topic],language="Spanish",level="A1",
+        unit_title="Identity",topics=[topic,assessment],language="Spanish",level="A1",
         track="tr",budget=Q.ReviewBudget(1.0),
     )
-    assert applied==2
+    assert applied==4
     assert "female student" not in topic["content"]["pages"][0]["explanation_en"]
     assert "öğrencidir" not in topic["content"]["pages"][0]["explanation_tr"]
+    assert "al lado del sofá" in assessment["content"]["pages"][0]["explanation_en"]
+    assert "burada olduğu" not in assessment["content"]["pages"][0]["explanation_tr"]
 
     applied=Q.review_unit_complex_notation(
         unit_title="Identity",topics=[topic],language="Spanish",level="A1",
