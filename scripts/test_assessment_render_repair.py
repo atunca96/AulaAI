@@ -52,6 +52,17 @@ assert before, "production-signature hidden-world inference must be detected"
 assert any(row["question"] == 1 for row in before)
 assert {row["locale"] for row in before} == {"tr", "en"}
 
+def quality_checks():
+    return [{
+        "question": i,
+        "single_answer": True,
+        "distractors_plausible": True,
+        "rationale_specific": True,
+        "cefr_fit": True,
+        "reason": "fixture final state satisfies the assessment contract",
+    } for i in range(1, 11)]
+
+
 calls = []
 orig_call = Q._call_review
 orig_audit = Q.A.audit_lesson
@@ -63,12 +74,14 @@ def fake_call_review(**kwargs):
     payload = kwargs["payload"]
     if stage.startswith("review_assessment:"):
         assert payload["render_contract_blockers"],             "Luna must receive deterministic renderer blockers up front"
-        return {"checked_questions": list(range(1, 11)), "patches": []}
+        return {"checked_questions": list(range(1, 11)),
+                "quality_checks": quality_checks(), "patches": []}
     assert stage.startswith("review_assessment_render_retry:"), stage
     blockers = payload["render_contract_blockers"]
     assert blockers and blockers[0]["question"] == 1
     return {
         "checked_questions": list(range(1, 11)),
+        "quality_checks": quality_checks(),
         "patches": [{
             "topic_id": "assessment-1",
             "path": ["pages", 1, "prompt"],
