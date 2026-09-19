@@ -1172,6 +1172,13 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
                  stage: str, response_schema: Dict[str, Any],
                  response_name: str) -> Dict[str, Any]:
     user = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    token_plan = [
+        int(max_tokens),
+        max(int(max_tokens) + 800, int(math.ceil(max_tokens * 1.75))),
+        max(int(max_tokens) + 1400, int(math.ceil(max_tokens * 2.5))),
+    ]
+    original_user = user
+    original_stage = stage
     reservation = budget.reserve(
         model=model, input_chars=len(system) + len(user),
         output_tokens=max_tokens, stage=stage,
@@ -1219,6 +1226,60 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
         f"error={response.error or '-'}",
         flush=True,
     )
+    if bool(getattr(response, "truncated", False)):
+        last_error = response.error or "structured output truncated"
+        for retry_no, retry_tokens in enumerate(token_plan[1:], start=1):
+            retry_stage = f"{original_stage}:truncation_retry_{retry_no}"
+            retry_user = original_user + (
+                "\\n\\nSTRUCTURED OUTPUT RETRY: the previous response was truncated "
+                "before the JSON object closed. Return the smallest valid JSON that "
+                "exactly matches the response schema. Include every required field "
+                "and required coverage, keep reason text brief, and emit no commentary."
+            )
+            retry_reservation = budget.reserve(
+                model=model, input_chars=len(system) + len(retry_user),
+                output_tokens=retry_tokens, stage=retry_stage,
+            )
+            print(
+                f"[QUALITY-CALL] RETRY {original_stage} structured output truncated; "
+                f"max_tokens={retry_tokens}", flush=True,
+            )
+            try:
+                retry_response = T.call_model(
+                    [{"role": "system", "content": system},
+                     {"role": "user", "content": retry_user}],
+                    max_tokens=retry_tokens, temperature=0.0, model=model,
+                    cache_system=True, timeout=180, attempts=2,
+                    reasoning_effort=effort, response_schema=response_schema,
+                    response_name=response_name,
+                )
+            except Exception:
+                budget.release(retry_reservation)
+                raise
+            budget.record(
+                retry_response, model=model, stage=retry_stage,
+                reservation=retry_reservation,
+            )
+            print(
+                f"[QUALITY-CALL] END {retry_stage} ok={retry_response.ok} "
+                f"truncated={bool(getattr(retry_response, 'truncated', False))} "
+                f"seconds={retry_response.seconds:.2f} "
+                f"cost=${float(retry_response.cost or 0.0):.4f} "
+                f"error={retry_response.error or '-'}", flush=True,
+            )
+            if bool(getattr(retry_response, "truncated", False)):
+                last_error = retry_response.error or "structured output truncated"
+                continue
+            if not retry_response.ok or not isinstance(retry_response.data, dict):
+                raise QualityGateError(
+                    f"{original_stage} failed on {model}: "
+                    f"{retry_response.error or 'invalid JSON'}"
+                )
+            return retry_response.data
+        raise QualityGateError(
+            f"{original_stage} failed on {model}: structured JSON remained "
+            f"truncated after {len(token_plan)} bounded attempts; last={last_error}"
+        )
     if not response.ok or not isinstance(response.data, dict):
         raise QualityGateError(f"{stage} failed on {model}: {response.error or 'invalid JSON'}")
     return response.data
