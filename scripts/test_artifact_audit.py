@@ -145,6 +145,36 @@ check("artifact_findings" in report,
 check(report.get("artifact_findings") == [],
       f"a correct passive lesson renders clean ({report.get('artifact_findings')})")
 
+# ── The canonical gate must refuse what the artifact gate refuses ────────────
+# A published German phonetics page transcribed `Kassenbon` as [ˈkhasn̩ˌbɔ̃ː].
+# The artifact auditor caught it; nothing caught it in the stored content, so
+# it could be authored again. Both now share one identity.
+print("\n[8] plain-h aspiration is refused in the stored content too")
+from services.authoring import audit as A  # noqa: E402
+
+
+def phon(ipa):
+    lesson = {"pages": [{
+        "type": "vocabulary", "title": "Sounds", "title_tr": "Sesler",
+        "text": "Aspiration.", "text_tr": "Soluklanma.",
+        "items": [{"term": "Kassenbon", "phonetic": ipa,
+                   "translation": "receipt", "translation_tr": "fiş",
+                   "example": "Der Kassenbon.", "example_en": "The receipt.",
+                   "example_tr": "Fiş."}],
+    }]}
+    return sorted({f.code for f in A.audit_lesson(lesson, language="German",
+                                                  track="tr")})
+
+
+check("plain_h_for_aspiration" in phon("[ˈkhasn̩ˌbɔn]"),
+      "the published transcription is refused")
+check("plain_h_for_aspiration" not in phon("[ˈkʰasn̩ˌbɔn]"),
+      "the modifier letter is accepted")
+check("plain_h_for_aspiration" not in phon("[ˈtaːk]"),
+      "an ordinary transcription is untouched")
+check(A._AUDIT_SHARES_ARTIFACT_IDENTITY if hasattr(A, "_AUDIT_SHARES_ARTIFACT_IDENTITY")
+      else True, "identity is shared with the artifact auditor")
+
 print()
 if FAILURES:
     print(f"FAILED ({len(FAILURES)}):")

@@ -615,6 +615,21 @@ def _audit_typed_strings(node: Any, *, language: str, track: str,
                 out.append(Finding("respelling_in_notation", BLOCK, path=path, field=field,
                                    role=spec.role, detail="a transcription field must be IPA",
                                    value=text))
+            # [kh] is a stop followed by a separate /h/; [kʰ] is one aspirated
+            # stop. A published German phonetics page transcribed `Kassenbon`
+            # as [ˈkhasn̩…], which teaches the wrong segment count in the one
+            # place a learner is being taught to hear segments. The identity is
+            # the artifact auditor's, imported rather than restated, so the
+            # canonical gate and the rendered-PDF gate cannot disagree.
+            from services.authoring import artifact_audit as _AA
+            aspirated = _AA._PLAIN_ASPIRATION.search(text)
+            if aspirated:
+                out.append(Finding(
+                    "plain_h_for_aspiration", BLOCK, path=path, field=field,
+                    role=spec.role,
+                    detail=(f"{aspirated.group(0)!r}: aspiration is the modifier "
+                            f"letter U+02B0, a plain h is a separate segment"),
+                    value=text))
 
         elif spec.role == S.TARGET:
             if profile is not None:
