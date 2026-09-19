@@ -88,11 +88,18 @@ try:
         if stage.startswith("review_complex_digit_escalation:"):
             assert "612 34 56 78" in payload["term"]
             good="[teˈlefono ˈsejs ˈuno ˈðos ˈtɾes ˈkwatɾo ˈθiŋko ˈsejs ˈsjete ˈotʃo]"
+            if payload["current"] == good:
+                return {
+                    "verdict":"ok",
+                    "spoken_form":"teléfono seis uno dos tres cuatro cinco seis siete ocho",
+                    "value":good,
+                    "reason":"Digit order and IPA now agree."
+                }
             return {
                 "verdict":"fix",
                 "spoken_form":"teléfono seis uno dos tres cuatro cinco seis siete ocho",
                 "value":good,
-                "reason":"Multiple primary stresses in a fused token reveal malformed pseudo-IPA."
+                "reason":"The multi-digit transcription does not match the spoken sequence."
             }
         if stage.startswith("review_complex_digit_notation:"):
             assert "612 34 56 78" in payload["term"]
