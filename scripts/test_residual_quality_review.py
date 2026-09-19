@@ -51,7 +51,7 @@ try:
                      "reason":"Soruda bulunmayan özne ve senaryoyu kaldır."},
                 ],
             }
-        if stage.startswith("review_complex_notation:"):
+        if stage.startswith("review_complex_digit_notation:") or stage.startswith("review_complex_notation:"):
             items=payload["items"]
             assert items and "612 34 56 78" in items[0]["term"]
             return {
