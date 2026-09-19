@@ -66,7 +66,7 @@ turkish_leak = {
         "title_tr": "Diyalog",
         "dialogue": [{
             "speaker": "A",
-            "text": "Bu cümle tamamen Türkçe ve burada kalmamalı.",
+            "text": "Bu cümle Türkçe ve bu nedenle burada olmamalı çünkü yanlış.",
             "line_en": "This sentence is in Turkish.",
             "line_tr": "Bu cümle Türkçedir.",
         }],
@@ -90,7 +90,7 @@ russian = {
         "title_tr": "Diyalog",
         "dialogue": [{
             "speaker": "A",
-            "text": "Bu cümle Türkçe yazılmıştır ve Rusça değildir.",
+            "text": "Bu cümle Türkçe ve bu nedenle Rusça değildir çünkü yanlış.",
             "line_en": "This is not Russian.",
             "line_tr": "Bu Rusça değildir.",
         }],
