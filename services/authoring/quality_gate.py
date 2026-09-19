@@ -44,7 +44,7 @@ from services.authoring import transport as T
 
 REVIEW_MODEL = "google/gemini-3.7-flash"
 REPAIR_MODEL = "google/gemini-3.7-flash"
-ESCALATION_MODEL = "openai/gpt-5.6-terra"
+ESCALATION_MODEL = B.MODEL
 QUALITY_REVIEW_CEILING_USD = 0.22
 
 # A reviewer may change learner-facing content, never ids, page types, ordering,
@@ -3174,7 +3174,7 @@ def _scope_overlap_suspicious(current: str, siblings: List[Dict[str, Any]]) -> b
     """Cheap language-agnostic signal for two phrasings of the same rule.
 
     This does not decide correctness. It only decides whether a Gemini "ok" on
-    an absolute claim deserves an independent Terra judgement.
+    an absolute claim deserves an independent independent generation-model judgement.
     """
     base = " ".join(unicodedata.normalize("NFKC", current).casefold().split())
     if not base:
@@ -3437,9 +3437,9 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                     max_tokens=900,
                     effort="high",
                     budget=budget,
-                    stage=f"review_categorical_terra:{unit_title}:{topic.get('title')}:{exact_index}",
+                    stage=f"review_categorical_escalation:{unit_title}:{topic.get('title')}:{exact_index}",
                     response_schema=_EXACT_CATEGORICAL_REVIEW_SCHEMA,
-                    response_name="categorical_claim_terra_review",
+                    response_name="categorical_claim_escalation_review",
                 )
                 verdict = str(exact.get("verdict") or "")
                 replacement = exact.get("value")
@@ -3864,31 +3864,31 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
                         max_tokens=1000,
                         effort="high",
                         budget=budget,
-                        stage=f"review_complex_digit_terra:{unit_title}:{index}:{round_index}",
+                        stage=f"review_complex_digit_escalation:{unit_title}:{index}:{round_index}",
                         response_schema=_DIGIT_NOTATION_VERIFY_SCHEMA,
-                        response_name="complex_digit_notation_terra_verify",
+                        response_name="complex_digit_notation_escalation_verify",
                     )
                     verdict = str(data.get("verdict") or "")
                     value = data.get("value")
                     spoken_form = data.get("spoken_form")
                     if not isinstance(spoken_form, str) or not spoken_form.strip():
                         raise QualityGateError(
-                            f"{unit_title}: Terra digit verifier omitted spoken form"
+                            f"{unit_title}: independent digit verifier omitted spoken form"
                         )
                     if verdict == "ok":
                         if value != candidate:
                             raise QualityGateError(
-                                f"{unit_title}: Terra digit verifier marked ok but changed value"
+                                f"{unit_title}: independent digit verifier marked ok but changed value"
                             )
                         accepted = True
                         break
                     if verdict != "fix" or not isinstance(value, str) or not value.strip():
                         raise QualityGateError(
-                            f"{unit_title}: Terra digit verifier returned invalid fix"
+                            f"{unit_title}: independent digit verifier returned invalid fix"
                         )
                     if value == candidate:
                         raise QualityGateError(
-                            f"{unit_title}: Terra digit verifier requested a no-op fix"
+                            f"{unit_title}: independent digit verifier requested a no-op fix"
                         )
                     candidate = value
                     continue
