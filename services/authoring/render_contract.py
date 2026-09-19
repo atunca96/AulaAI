@@ -49,6 +49,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 __all__ = [
     "EXPORT_LOCALES", "resolve_stem", "page_is_renderable", "unrenderable_pages",
     "mcq_pages", "mcq_like", "hidden_world_reason", "strip_unit_prefix",
+    "explain_hidden_world",
 ]
 
 
@@ -594,3 +595,192 @@ def strip_unit_prefix(title: Any) -> str:
             break
         text = stripped
     return text or str(title or "").strip()
+
+
+# ── Diagnostic decomposition ─────────────────────────────────────────────────
+# A production page refused with NAME_GENDER_REASON that no fixture reproduces
+# is not debuggable from the reason string: the string is one bit of output from
+# a predicate with six inputs and two independent firing routes. `pages[4]` of
+# "Relative Clauses with Nominative, Accusative, and Dative" survived three
+# repair strategies while every regression stayed green, which means the
+# fixtures and the live page differ in an input nobody has measured.
+#
+# This function measures them. It reads nothing but the page, changes nothing,
+# and is never consulted by `page_is_renderable`: adding it cannot alter which
+# pages publish. It exists so the next production retry names the statement and
+# the boolean that produced the refusal instead of the refusal alone.
+#
+# The per-statement trace is written independently of `_name_gender_rationale`
+# rather than by instrumenting it, so the live predicate keeps exactly the bytes
+# it has today. `trace_agrees` cross-checks the two; a False there is itself a
+# finding and means this decomposition, not the predicate, is what to fix.
+
+_DIAG_CLIP = 400
+
+
+def _clip(value: Any) -> str:
+    text = str(value or "")
+    return text if len(text) <= _DIAG_CLIP else text[:_DIAG_CLIP] + "…"
+
+
+def _name_gender_statements(explanation: Any, name_words: "re.Pattern[str]",
+                            gender_words: "re.Pattern[str]", names: set,
+                            page: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Per-statement decomposition of `_name_gender_rationale`, read-only."""
+    decisive = (answer_turns_on_form(page)
+                or _options_are_gender_values(page, gender_words))
+    answer_tokens = set(_WORD_TOKEN.findall(_fold(page.get("answer"))))
+    choice_tokens = set(answer_tokens)
+    for option in _normalised_options(page):
+        choice_tokens.update(option.split())
+
+    rows: List[Dict[str, Any]] = []
+    for statement in _STATEMENT_SPLIT.split(str(explanation or "")):
+        folded = _fold(statement)
+        gender_hits = gender_words.findall(folded)
+        if not gender_hits:
+            continue
+        tokens = set(_WORD_TOKEN.findall(folded))
+        name_hits = name_words.findall(folded)
+        explicitly_about_a_name = bool(name_hits)
+        names_in_statement = sorted(tokens & names)
+        quoted_common = sorted(_quoted_common_tokens(statement))
+        cited = sorted(_quoted_common_tokens(statement) - choice_tokens)
+
+        # Route 1: a gender claim tied to a token this item treats as a person.
+        route_1 = bool(names_in_statement) and (decisive or explicitly_about_a_name)
+        # Route 2: "the name is feminine" without repeating the person's token.
+        route_2 = (not cited) and explicitly_about_a_name
+
+        rows.append({
+            "statement": _clip(statement.strip()),
+            "folded": _clip(folded.strip()),
+            "gender_word_hits": gender_hits,
+            "name_word_hits": name_hits,
+            "names_in_statement": names_in_statement,
+            "answer_tokens_all_present": bool(answer_tokens
+                                              and answer_tokens <= tokens),
+            "quoted_common_tokens": quoted_common,
+            "cited_minus_choices": cited,
+            "route_1_name_token_and_gate": route_1,
+            "route_2_name_word_uncited": route_2,
+            "fires": route_1 or route_2,
+        })
+    return rows
+
+
+def explain_hidden_world(page: Dict[str, Any]) -> Dict[str, Any]:
+    """The complete predicate decomposition behind one page's render verdict.
+
+    Pure. Returns the booleans, not the page: every field here is an INPUT to a
+    branch in `hidden_world_reason` / `unsafe_reason`, so the output identifies
+    which branch refused the item and on which statement. `classification` is a
+    mechanical label, derived only from the booleans beside it, that maps one
+    log line onto one root cause.
+    """
+    if not isinstance(page, dict):
+        return {"mcq_like": False, "classification": "not_an_object"}
+
+    stem = _v57_stem(page)
+    stem_field = next((key for key in _V57_STEM_KEYS
+                       if isinstance(page.get(key), str) and page[key].strip()), "")
+    names = personal_name_tokens(page, stem)
+    folded_prompt = _fold(stem)
+
+    # Which aliases actually carry text, so a repair that wrote the wrong one
+    # or left a higher-priority one behind is visible rather than inferred.
+    stem_aliases = {key: _clip(page[key]) for key in _V57_STEM_KEYS
+                    if isinstance(page.get(key), str) and page[key].strip()}
+    rationale_aliases = {key: _clip(page[key]) for key in _V57_EXPLANATION_KEYS
+                         if isinstance(page.get(key), str) and page[key].strip()}
+
+    explicit_gender_v57 = (bool(_V57_GENDER_WORDS.search(folded_prompt))
+                           or any(noun in folded_prompt
+                                  for noun in _V57_GENDER_NOUNS))
+    # `unsafe_reason` computes this from a DIFFERENT lexicon and without the
+    # gender-noun list, so the two layers can disagree. Report both.
+    explicit_gender_unsafe = bool(_GENDER_WORDS.search(folded_prompt))
+
+    fields: List[Dict[str, Any]] = []
+    for key in _V57_EXPLANATION_KEYS:
+        value = page.get(key)
+        if value in (None, ""):
+            continue
+        statements = _name_gender_statements(
+            value, _V57_NAME_WORDS, _V57_GENDER_WORDS, names, page)
+        predicate = _name_gender_rationale(
+            value, _V57_NAME_WORDS, _V57_GENDER_WORDS, names, page)
+        fields.append({
+            "field": key,
+            "raw": _clip(value),
+            "folded": _clip(_fold(value)),
+            "quoted_common_tokens": sorted(_quoted_common_tokens(value)),
+            "statements": statements,
+            "name_gender_rationale": predicate,
+            "trace_agrees": any(row["fires"] for row in statements) == predicate,
+        })
+
+    hidden = hidden_world_reason(page)
+    stem_tr, stem_en = resolve_stem(page, True), resolve_stem(page, False)
+    unsafe_tr = unsafe_reason(page, stem_tr, True) if stem_tr else "no stem"
+    unsafe_en = unsafe_reason(page, stem_en, False) if stem_en else "no stem"
+    ok_tr, why_tr = page_is_renderable(page, True)
+    ok_en, why_en = page_is_renderable(page, False)
+
+    decisive_form = answer_turns_on_form(page)
+    decisive_values = _options_are_gender_values(page, _V57_GENDER_WORDS)
+    firing = [
+        {"field": f["field"], "statement": row["statement"],
+         "route_1": row["route_1_name_token_and_gate"],
+         "route_2": row["route_2_name_word_uncited"],
+         "name_word_hits": row["name_word_hits"],
+         "names_in_statement": row["names_in_statement"]}
+        for f in fields for row in f["statements"] if row["fires"]
+    ]
+
+    # One mechanical label per root cause, from the booleans above only.
+    if hidden != NAME_GENDER_REASON and NAME_GENDER_REASON not in (unsafe_tr, unsafe_en):
+        classification = "clean_of_name_gender"
+    elif hidden == NAME_GENDER_REASON and not firing:
+        classification = "predicate_bug_no_statement_accounts_for_it"
+    elif (hidden == NAME_GENDER_REASON) != (
+            NAME_GENDER_REASON in (unsafe_tr, unsafe_en)):
+        classification = "layer_disagreement_hidden_world_vs_unsafe_reason"
+    elif decisive_form or decisive_values:
+        classification = "decisive_option_shape"
+    elif all(row["route_2"] and not row["route_1"] for row in firing):
+        classification = "name_word_only_no_person_token"
+    elif any(row["name_word_hits"] and not (decisive_form or decisive_values)
+             for row in firing):
+        classification = "name_word_false_positive_with_capitalised_token"
+    else:
+        classification = "unclassified"
+
+    return {
+        "mcq_like": mcq_like(page),
+        "type": str(page.get("type") or ""),
+        "title": _clip(page.get("title")),
+        "v57_stem_field": stem_field,
+        "v57_stem_value": _clip(stem),
+        "stem_aliases_present": stem_aliases,
+        "rationale_aliases_present": rationale_aliases,
+        "resolved_tr_stem": _clip(stem_tr),
+        "resolved_en_stem": _clip(stem_en),
+        "personal_name_tokens": sorted(names),
+        "lexical_tokens": sorted(_lexical_tokens(page)),
+        "options_normalised": _normalised_options(page),
+        "answer": _clip(page.get("answer")),
+        "answer_turns_on_form": decisive_form,
+        "options_are_gender_values": decisive_values,
+        "decisive": decisive_form or decisive_values,
+        "explicit_gender_v57": explicit_gender_v57,
+        "explicit_gender_unsafe_reason": explicit_gender_unsafe,
+        "rationale_fields": fields,
+        "firing_statements": firing,
+        "hidden_world_reason": hidden,
+        "unsafe_reason_tr": unsafe_tr,
+        "unsafe_reason_en": unsafe_en,
+        "page_is_renderable_tr": [ok_tr, why_tr],
+        "page_is_renderable_en": [ok_en, why_en],
+        "classification": classification,
+    }

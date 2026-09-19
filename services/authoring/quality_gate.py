@@ -1990,6 +1990,11 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
     for is_tr in RC.EXPORT_LOCALES:
         ok, why = RC.page_is_renderable(probe, is_tr)
         if not ok:
+            # The candidate is discarded here and never reaches the page, so
+            # without this line a rejected model answer leaves no evidence of
+            # WHAT it wrote — only that it failed.
+            _log_hidden_world("candidate_render_name_gender_rejected",
+                              topic, page_index, probe)
             return reject(
                 f"{topic.get('title')}: name/gender page repair still refused in "
                 f"the {'tr' if is_tr else 'en'} export for page {page_index}: {why}"
@@ -2877,6 +2882,49 @@ def _name_gender_reason() -> str:
     return RC.NAME_GENDER_REASON
 
 
+# One structured line per predicate evaluation of a name/gender page, so a
+# production non-convergence says WHICH statement and WHICH boolean refused the
+# item rather than only that something did. `pages[4]` of "Relative Clauses with
+# Nominative, Accusative, and Dative" survived all three strategies while every
+# fixture stayed green, which can only mean the live page differs from the
+# fixtures in an input no log carried.
+#
+# Emitted only for the name/gender blocker class, which bounds the volume to the
+# pages actually under repair, and only ever read from the page — this cannot
+# change which pages publish.
+def _log_hidden_world(stage: str, topic: Dict[str, Any], page_index: Any,
+                      page: Any) -> None:
+    from services.authoring import render_contract as RC
+    if not isinstance(page, dict):
+        return
+    try:
+        payload = {
+            "stage": stage,
+            "topic": str(topic.get("title") or "")[:80],
+            "topic_id": str(topic.get("id") or ""),
+            "where": f"pages[{page_index}]",
+            "explain": RC.explain_hidden_world(page),
+        }
+        print("[QUALITY-REPAIR] [HIDDEN-WORLD] "
+              + json.dumps(payload, ensure_ascii=False, sort_keys=True),
+              flush=True)
+    except Exception as exc:                       # never break a repair to log
+        print(f"[QUALITY-REPAIR] [HIDDEN-WORLD] emit failed at {stage}: {exc!r}",
+              flush=True)
+
+
+def _log_hidden_world_blocker(stage: str, topic: Dict[str, Any],
+                              blocker: Dict[str, Any]) -> None:
+    """Emit the decomposition for the page one render blocker points at."""
+    if str(blocker.get("reason") or "") != _name_gender_reason():
+        return
+    index = _blocker_page_index(blocker.get("where"))
+    pages = (topic.get("content") or {}).get("pages")
+    if index is None or not isinstance(pages, list) or not 0 <= index < len(pages):
+        return
+    _log_hidden_world(stage, topic, index, pages[index])
+
+
 def _strategy_mcq_structural(*, topic, blocker, language, level, track, budget,
                              unit_title):
     return _repair_mcq_structural_blockers(
@@ -3124,6 +3172,10 @@ def _strategy_render_rescue(*, topic, blocker, language, level, track, budget,
         if row.get("page_index") == page_index
     ]
     if remaining:
+        # Probed AFTER R.repair_lesson, so this line is the one that tells a
+        # normalization reintroduction apart from a bad candidate.
+        _log_hidden_world("candidate_render_rescue_rejected",
+                          topic, page_index, probe_page)
         return 0
 
     changed = 0
@@ -3212,6 +3264,10 @@ def _convergence_diagnostic(topic: Dict[str, Any], blockers: Sequence[Dict[str, 
         }
         for b in blockers[:8]
     ]
+    # Terminal: this is the last moment the refused page still exists in
+    # memory, so the decomposition is emitted here or never.
+    for blocker in blockers:
+        _log_hidden_world_blocker("terminal_non_convergence", topic, blocker)
     return (
         f"{topic.get('title')}: publication blockers are not converging; "
         f"unresolved={rows}; strategies_tried={len(attempted)}"
@@ -3244,6 +3300,13 @@ def converge_topic(*, topic: Dict[str, Any], language: str, level: str, track: s
         if not blockers:
             return applied
 
+        # After R.repair_lesson above: a candidate that was clean before
+        # normalization and dirty after is a different defect from a candidate
+        # the model never got right, and only this pair of lines separates them.
+        for blocker in blockers:
+            _log_hidden_world_blocker("post_repair_lesson_normalization",
+                                      topic, blocker)
+
         for blocker in blockers:
             if not blocker.get("strategies"):
                 # Structural / non-repairable invariant: never repaired, never
@@ -3261,10 +3324,16 @@ def converge_topic(*, topic: Dict[str, Any], language: str, level: str, track: s
                 if (fingerprint, name) in attempted:
                     continue
                 attempted.add((fingerprint, name))
+                _log_hidden_world_blocker(f"before_{name}", topic, blocker)
                 applied += _REPAIR_STRATEGIES[name](
                     topic=topic, blocker=blocker, language=language, level=level,
                     track=track, budget=budget, unit_title=unit_title,
                 )
+                # The committed page, whatever the strategy decided to write.
+                # A strategy that returned 0 leaves this identical to the
+                # `before_` line, which is how "wrote nothing" is told apart
+                # from "wrote the wrong field".
+                _log_hidden_world_blocker(f"after_{name}", topic, blocker)
                 dispatched = True
                 break
             if dispatched:
