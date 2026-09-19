@@ -29,7 +29,9 @@ import difflib
 import hashlib
 import json
 import math
+import os
 import re
+import sqlite3
 import threading
 import time
 import unicodedata
@@ -337,6 +339,84 @@ _LESSON_REVIEW_DONE_KEY = "_quality_lesson_review_complete"
 # and proven again is finished work, and a later failure elsewhere must not
 # re-spend its call. In-memory only, never persisted, never part of content.
 _RISK_REVIEW_DONE_KEY = "_quality_risk_review_complete"
+
+
+# Persistent semantic-review attestations. We never cache model OUTPUT. We only
+# remember that an exact semantic INPUT state has already completed the relevant
+# review stage and then passed the authoritative deterministic proof that follows
+# it. Any byte change in content/evidence/prompt/schema/model changes the digest
+# and forces a fresh review. Cache failure is always a MISS, never a bypass.
+_REVIEW_ATTEST_LOCK = threading.Lock()
+_REVIEW_ATTEST_DB = (
+    "/data/aula_quality_review_attest.sqlite3"
+    if os.getenv("RAILWAY_ENVIRONMENT") else
+    os.path.join(os.getcwd(), "data", "aula_quality_review_attest.sqlite3")
+)
+
+
+def _review_attestation_key(*, kind: str, model: str, system: str,
+                            payload: Dict[str, Any], response_schema: Dict[str, Any],
+                            response_name: str, contract_extra: Any = None) -> str:
+    blob = {
+        "v": 1,
+        "kind": kind,
+        "model": model,
+        "system": system,
+        "payload": payload,
+        "response_schema": response_schema,
+        "response_name": response_name,
+        "contract_extra": contract_extra,
+    }
+    raw = json.dumps(blob, ensure_ascii=False, sort_keys=True,
+                     separators=(",", ":"), default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _review_attestation_has(key: str) -> bool:
+    try:
+        with _REVIEW_ATTEST_LOCK:
+            os.makedirs(os.path.dirname(_REVIEW_ATTEST_DB), exist_ok=True)
+            conn = sqlite3.connect(_REVIEW_ATTEST_DB, timeout=2.0)
+            try:
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS review_attestations ("
+                    "digest TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+                )
+                row = conn.execute(
+                    "SELECT 1 FROM review_attestations WHERE digest = ?", (key,)
+                ).fetchone()
+                return row is not None
+            finally:
+                conn.close()
+    except Exception as exc:
+        print(f"[QUALITY-CACHE] MISS cache_unavailable={type(exc).__name__}", flush=True)
+        return False
+
+
+def _review_attestation_store(key: str, *, stage: str) -> None:
+    try:
+        with _REVIEW_ATTEST_LOCK:
+            os.makedirs(os.path.dirname(_REVIEW_ATTEST_DB), exist_ok=True)
+            conn = sqlite3.connect(_REVIEW_ATTEST_DB, timeout=2.0)
+            try:
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS review_attestations ("
+                    "digest TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+                )
+                conn.execute(
+                    "INSERT OR IGNORE INTO review_attestations(digest) VALUES (?)", (key,)
+                )
+                # Bound growth without making cache correctness depend on cleanup.
+                conn.execute(
+                    "DELETE FROM review_attestations WHERE digest IN ("
+                    "SELECT digest FROM review_attestations ORDER BY created_at DESC LIMIT -1 OFFSET 12000)"
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        print(f"[QUALITY-CACHE] STORE {stage} {key[:12]}", flush=True)
+    except Exception as exc:
+        print(f"[QUALITY-CACHE] STORE-SKIP {stage} error={type(exc).__name__}", flush=True)
 
 
 def _field_spec(key: str, container: str = "") -> Optional[S.FieldSpec]:
@@ -3410,15 +3490,34 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 for other in topics
                 if str(other.get("id")) != str(topic.get("id"))
             ]
-        data = _call_review(
-            model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=payload,
-            # Broad review is editorial classification + exact patching. Hidden
-            # chain-of-thought only burns completion budget here; deterministic
-            # code re-checks every invariant afterwards.
-            max_tokens=1800, effort="low", budget=budget,
-            stage=f"review_lesson:{unit_title}:{topic.get('title')}",
-            response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_review",
+        lesson_cache_key = _review_attestation_key(
+            kind="lesson_broad",
+            model=REVIEW_MODEL,
+            system=_LESSON_REVIEW_SYSTEM,
+            payload=payload,
+            response_schema=_LESSON_REVIEW_SCHEMA,
+            response_name="lesson_review",
         )
+        lesson_cache_hit = _review_attestation_has(lesson_cache_key)
+        if lesson_cache_hit:
+            print(
+                f"[QUALITY-CACHE] HIT lesson {unit_title}:{topic.get('title')} "
+                f"{lesson_cache_key[:12]}",
+                flush=True,
+            )
+            data = {"topics": [{
+                "topic_id": str(topic["id"]), "verdict": "ok", "patches": []
+            }]}
+        else:
+            data = _call_review(
+                model=REVIEW_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=payload,
+                # Broad review is editorial classification + exact patching. Hidden
+                # chain-of-thought only burns completion budget here; deterministic
+                # code re-checks every invariant afterwards.
+                max_tokens=1800, effort="low", budget=budget,
+                stage=f"review_lesson:{unit_title}:{topic.get('title')}",
+                response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_review",
+            )
         rows = data.get("topics")
         if not isinstance(rows, list) or len(rows) != 1:
             raise QualityGateError(
@@ -3466,6 +3565,45 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         applied += converge_topic(
             topic=topic, language=language, level=level, track=track,
             budget=budget, unit_title=unit_title,
+        )
+
+        # Attest the FINAL state, not the pre-review state. If the reviewer made
+        # a patch, the next retry must match the patched bytes before it can hit.
+        final_findings = _audit_topic(topic, language=language, track=track)
+        final_payload = {
+            "language": language, "level": level, "unit": unit_title,
+            "regional_variety": profile.variety if profile else "",
+            "instruction_track": track,
+            "unit_topic_titles": [
+                str(v) for v in unit_topic_titles if str(v).strip()
+            ],
+            "topics": [{
+                "topic_id": str(topic["id"]),
+                "title": str(topic.get("title") or ""),
+                "records": _assessment_evidence_records(topic["content"], track=track),
+                "deterministic_blockers": _findings_payload(final_findings),
+                "render_contract_blockers": _topic_render_blockers(topic["content"]),
+            }],
+        }
+        if "review" in topic_type or "recap" in topic_type or "revision" in topic_type:
+            final_payload["unit_scope_evidence"] = [
+                {
+                    "title": str(other.get("title") or ""),
+                    "evidence": _assessment_evidence_digest(
+                        other.get("content") or {}, track=track
+                    ),
+                }
+                for other in topics
+                if str(other.get("id")) != str(topic.get("id"))
+            ]
+        final_lesson_key = _review_attestation_key(
+            kind="lesson_broad", model=REVIEW_MODEL,
+            system=_LESSON_REVIEW_SYSTEM, payload=final_payload,
+            response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_review",
+        )
+        _review_attestation_store(
+            final_lesson_key,
+            stage=f"lesson:{unit_title}:{topic.get('title')}",
         )
 
         # Reached only when this lesson cleared every check above, so a retry of
@@ -3606,29 +3744,59 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             continue
 
         topic_id = str(topic["id"])
+        risk_payload = {
+            "language": language,
+            "level": level,
+            "unit": unit_title,
+            "regional_variety": profile.variety if profile else "",
+            "instruction_track": track,
+            "topics": [{
+                "topic_id": topic_id,
+                "title": str(topic.get("title") or ""),
+                "records": [
+                    dict(rec, record_id=f"r{index}")
+                    for index, rec in enumerate(records)
+                ],
+                "absolute_ids": [
+                    f"r{index}" for index, rec in enumerate(records)
+                    if isinstance(rec.get("value"), str)
+                    and _ABSOLUTE_RISK_RE.search(rec["value"])
+                ],
+            }],
+        }
+        risk_cache_key = _review_attestation_key(
+            kind="risk_full",
+            model=REVIEW_MODEL,
+            system=_RISK_REVIEW_SYSTEM,
+            payload=risk_payload,
+            response_schema=_RISK_REVIEW_SCHEMA,
+            response_name="pedagogical_risk_review",
+            contract_extra={
+                "escalation_model": ESCALATION_MODEL,
+                "escalation_system": _EXACT_CATEGORICAL_REVIEW_SYSTEM,
+                "escalation_schema": _EXACT_CATEGORICAL_REVIEW_SCHEMA,
+            },
+        )
+        if _review_attestation_has(risk_cache_key):
+            print(
+                f"[QUALITY-CACHE] HIT risk {unit_title}:{topic.get('title')} "
+                f"{risk_cache_key[:12]}",
+                flush=True,
+            )
+            # The exact final semantic state already passed broad risk review,
+            # every required categorical escalation, and convergence. Re-run
+            # convergence/deterministic proof, but do not buy the same judgement.
+            applied += converge_topic(
+                topic=topic, language=language, level=level, track=track,
+                budget=budget, unit_title=unit_title,
+            )
+            topic[_RISK_REVIEW_DONE_KEY] = True
+            continue
+
         data = _call_review(
             model=REVIEW_MODEL,
             system=_RISK_REVIEW_SYSTEM,
-            payload={
-                "language": language,
-                "level": level,
-                "unit": unit_title,
-                "regional_variety": profile.variety if profile else "",
-                "instruction_track": track,
-                "topics": [{
-                    "topic_id": topic_id,
-                    "title": str(topic.get("title") or ""),
-                    "records": [
-                        dict(rec, record_id=f"r{index}")
-                        for index, rec in enumerate(records)
-                    ],
-                    "absolute_ids": [
-                        f"r{index}" for index, rec in enumerate(records)
-                        if isinstance(rec.get("value"), str)
-                        and _ABSOLUTE_RISK_RE.search(rec["value"])
-                    ],
-                }],
-            },
+            payload=risk_payload,
             # One topic's worth of rows and patches rather than a whole unit's.
             # Still ample for every selected record to be patched; the reduction
             # is in what a single response can ever need to carry.
@@ -3775,6 +3943,44 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             topic=topic, language=language, level=level, track=track,
             budget=budget, unit_title=unit_title,
         )
+
+        final_records = _risk_review_records(topic.get("content") or {})
+        if final_records:
+            final_risk_payload = {
+                "language": language,
+                "level": level,
+                "unit": unit_title,
+                "regional_variety": profile.variety if profile else "",
+                "instruction_track": track,
+                "topics": [{
+                    "topic_id": topic_id,
+                    "title": str(topic.get("title") or ""),
+                    "records": [
+                        dict(rec, record_id=f"r{index}")
+                        for index, rec in enumerate(final_records)
+                    ],
+                    "absolute_ids": [
+                        f"r{index}" for index, rec in enumerate(final_records)
+                        if isinstance(rec.get("value"), str)
+                        and _ABSOLUTE_RISK_RE.search(rec["value"])
+                    ],
+                }],
+            }
+            final_risk_key = _review_attestation_key(
+                kind="risk_full", model=REVIEW_MODEL,
+                system=_RISK_REVIEW_SYSTEM, payload=final_risk_payload,
+                response_schema=_RISK_REVIEW_SCHEMA,
+                response_name="pedagogical_risk_review",
+                contract_extra={
+                    "escalation_model": ESCALATION_MODEL,
+                    "escalation_system": _EXACT_CATEGORICAL_REVIEW_SYSTEM,
+                    "escalation_schema": _EXACT_CATEGORICAL_REVIEW_SCHEMA,
+                },
+            )
+            _review_attestation_store(
+                final_risk_key,
+                stage=f"risk:{unit_title}:{topic.get('title')}",
+            )
         topic[_RISK_REVIEW_DONE_KEY] = True
 
     return applied
@@ -4521,16 +4727,33 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         # item instead of letting the final gate discover the same problem too late.
         "render_contract_blockers": _assessment_render_blockers(content),
     }
-    data = _call_review(
-        model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
-        # Structured assessment output must carry explicit 1..10 coverage
-        # plus any patches. 1600 was empirically too tight on reasoning-capable
-        # Gemini routes and caused paid truncation/retry cycles. Headroom is
-        # cheaper than paying for a cut-off answer twice.
-        max_tokens=2400, effort="low", budget=budget,
-        stage=f"review_assessment:{unit_title}",
-        response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
+    assessment_cache_key = _review_attestation_key(
+        kind="assessment_broad",
+        model=REVIEW_MODEL,
+        system=_ASSESSMENT_REVIEW_SYSTEM,
+        payload=payload,
+        response_schema=_ASSESSMENT_REVIEW_SCHEMA,
+        response_name="assessment_review",
     )
+    assessment_cache_hit = _review_attestation_has(assessment_cache_key)
+    if assessment_cache_hit:
+        print(
+            f"[QUALITY-CACHE] HIT assessment {unit_title} "
+            f"{assessment_cache_key[:12]}",
+            flush=True,
+        )
+        data = {"checked_questions": list(range(1, 11)), "patches": []}
+    else:
+        data = _call_review(
+            model=REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
+            # Structured assessment output must carry explicit 1..10 coverage
+            # plus any patches. 1600 was empirically too tight on reasoning-capable
+            # Gemini routes and caused paid truncation/retry cycles. Headroom is
+            # cheaper than paying for a cut-off answer twice.
+            max_tokens=2400, effort="low", budget=budget,
+            stage=f"review_assessment:{unit_title}",
+            response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
+        )
     _checked_all_ten(data, unit_title=unit_title, stage="assessment reviewer")
     by_id = {str(assessment_topic["id"]): assessment_topic}
     applied = _apply_patches(by_id, data.get("patches") or [])
@@ -4634,6 +4857,32 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             raise QualityGateError(
                 f"{unit_title}: renderer-contract blockers remain after targeted repair — {detail}"
             )
+
+    # Attest only the final clean assessment state. Lesson evidence is part of
+    # the payload digest, so any lesson edit invalidates the assessment cache.
+    final_assessment_payload = {
+        "language": language, "level": level, "unit": unit_title,
+        "regional_variety": (S.profile_for_language(language).variety
+                             if S.profile_for_language(language) else ""),
+        "assessment_topic_id": str(assessment_topic["id"]),
+        "assessment_records": _review_records(content),
+        "unit_evidence": [
+            {
+                "title": str(topic.get("title") or ""),
+                "evidence": _assessment_evidence_digest(topic["content"], track=track),
+            }
+            for topic in lesson_topics
+        ],
+        "render_contract_blockers": _assessment_render_blockers(content),
+    }
+    final_assessment_key = _review_attestation_key(
+        kind="assessment_broad", model=REVIEW_MODEL,
+        system=_ASSESSMENT_REVIEW_SYSTEM, payload=final_assessment_payload,
+        response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
+    )
+    _review_attestation_store(
+        final_assessment_key, stage=f"assessment:{unit_title}"
+    )
     return applied
 
 
