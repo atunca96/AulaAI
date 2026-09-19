@@ -3293,6 +3293,290 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
     return applied
 
 
+
+_RATIONALE_GROUNDING_REVIEW_SYSTEM = """You are AulaAI's answer-key grounding verifier.
+Review ONLY the supplied lesson MCQ rationales. The questions, keyed answers and
+options are already fixed.
+
+For every item:
+- verify that each explanation justifies the keyed answer from information
+  visible in the stem/options or from the grammatical/lexical fact directly
+  tested by those words;
+- remove invented people, subjects, scenarios, biographical facts or contextual
+  details that do not appear in the item;
+- do not infer gender, identity, nationality, profession or other properties
+  from a personal name;
+- keep English and Turkish rationales semantically equivalent;
+- keep useful grammatical explanation when it is genuinely required by the item;
+- do not rewrite a correct explanation for style alone.
+
+Return JSON only:
+{"checked_items":[{"topic_id":"EXACT ID","page_index":0}],
+ "patches":[
+   {"topic_id":"EXACT ID","path":["pages","0","explanation_tr"],
+    "old":"EXACT OLD","value":"GROUNDED REPLACEMENT","reason":"brief reason"}
+ ]}
+
+Contract:
+- checked_items MUST contain every supplied topic_id/page_index exactly once.
+- Patch ONLY existing explanation/analysis fields supplied for that item.
+- Never change stems, answers, options, distractors, titles or structure.
+- Copy old exactly, byte for byte.
+"""
+
+_COMPLEX_NOTATION_REVIEW_SYSTEM = """You are AulaAI's pronunciation verifier for
+complex written headwords. Verify every supplied transcription against the exact
+written headword, declared language and regional variety.
+
+Complex entries may contain numbers, symbols, punctuation or several words.
+Check the whole expression, not merely whether the string looks IPA-like.
+Correct malformed segments, omitted material, wrong sounds, impossible symbols
+or transcription that belongs to a different written form. Preserve the
+classroom's bracket style. Do not respell, add alternatives or rewrite a correct
+transcription for style.
+
+Return JSON only:
+{"checked_items":[{"topic_id":"EXACT ID","path":["pages","0","items","0","phonetic"]}],
+ "patches":[
+   {"topic_id":"EXACT ID","path":["pages","0","items","0","phonetic"],
+    "old":"EXACT OLD","value":"CORRECT IPA","reason":"brief reason"}
+ ]}
+
+Contract:
+- checked_items MUST contain every supplied topic_id/path exactly once.
+- Patch ONLY the supplied notation paths.
+- Copy old exactly, byte for byte.
+"""
+
+
+def _lesson_mcq_rationale_items(topics: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Compact lesson-MCQ evidence for semantic rationale grounding."""
+    items: List[Dict[str, Any]] = []
+    for topic in topics:
+        content = topic.get("content")
+        pages = content.get("pages") if isinstance(content, dict) else None
+        for page_index, page in enumerate(pages or []):
+            if not isinstance(page, dict) or str(page.get("type") or "").casefold() != "mcq":
+                continue
+            explanation_fields = {}
+            for key in tuple(dict.fromkeys(_NAME_GENDER_EN_KEYS + _NAME_GENDER_TR_KEYS)):
+                value = page.get(key)
+                if isinstance(value, str) and value.strip():
+                    explanation_fields[key] = value
+            if not explanation_fields:
+                continue
+            stem = next(
+                (str(page.get(key)).strip() for key in ("prompt", "question", "stem")
+                 if isinstance(page.get(key), str) and page.get(key).strip()),
+                "",
+            )
+            options = page.get("options") or page.get("choices") or []
+            items.append({
+                "topic_id": str(topic["id"]),
+                "page_index": page_index,
+                "stem": stem,
+                "answer": page.get("answer"),
+                "options": options,
+                "explanations": explanation_fields,
+            })
+    return items
+
+
+def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
+                               language: str, level: str, track: str,
+                               budget: ReviewBudget) -> int:
+    """Semantically ground every lesson-MCQ answer-key rationale in one unit."""
+    items = _lesson_mcq_rationale_items(topics)
+    if not items:
+        return 0
+    profile = S.profile_for_language(language)
+    data = _call_review(
+        model=REVIEW_MODEL,
+        system=_RATIONALE_GROUNDING_REVIEW_SYSTEM,
+        payload={
+            "language": language,
+            "level": level,
+            "regional_variety": profile.variety if profile else "",
+            "unit": unit_title,
+            "items": items,
+        },
+        max_tokens=1800,
+        effort="low",
+        budget=budget,
+        stage=f"review_rationale_grounding:{unit_title}",
+        response_schema=_MCq_RATIONALE_REVIEW_SCHEMA,
+        response_name="lesson_mcq_rationale_grounding",
+    )
+
+    expected = {(row["topic_id"], int(row["page_index"])) for row in items}
+    checked = {
+        (str(row.get("topic_id") or ""), int(row.get("page_index")))
+        for row in (data.get("checked_items") or [])
+        if isinstance(row, dict) and str(row.get("page_index", "")).isdigit()
+    }
+    if checked != expected:
+        raise QualityGateError(
+            f"{unit_title}: rationale grounding coverage mismatch; "
+            f"missing={sorted(expected - checked)[:3]} extra={sorted(checked - expected)[:3]}"
+        )
+
+    by_id = {str(topic["id"]): topic for topic in topics}
+    allowed: Dict[Tuple[str, int], set] = {
+        (row["topic_id"], int(row["page_index"])): set(row["explanations"].keys())
+        for row in items
+    }
+    patches = []
+    for raw in (data.get("patches") or []):
+        if not isinstance(raw, dict):
+            raise QualityGateError("rationale grounding patch is not an object")
+        patch = dict(raw)
+        topic_id = str(patch.get("topic_id") or "")
+        topic = by_id.get(topic_id)
+        path = patch.get("path")
+        if topic is None or not isinstance(path, list):
+            raise QualityGateError("rationale grounding patch targets unknown content")
+        path = _coerce_patch_path(topic["content"], path)
+        if len(path) != 3 or path[0] != "pages" or not isinstance(path[1], int):
+            raise QualityGateError("rationale grounding patch must target one page field")
+        if str(path[2]) not in allowed.get((topic_id, path[1]), set()):
+            raise QualityGateError(
+                f"rationale grounding may not patch {topic_id} {path!r}"
+            )
+        patch["path"] = path
+        patches.append(patch)
+
+    applied = _apply_patches(by_id, patches)
+    for topic in topics:
+        applied += converge_topic(
+            topic=topic, language=language, level=level, track=track,
+            budget=budget, unit_title=unit_title,
+        )
+    return applied
+
+
+def _complex_notation_items(topics: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Notation rows whose written form makes silent corruption harder to spot."""
+    items: List[Dict[str, Any]] = []
+
+    def walk(node: Any, path: List[Any], topic: Dict[str, Any]) -> None:
+        if isinstance(node, dict):
+            term = node.get("term") or node.get("word") or node.get("target")
+            if isinstance(term, str) and term.strip():
+                normalized = term.strip()
+                complex_headword = (
+                    bool(re.search(r"\d|[@._/+:#-]", normalized))
+                    or len(normalized.split()) >= 3
+                )
+                if complex_headword:
+                    for field in _NOTATION_FIELDS:
+                        value = node.get(field)
+                        if isinstance(value, str) and value.strip():
+                            items.append({
+                                "topic_id": str(topic["id"]),
+                                "path": path + [field],
+                                "term": normalized,
+                                "field": field,
+                                "value": value.strip(),
+                            })
+            for key, value in node.items():
+                walk(value, path + [key], topic)
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                walk(value, path + [index], topic)
+
+    for topic in topics:
+        walk(topic.get("content") or {}, [], topic)
+    return items
+
+
+def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]],
+                                 language: str, level: str,
+                                 budget: ReviewBudget) -> int:
+    """Verify only complex pronunciation rows; ordinary notation keeps its path."""
+    items = _complex_notation_items(topics)
+    if not items:
+        return 0
+    profile = S.profile_for_language(language)
+    payload_items = [
+        {
+            "topic_id": row["topic_id"],
+            "path": [str(part) for part in row["path"]],
+            "term": row["term"],
+            "field": row["field"],
+            "value": row["value"],
+        }
+        for row in items
+    ]
+    data = _call_review(
+        model=REVIEW_MODEL,
+        system=_COMPLEX_NOTATION_REVIEW_SYSTEM,
+        payload={
+            "language": language,
+            "level": level,
+            "regional_variety": profile.variety if profile else "",
+            "unit": unit_title,
+            "items": payload_items,
+        },
+        max_tokens=1200,
+        effort="low",
+        budget=budget,
+        stage=f"review_complex_notation:{unit_title}",
+        response_schema=_COMPLEX_NOTATION_REVIEW_SCHEMA,
+        response_name="complex_notation_review",
+    )
+    expected = {
+        (row["topic_id"], json.dumps([str(p) for p in row["path"]],
+                                     ensure_ascii=False, separators=(",", ":")))
+        for row in items
+    }
+    checked = {
+        (
+            str(row.get("topic_id") or ""),
+            json.dumps([str(p) for p in (row.get("path") or [])],
+                       ensure_ascii=False, separators=(",", ":")),
+        )
+        for row in (data.get("checked_items") or [])
+        if isinstance(row, dict) and isinstance(row.get("path"), list)
+    }
+    if checked != expected:
+        raise QualityGateError(
+            f"{unit_title}: complex notation coverage mismatch; "
+            f"missing={sorted(expected - checked)[:2]} extra={sorted(checked - expected)[:2]}"
+        )
+
+    by_id = {str(topic["id"]): topic for topic in topics}
+    allowed = {
+        (
+            row["topic_id"],
+            json.dumps([str(p) for p in row["path"]], ensure_ascii=False,
+                       separators=(",", ":")),
+        )
+        for row in items
+    }
+    patches = []
+    for raw in (data.get("patches") or []):
+        if not isinstance(raw, dict):
+            raise QualityGateError("complex notation patch is not an object")
+        patch = dict(raw)
+        topic_id = str(patch.get("topic_id") or "")
+        topic = by_id.get(topic_id)
+        if topic is None or not isinstance(patch.get("path"), list):
+            raise QualityGateError("complex notation patch targets unknown content")
+        coerced = _coerce_patch_path(topic["content"], patch["path"])
+        marker = (
+            topic_id,
+            json.dumps([str(p) for p in coerced], ensure_ascii=False,
+                       separators=(",", ":")),
+        )
+        if marker not in allowed or str(coerced[-1]) not in _NOTATION_FIELDS:
+            raise QualityGateError(
+                f"complex notation review may not patch {topic_id} {coerced!r}"
+            )
+        patch["path"] = coerced
+        patches.append(patch)
+    return _apply_patches(by_id, patches)
+
+
 def _cross_topic_phonetic_occurrences(
         units: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
     """Same lexical headword carrying multiple transcriptions across a class."""
