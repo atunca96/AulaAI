@@ -4175,6 +4175,244 @@ _REPAIR_STRATEGIES = {
 }
 
 
+
+_PUBLICATION_FEEDBACK_REPAIR_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "topic_id": {"type": "string"},
+        "patches": {"type": "array", "items": _NESTED_PATCH_SCHEMA},
+    },
+    "required": ["topic_id", "patches"],
+}
+
+
+_PUBLICATION_FEEDBACK_REPAIR_SYSTEM = """You are AulaAI's publication retry repairer.
+
+A previous publication attempt was rejected. The request contains the EXACT
+`publication_error` that would otherwise have been surfaced to the user,
+together with the current learner-visible bytes and the validator's current
+blocker evidence. Treat that error as test output from an authoritative
+validator: your job is to change the current content so that exact failure no
+longer exists on the next validation run.
+
+Hard contract:
+- Read `publication_error` literally. Fix the cause named there, not a nearby
+  stylistic issue.
+- The request is a RETRY after an earlier repair path failed. Do not repeat an
+  approach that leaves the same validator predicate true.
+- Patch every coupled learner-visible field needed to clear the failure in one
+  response. For example, when a stem and rationale jointly create an
+  unsupported inference, repair both if necessary.
+- Never weaken, bypass, reinterpret or argue with the validator. Change the
+  content until the validator can pass it.
+- Preserve pedagogical target, CEFR level and taught-language correctness.
+- Preserve answer/options/distractors unless the supplied validator evidence
+  says that tuple itself is invalid. If you do change one member of an MCQ
+  tuple, keep the tuple internally coherent.
+- Distinguish grammatical gender/agreement from identity inference. If a
+  rationale is discussing a lexical noun/word, phrase that unambiguously as a
+  noun/word rather than wording that can mean a person's personal name. If the
+  answer truly depends on agreement, put the grammatical controller/trigger in
+  learner-visible content.
+- Use ONLY existing paths supplied in `records`. Do not add/delete pages,
+  reorder content, alter ids or invent structure.
+- Copy each `old` value exactly, byte for byte, from the supplied record.
+- Return only genuine changes. Same-value patches are rejected.
+- Return JSON only:
+  {"topic_id":"EXACT ID","patches":[
+    {"path":["pages","4","explanation_tr"],"old":"EXACT OLD",
+     "value":"FIXED VALUE","reason":"why this clears the supplied error"}
+  ]}
+"""
+
+
+def repair_publication_refusal_feedback(*, units: List[Dict[str, Any]],
+                                        language: str, level: str, track: str,
+                                        publication_error: str,
+                                        retry_attempt: int,
+                                        budget: ReviewBudget) -> int:
+    """Feed the exact would-be user refusal back into a targeted repair call.
+
+    This is deliberately outside the normal strategy ladder. The ladder is the
+    cheap first line of defence; this is what happens when that ladder would
+    otherwise give up and expose a publication error to the user.
+
+    The error string is not summarized before it reaches the model. It is the
+    exact exception text produced by the authoritative validator, so retry N+1
+    sees precisely why retry N failed. The model still cannot bypass quality:
+    it may only propose patches to existing learner-visible fields, and the
+    caller immediately re-runs the entire quality gate on the persisted result.
+    """
+    error_text = str(publication_error or "").strip()
+    if not error_text:
+        return 0
+
+    canonical = S.canonical_language(language)
+    candidates: List[Tuple[int, Dict[str, Any], List[Dict[str, Any]]]] = []
+    for unit in units or []:
+        for topic in unit.get("topics") or []:
+            content = topic.get("content")
+            if not isinstance(content, dict):
+                continue
+            blockers = _detect_topic_blockers(
+                topic, language=language, track=track, canonical=canonical
+            )
+            title = str(topic.get("title") or "")
+            mentioned = bool(title and title in error_text)
+            if not blockers and not mentioned:
+                continue
+            # Exact-title mention outranks merely being dirty. This keeps a
+            # single refusal from paying to rewrite unrelated dirty topics.
+            score = (1000 if mentioned else 0) + len(blockers)
+            candidates.append((score, topic, blockers))
+
+    if not candidates:
+        return 0
+
+    candidates.sort(key=lambda row: row[0], reverse=True)
+    applied = 0
+
+    # One refusal normally names one topic. Process every equally mentioned
+    # topic if necessary, otherwise only the highest-signal dirty topic; the
+    # next gate run will name the next independent defect if one exists.
+    top_score = candidates[0][0]
+    selected = [
+        row for row in candidates
+        if row[0] == top_score or row[0] >= 1000
+    ][:3]
+
+    for _score, topic, blockers in selected:
+        content = topic.get("content") or {}
+
+        page_indexes: set = set()
+        for match in re.finditer(r"pages?\[(\d+)\]|page\s+(\d+)", error_text,
+                                 re.IGNORECASE):
+            raw = match.group(1) or match.group(2)
+            if raw is not None:
+                page_indexes.add(int(raw))
+        for blocker in blockers:
+            index = _blocker_page_index(blocker.get("where"))
+            if index is not None:
+                page_indexes.add(index)
+
+        records = _review_records(content)
+        if page_indexes:
+            scoped = [
+                rec for rec in records
+                if isinstance(rec.get("path"), list)
+                and len(rec["path"]) >= 2
+                and rec["path"][0] == "pages"
+                and rec["path"][1] in page_indexes
+            ]
+            if scoped:
+                records = scoped
+        # Keep the retry prompt compact but complete enough to repair all
+        # coupled fields on the implicated page(s).
+        records = records[:120]
+
+        blocker_rows = [
+            {
+                "kind": b.get("kind"),
+                "code": b.get("code"),
+                "where": b.get("where"),
+                "reason": b.get("reason"),
+                "strategies": b.get("strategies"),
+            }
+            for b in blockers[:20]
+        ]
+
+        render_diagnostics = []
+        pages = content.get("pages") if isinstance(content, dict) else None
+        if isinstance(pages, list):
+            from services.authoring import render_contract as RC
+            for index in sorted(page_indexes):
+                if 0 <= index < len(pages) and isinstance(pages[index], dict):
+                    try:
+                        render_diagnostics.append({
+                            "page_index": index,
+                            "diagnostic": RC.explain_hidden_world(pages[index]),
+                        })
+                    except Exception:
+                        continue
+
+        payload = {
+            "retry_attempt": int(retry_attempt),
+            "taught_language": language,
+            "level": level,
+            "instruction_track": track,
+            "topic_id": str(topic.get("id") or ""),
+            "topic_title": str(topic.get("title") or ""),
+            # EXACT would-be user-facing failure. Do not truncate.
+            "publication_error": error_text,
+            "validator_blockers": blocker_rows,
+            "renderer_diagnostics": render_diagnostics,
+            "records": records,
+        }
+
+        data = _call_review(
+            model=ESCALATION_MODEL,
+            system=_PUBLICATION_FEEDBACK_REPAIR_SYSTEM,
+            payload=payload,
+            max_tokens=2600,
+            effort="low",
+            budget=budget,
+            stage=(
+                f"publication_feedback_retry:{retry_attempt}:"
+                f"{topic.get('title')}"
+            ),
+            response_schema=_PUBLICATION_FEEDBACK_REPAIR_SCHEMA,
+            response_name="publication_feedback_retry",
+        )
+
+        if str(data.get("topic_id") or "") != str(topic.get("id") or ""):
+            print(
+                f"[QUALITY-SELF-HEAL] retry {retry_attempt} ignored wrong "
+                f"topic_id for {topic.get('title')}",
+                flush=True,
+            )
+            continue
+
+        patches = []
+        for raw in data.get("patches") or []:
+            if not isinstance(raw, dict):
+                continue
+            patch = dict(raw)
+            patch["topic_id"] = str(topic.get("id") or "")
+            patches.append(patch)
+
+        # Apply one proposal at a time so one malformed patch cannot discard a
+        # valid coupled fix beside it. Structural/path safety remains owned by
+        # the existing patch guard.
+        changed = 0
+        for patch in patches:
+            try:
+                changed += _apply_patches(
+                    {str(topic.get("id") or ""): topic}, [patch]
+                )
+            except QualityGateError as exc:
+                print(
+                    f"[QUALITY-SELF-HEAL] retry {retry_attempt} rejected patch "
+                    f"{patch.get('path')!r}: {exc}",
+                    flush=True,
+                )
+
+        if changed:
+            R.repair_lesson(content, language=language)
+            applied += changed
+            remaining = _detect_topic_blockers(
+                topic, language=language, track=track, canonical=canonical
+            )
+            print(
+                f"[QUALITY-SELF-HEAL] retry {retry_attempt} applied {changed} "
+                f"patch(es) to {topic.get('title')}; "
+                f"remaining_blockers={len(remaining)}",
+                flush=True,
+            )
+
+    return applied
+
+
 def _convergence_diagnostic(topic: Dict[str, Any], blockers: Sequence[Dict[str, Any]],
                             attempted: Sequence[Any]) -> str:
     rows = [
