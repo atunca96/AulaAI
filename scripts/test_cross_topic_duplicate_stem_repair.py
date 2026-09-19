@@ -9,6 +9,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from services.authoring import quality_gate as Q
+from services.authoring import audit as A
 
 def topic(topic_id, title, stem):
     return {
@@ -49,11 +50,34 @@ def fake_call(**kwargs):
     assert "¿De dónde ___ tú?" in payload["forbidden_duplicate_stems"]
     assert payload["immutable_page_context"]["answer"]=="eres"
     assert payload["immutable_page_context"]["options"]==["eres","soy","es","somos"]
+    if "rejected_candidate" not in payload:
+        return {
+            "value":"Which answer asks where you are from?",
+            "reason":"Distinct but wrong instructional language.",
+        }
+    assert payload["rejection_reason"]=="deterministic blockers"
+    assert payload["authoritative_deterministic_blockers"]
     return {"value":"¿Tú de dónde eres?","reason":"Same skill, distinct natural stem."}
 
 try:
     Q._call_review=fake_call
-    Q._audit_topic=lambda topic, language, track: []
+    def fake_audit(topic, language, track):
+        prompt=topic["content"]["pages"][0]["prompt"]
+        if prompt.startswith("Which answer"):
+            return [
+                A.Finding(
+                    "instructional_prose_in_target_field", A.BLOCK,
+                    path="pages[0]", field="prompt", role="target",
+                    detail="reads as en", value=prompt,
+                ),
+                A.Finding(
+                    "stem_in_instructional_language", A.BLOCK,
+                    path="pages[0]", field="prompt", role="target",
+                    detail="stem reads as en", value=prompt,
+                ),
+            ]
+        return []
+    Q._audit_topic=fake_audit
     Q._topic_render_blockers=lambda content: []
     Q.R.repair_lesson=lambda content, language: content
     applied=Q.repair_duplicate_mcq_stems(
