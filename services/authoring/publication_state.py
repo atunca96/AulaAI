@@ -177,7 +177,8 @@ def mark_failed(course_id: str, reason: str, gen_id: Optional[str] = None) -> No
 
 def mark_ready(course_id: str, gen_id: Optional[str] = None, *,
                progress: Optional[int] = None,
-               total_steps: Optional[int] = None) -> Dict[str, int]:
+               total_steps: Optional[int] = None,
+               terminal_on_refusal: bool = True) -> Dict[str, int]:
     """Declare a classroom ready — only after proving it may be.
 
     This is the single writer of the ready state. On refusal the course is
@@ -189,7 +190,12 @@ def mark_ready(course_id: str, gen_id: Optional[str] = None, *,
     try:
         certified = verify_publishable(course_id)
     except NotPublishable as exc:
-        mark_failed(course_id, str(exc), gen_id)
+        # Legacy/direct callers may still choose a terminal refusal. The
+        # self-healing publication loop explicitly disables that write so a
+        # transient/content refusal can never flash "Publication refused" to
+        # the user between retry iterations.
+        if terminal_on_refusal:
+            mark_failed(course_id, str(exc), gen_id)
         raise
 
     fields = ["is_building = 0", "build_stage = ?", "build_message = ?"]
