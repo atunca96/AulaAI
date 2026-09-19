@@ -128,3 +128,82 @@ assert data == {"value":"ok"}, data
 assert len(json_calls) == 2, len(json_calls)
 assert abs(budget.spent - 0.001) < 1e-9, budget.spent
 print("[STRUCTURED-JSON] zero-cost finish_reason=error retries strict schema unchanged")
+
+
+# Transport-level regression: HTTP 200 + partial JSON + finish_reason=error
+# must consume the existing bounded transport retry and aggregate usage/cost.
+import json as _json
+
+class _FakeHTTP:
+    def __init__(self, payload):
+        self.payload = payload
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        return False
+    def read(self):
+        return _json.dumps(self.payload).encode("utf-8")
+
+transport_calls=[]
+orig_urlopen=Q.T.urllib.request.urlopen
+orig_key=Q.T.os.environ.get("OPENROUTER_API_KEY")
+Q.T.os.environ["OPENROUTER_API_KEY"]="test-key-long-enough"
+
+def fake_urlopen(request, timeout=None):
+    transport_calls.append(1)
+    if len(transport_calls) == 1:
+        return _FakeHTTP({
+            "choices":[{
+                "message":{"content":"{\"value\":\"partial"},
+                "finish_reason":"error",
+            }],
+            "usage":{
+                "prompt_tokens":10,
+                "completion_tokens":4,
+                "cost":0.001,
+            },
+        })
+    return _FakeHTTP({
+        "choices":[{
+            "message":{"content":"{\"value\":\"ok\"}"},
+            "finish_reason":"stop",
+        }],
+        "usage":{
+            "prompt_tokens":10,
+            "completion_tokens":5,
+            "cost":0.002,
+        },
+    })
+
+try:
+    Q.T.urllib.request.urlopen=fake_urlopen
+    response=Q.T.call_model(
+        [{"role":"system","content":"system"},{"role":"user","content":"user"}],
+        max_tokens=50,
+        temperature=0.0,
+        model="google/gemini-3.7-flash",
+        cache_system=False,
+        attempts=2,
+        reasoning_effort="low",
+        response_schema={
+            "type":"object",
+            "properties":{"value":{"type":"string"}},
+            "required":["value"],
+            "additionalProperties":False,
+        },
+        response_name="transport_retry",
+    )
+finally:
+    Q.T.urllib.request.urlopen=orig_urlopen
+    if orig_key is None:
+        Q.T.os.environ.pop("OPENROUTER_API_KEY",None)
+    else:
+        Q.T.os.environ["OPENROUTER_API_KEY"]=orig_key
+
+assert response.ok, response.error
+assert response.data == {"value":"ok"}, response.data
+assert len(transport_calls) == 2, len(transport_calls)
+assert response.input_tokens == 20, response.input_tokens
+assert response.output_tokens == 9, response.output_tokens
+assert abs(float(response.cost or 0.0) - 0.003) < 1e-9, response.cost
+print("[TRANSPORT-STRUCTURED] finish_reason=error retries and aggregates billed usage")
