@@ -205,6 +205,7 @@ assert "build_stage='quality_review'" in source
 assert "UPDATE courses SET is_building=0, build_stage='failed'" not in source
 assert "mark_failed(" not in source
 assert "while True" in source
+assert "terminal_on_refusal=False" in source
 print("[PUBLICATION-FEEDBACK] outer publication loop has no content-retry ceiling")
 
 # The lecturer's review-only retry endpoint must not bypass the self-healing
@@ -215,4 +216,8 @@ server_source = inspect.getsource(S.APIHandler._retry_classroom_publication)
 assert "_run_publication_until_ready" in server_source
 assert "_run_publication_quality_gate" not in server_source
 assert "PS.mark_failed(" not in server_source
+startup_source = inspect.getsource(S._resume_nonterminal_publication_repairs)
+assert "Publication refused:%" in startup_source
+assert "_run_publication_until_ready" in startup_source
 print("[PUBLICATION-FEEDBACK] review-only endpoint cannot terminally refuse content")
+print("[PUBLICATION-FEEDBACK] legacy refused rows auto-resume on startup")
