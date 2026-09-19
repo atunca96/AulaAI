@@ -66,6 +66,7 @@ try:
             "rule":"Adjectives ending in -e or a consonant only change for number.",
             "rule_tr":"-e veya ünsüzle biten sıfatlar yalnızca tekillik-çoğulluğa göre değişir.",
             "scope":"absolute",
+            "analysis":"Different adjective classes can follow different agreement patterns.",
         }]}]},
     }
     risk_records=Q._risk_review_records(risk_topic["content"])
@@ -82,7 +83,9 @@ try:
         return {
             "topic_id":"g1",
             "checked_ids":checked_ids,
-            "scope_checked_ids":absolute_ids,
+            # A reviewer may conservatively scope-check additional valid records.
+            # This is extra verification, not a publication defect.
+            "scope_checked_ids":checked_ids,
             "patches":[
                 {
                     "path":["pages","0","rules","0","rule"],
@@ -106,6 +109,34 @@ try:
     )
     assert applied==2
     assert "sınıfa göre" in risk_topic["content"]["pages"][0]["rules"][0]["rule_tr"]
+
+    unknown_topic={
+        "id":"g2","title":"Unknown Coverage Guard","type":"grammar",
+        "content":{"pages":[{"type":"lesson","rules":[{
+            "rule":"This form always changes.",
+            "rule_tr":"Bu biçim her zaman değişir.",
+        }]}]},
+    }
+    def fake_unknown_scope_call(**kwargs):
+        payload=kwargs["payload"]
+        records=payload["topics"][0]["records"]
+        checked=[rec["record_id"] for rec in records]
+        absolute=payload["topics"][0].get("absolute_ids") or []
+        return {
+            "topic_id":"g2",
+            "checked_ids":checked,
+            "scope_checked_ids":absolute+["r999"],
+            "patches":[],
+        }
+    Q._call_review=fake_unknown_scope_call
+    try:
+        Q.review_unit_risk_claims(
+            unit_title="Guard",topics=[unknown_topic],language="Spanish",
+            level="A1",track="tr",budget=Q.ReviewBudget(1.0),
+        )
+        raise AssertionError("unknown scope id must fail closed")
+    except Q.QualityGateError as exc:
+        assert "unknown_ids=['r999']" in str(exc)
 
     p1={
         "id":"p1","title":"Daily Activities","type":"vocabulary",
