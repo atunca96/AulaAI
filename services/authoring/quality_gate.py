@@ -2194,6 +2194,103 @@ _EXPLANATION_SPECIFICITY_REASON = (
 )
 
 
+# ── Proof over proxy ─────────────────────────────────────────────────────────
+#
+# `_ungrounded_explanation_names` and `_rationale_has_specific_evidence` are
+# DETERMINISTIC PROXIES for two semantic questions: does this rationale invent a
+# person, and does it cite the item. Neither question is decidable from token
+# shape, and both proxies are measurably wrong across the taught languages:
+# capitalisation carries no name signal in Chinese, Japanese, Korean or Arabic
+# and over-fires in German where every noun is capitalised, so the same guard is
+# simultaneously dead in four languages and hyperactive in a fifth.
+#
+# Used as a hard publication gate, a proxy of that shape cannot converge. Each
+# false positive is patched, the boundary moves, and a new class of ordinary
+# prose starts failing: grammar labels, parenthetical teaching labels, technical
+# labels, each its own emergency commit. The list does not terminate, because
+# "capitalised but not a person" is unbounded in fifteen languages.
+#
+# So the proxy keeps its full detection power and loses only its FINALITY. When
+# the language-aware reviewer has already judged these exact bytes and issued a
+# grounding/specificity proof for them, that judgement stands and the proxy is
+# recorded rather than enforced. The attestation is the exact semantic surface
+# the proxies read, so any later edit to the stem, options, answer or either
+# rationale invalidates it and the proxy binds again with full force.
+#
+# Nothing is weakened for unreviewed content: with no proof, the blocker is
+# raised exactly as before and publication still fails closed.
+
+_RATIONALE_PROOF_KIND = "rationale_page_semantic_proof"
+
+
+def _rationale_semantic_digest(page: Any) -> str:
+    """The exact surface the rationale proxies read, as one stable key.
+
+    Stem, option set, keyed answer and every rationale locale. A proof is valid
+    only for this tuple: change any of it and the attestation no longer matches.
+    """
+    if not isinstance(page, dict):
+        return ""
+    from services.authoring import render_contract as RC
+
+    surface: Dict[str, Any] = {
+        "stem_tr": RC.resolve_stem(page, True),
+        "stem_en": RC.resolve_stem(page, False),
+        "answer": str(page.get("answer") or ""),
+        "options": [str(v) for v in (page.get("options")
+                                     or page.get("choices") or [])],
+        "distractors": [str(v) for v in (page.get("distractors") or [])],
+    }
+    for key in tuple(dict.fromkeys(_NAME_GENDER_EN_KEYS + _NAME_GENDER_TR_KEYS)):
+        value = page.get(key)
+        if isinstance(value, str) and value.strip():
+            surface[key] = value
+    return _review_attestation_key(
+        kind=_RATIONALE_PROOF_KIND, model="", system=_RATIONALE_PROOF_KIND,
+        payload=surface, response_schema={}, response_name=_RATIONALE_PROOF_KIND,
+    )
+
+
+def _rationale_proof_covers(page: Any) -> bool:
+    """Whether a reviewer already cleared this page's exact semantic surface."""
+    digest = _rationale_semantic_digest(page)
+    if not digest:
+        return False
+    try:
+        return _review_attestation_has(digest)
+    except Exception:
+        # A proof that cannot be read is a proof that does not exist: the proxy
+        # keeps its blocker and publication stays fail-closed.
+        return False
+
+
+def attest_rationale_pages(content: Any, *, stage: str) -> int:
+    """Record that a reviewer judged these pages' exact rationale surface.
+
+    Called only after a rationale proof has been accepted AND its patches and
+    deterministic normalization have been applied, so the attested bytes are the
+    ones that will be persisted and exported rather than the ones the model was
+    shown.
+    """
+    pages = content.get("pages") if isinstance(content, dict) else None
+    stored = 0
+    for page in pages or []:
+        if not isinstance(page, dict):
+            continue
+        from services.authoring import render_contract as RC
+        if not RC.mcq_like(page):
+            continue
+        digest = _rationale_semantic_digest(page)
+        if not digest:
+            continue
+        try:
+            _review_attestation_store(digest, stage=stage)
+            stored += 1
+        except Exception:
+            continue
+    return stored
+
+
 def _explanation_grounding_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Final-artifact rationale invariants, shaped like renderer blockers."""
     from services.authoring import render_contract as RC
@@ -2202,6 +2299,21 @@ def _explanation_grounding_blockers(content: Dict[str, Any]) -> List[Dict[str, A
     out: List[Dict[str, Any]] = []
     for page_index, page in enumerate(pages or []):
         names = _ungrounded_explanation_names(page)
+        proven = None
+        if names or not _rationale_has_specific_evidence(page):
+            # Only consult the store when a proxy actually fires, so a clean
+            # page costs no lookup.
+            proven = _rationale_proof_covers(page)
+            if proven:
+                print(
+                    f"[QUALITY-PROOF] proxy overruled by reviewer proof on "
+                    f"pages[{page_index}]: "
+                    f"{'grounding ' if names else ''}"
+                    f"{'specificity' if not _rationale_has_specific_evidence(page) else ''}"
+                    .strip(),
+                    flush=True,
+                )
+                continue
         if names:
             out.append({
                 "page_index": page_index,
@@ -4963,6 +5075,26 @@ def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
         patches.append(patch)
 
     applied = _apply_patches(by_id, patches)
+
+    # The reviewer has now judged every item in `expected_ids` and its patches
+    # are applied, so these exact bytes carry a language-aware grounding and
+    # specificity verdict. Attest them: from here the token proxies may report
+    # this page but may no longer be the thing that refuses a paid classroom at
+    # the final gate. Attestation is per item and keyed to the page's semantic
+    # surface, so anything edited afterwards drops back under the proxy.
+    for row in items:
+        topic = by_id.get(str(row.get("topic_id")))
+        pages = (topic or {}).get("content", {}).get("pages")
+        index = row.get("page_index")
+        if not isinstance(pages, list) or not isinstance(index, int):
+            continue
+        if not 0 <= index < len(pages):
+            continue
+        attest_rationale_pages(
+            {"pages": [pages[index]]},
+            stage=f"rationale_proof:{unit_title}:{row.get('item_id')}",
+        )
+
     # This verifier owns rationale grounding only. Do not invoke the whole
     # convergence machine after a clean local repair: that can make an
     # explanation edit pay for an unrelated bilingual/structural repair. If the
@@ -5622,6 +5754,15 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             f"{unit_title}: assessment has deterministic blockers after review: "
             f"{A.summarise(blockers)}"
         )
+
+    # NOTE: deliberately NOT attesting the rationale surface here.
+    # `_require_assessment_quality_proof` is a BLANKET ten-question quality
+    # verdict, not a per-item adjudication of grounding. Attesting on it lets a
+    # sweeping "all ten are fine" silently disable the invented-person detector,
+    # which is the self-certification loophole this gate already closed once. A
+    # proof may overrule a proxy only where the reviewer's whole job was that
+    # exact question, item by item — which is the rationale grounding reviewer,
+    # and only there.
 
     # Assessment rationales use the same deterministic grounding contract as
     # lesson MCQs. Repair EVERY grounding blocker in this unit with the proven

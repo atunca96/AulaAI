@@ -62,6 +62,8 @@ VERIFICATION_STEPS = [
     "scripts/test_cross_topic_duplicate_stem_repair.py",
     "scripts/test_scope_risk_phonetic_gate.py",
     "scripts/test_residual_quality_review.py",
+    "scripts/test_rationale_specificity_repair.py",
+    "scripts/test_rationale_proof_over_proxy.py",
     "scripts/test_embedded_patch_corruption.py",
     "scripts/test_camel_hump_patch_reconcile.py",
     "scripts/test_sentence_camel_corruption.py",
@@ -154,8 +156,32 @@ def _clear_project_modules():
             del sys.modules[name]
 
 
+def _reset_review_attestations():
+    """Start every build from an empty replay/attestation store.
+
+    The store is a sqlite file that survives between runs, and several checks
+    assert how many provider round-trips a path makes. A warm store serves the
+    first call from cache, the second never happens, and the check fails — so a
+    green build could turn red on a re-run with no source change, which is the
+    opposite of what a build verifying checked-in source is for.
+
+    Railway builds in a fresh container and `data/` is in `.railwayignore`, so
+    this only ever matters locally; that is precisely where a developer hits it.
+    """
+    for name in ("aula_quality_review_attest.sqlite3",):
+        target = ROOT / "data" / name
+        try:
+            target.unlink()
+            print(f"[AULAAI-BUILD] cleared review attestation store: {name}")
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            print(f"[AULAAI-BUILD] could not clear {name}: {exc}", file=sys.stderr)
+
+
 def run_pipeline():
     started = time.perf_counter()
+    _reset_review_attestations()
     total = len(VERIFICATION_STEPS)
     print(f"[AULAAI-BUILD] {total} verification steps against checked-in source")
 
