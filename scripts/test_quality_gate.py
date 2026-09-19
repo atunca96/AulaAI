@@ -29,6 +29,7 @@ def assessment_quality_checks():
     return [{
         "question": i,
         "single_answer": True,
+        "form_and_agreement_correct": True,
         "distractors_plausible": True,
         "rationale_specific": True,
         "cefr_fit": True,
