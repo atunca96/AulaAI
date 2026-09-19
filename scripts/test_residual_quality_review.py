@@ -50,24 +50,36 @@ try:
     def fake_call(**kwargs):
         stage=kwargs["stage"]
         payload=kwargs["payload"]
+        if stage.startswith("review_rationale_exact:"):
+            item=payload["items"][0]
+            assert item["item_id"]=="q1"
+            return {
+                "checked_ids":["q1"],
+                "patches":[{
+                    "item_id":"q1","field":"explanation_en",
+                    "old":"The material says the keys are here.",
+                    "value":"The stem explicitly says the keys are «al lado del sofá».",
+                    "reason":"Ground the rationale in the assessment stem."
+                }],
+            }
         if stage.startswith("review_rationale_grounding:"):
             items=payload["items"]
             return {
                 "checked_ids":[row["item_id"] for row in items],
                 "patches":[
-                    {"topic_id":"t1","path":["pages","0","explanation_en"],
+                    {"item_id":"q0","field":"explanation_en",
                      "old":"Ella is a female student, so the answer is mexicana.",
                      "value":"The feminine singular form of «mexicano» is «mexicana».",
                      "reason":"Remove evidence not present in the item."},
-                    {"topic_id":"t1","path":["pages","0","explanation_tr"],
+                    {"item_id":"q0","field":"explanation_tr",
                      "old":"Ella kadın bir öğrencidir, bu yüzden cevap mexicana'dır.",
                      "value":"«mexicano» sıfatının dişil tekil biçimi «mexicana»dır.",
                      "reason":"Soruda bulunmayan özne ve senaryoyu kaldır."},
-                    {"topic_id":"a1","path":["pages","0","explanation_en"],
-                     "old":"The material says the keys are here.",
+                    {"item_id":"q1","field":"explanation_en",
+                     "old":"Ella is a female student, so the answer is mexicana.",
                      "value":"The stem explicitly says the keys are «al lado del sofá».",
-                     "reason":"Ground the rationale in the assessment stem."},
-                    {"topic_id":"a1","path":["pages","0","explanation_tr"],
+                     "reason":"Simulate a batch reviewer copying old from another item."},
+                    {"item_id":"q1","field":"explanation_tr",
                      "old":"Ders materyalinde anahtarların burada olduğu belirtilir.",
                      "value":"Soru kökü anahtarların açıkça «al lado del sofá» olduğunu söylüyor.",
                      "reason":"Gerekçeyi assessment kökündeki açık kanıta bağla."},
