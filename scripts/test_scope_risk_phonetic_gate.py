@@ -2,7 +2,7 @@
 """Regression: unit scope, pedagogical-risk, and cross-topic IPA gates."""
 
 from __future__ import annotations
-import os, sys
+import os, sys, tempfile
 
 ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -27,6 +27,9 @@ orig_call=Q._call_review
 orig_audit=Q._audit_topic
 orig_render=Q._topic_render_blockers
 orig_repair=Q.R.repair_lesson
+orig_cache_db=Q._REVIEW_ATTEST_DB
+_cache_dir=tempfile.mkdtemp(prefix="aulaai-scope-risk-")
+Q._REVIEW_ATTEST_DB=os.path.join(_cache_dir, "review.sqlite3")
 
 try:
     calls=[]
@@ -123,7 +126,8 @@ try:
             "checked_ids":checked_ids,
             # A reviewer may conservatively scope-check additional valid records.
             # This is extra verification, not a publication defect.
-            "scope_checked_ids":checked_ids,
+            "categorical_ids":absolute_ids,
+            "scope_checked_ids":absolute_ids,
             "scope_checks":[
                 {
                     "record_id":rid,
@@ -172,6 +176,7 @@ try:
         return {
             "topic_id":"g2",
             "checked_ids":checked,
+            "categorical_ids":absolute,
             "scope_checked_ids":absolute+["r999"],
             "scope_checks":[
                 {
@@ -225,5 +230,6 @@ finally:
     Q._audit_topic=orig_audit
     Q._topic_render_blockers=orig_render
     Q.R.repair_lesson=orig_repair
+    Q._REVIEW_ATTEST_DB=orig_cache_db
 
 print("[SCOPE-RISK-IPA] unit grounding + rule risk + class IPA regressions PASSED")
