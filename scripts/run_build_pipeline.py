@@ -84,6 +84,7 @@ VERIFICATION_STEPS = [
     "scripts/test_final_publication_autorepair.py",
     "scripts/test_no_terra_publication_path.py",
     "scripts/test_quality_gate.py",
+    "scripts/test_shared_quality_contract.py",
     "scripts/test_language_matrix.py",
     "scripts/smoke_test_pdf_renderer.py",
     "scripts/test_micro_quality_polish.py",
