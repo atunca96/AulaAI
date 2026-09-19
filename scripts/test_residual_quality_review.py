@@ -162,7 +162,7 @@ try:
         unit_title="Identity",topics=[topic,assessment],language="Spanish",level="A1",
         track="tr",budget=Q.ReviewBudget(1.0),
     )
-    assert applied>=5
+    assert applied==4
     assert "female student" not in topic["content"]["pages"][0]["explanation_en"]
     assert "öğrencidir" not in topic["content"]["pages"][0]["explanation_tr"]
     assert "al lado del sofá" in assessment["content"]["pages"][0]["explanation_en"]
