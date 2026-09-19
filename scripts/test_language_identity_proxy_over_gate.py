@@ -81,8 +81,9 @@ assert leak_proxy and all(f.severity == A.WARN for f in leak_proxy)
 assert Q._semantic_proxy_findings_payload(leak_findings), leak_findings
 
 # Demoting lexical language-ID does NOT demote closed writing-system facts.
-# Latin Turkish prose inside a Russian target field is still deterministically
-# rejected by the script validator.
+# Latin is intentionally globally permitted because it carries romanised names
+# and the EN/TR instructional tracks. A genuinely alien non-Latin script,
+# however, remains a deterministic invariant.
 russian = {
     "pages": [{
         "type": "dialogue",
@@ -90,9 +91,9 @@ russian = {
         "title_tr": "Diyalog",
         "dialogue": [{
             "speaker": "A",
-            "text": "Bu cümle Türkçe ve bu nedenle Rusça değildir çünkü yanlış.",
-            "line_en": "This is not Russian.",
-            "line_tr": "Bu Rusça değildir.",
+            "text": "Привет κόσμος",
+            "line_en": "A Russian greeting followed by an alien Greek token.",
+            "line_tr": "Rusça selamlamadan sonra yabancı bir Yunanca sözcük.",
         }],
     }]
 }
