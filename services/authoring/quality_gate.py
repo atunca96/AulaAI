@@ -129,6 +129,70 @@ _LESSON_REVIEW_SCHEMA = {
     },
     "required": ["topics"],
 }
+_RISK_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "topic_id": {"type": "string"},
+        "checked_paths": {
+            "type": "array",
+            "items": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 1,
+            },
+        },
+        "patches": {"type": "array", "items": _NESTED_PATCH_SCHEMA},
+    },
+    "required": ["topic_id", "checked_paths", "patches"],
+}
+
+_MCq_RATIONALE_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "checked_items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "topic_id": {"type": "string"},
+                    "page_index": {"type": "integer"},
+                },
+                "required": ["topic_id", "page_index"],
+            },
+        },
+        "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
+    },
+    "required": ["checked_items", "patches"],
+}
+
+_COMPLEX_NOTATION_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "checked_items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "topic_id": {"type": "string"},
+                    "path": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                    },
+                },
+                "required": ["topic_id", "path"],
+            },
+        },
+        "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
+    },
+    "required": ["checked_items", "patches"],
+}
+
 _EXACT_TARGET_REPAIR_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -996,6 +1060,13 @@ Review EVERY supplied topic. Be adversarial and conservative. Check:
   every, only, must or impossible. Keep it absolute only if it is genuinely
   exceptionless in the declared standard variety; otherwise scope it precisely;
 - lesson MCQs for exactly one defensible answer and plausible distractors;
+- every stored answer-key rationale must justify the keyed answer from evidence
+  visible in that question or from the grammatical/lexical fact directly tested
+  there. Never introduce a person, situation, grammatical subject or fact that
+  is absent from the item merely to make the explanation sound concrete;
+- translations and instructional prose must be idiomatic in their own language,
+  not literal fragments or awkward calques. Correct genuine naturalness defects,
+  but do not perform cosmetic rewrites;
 - topical scope against the supplied unit title and unit topic list. A review,
   recap or milestone lesson must review THIS unit's material only. Content from
   another unit or from a generic textbook sequence is a blocking defect. When
@@ -1046,15 +1117,17 @@ Preserve CEFR level and meaning. If one correction has paired English/Turkish fi
 patch both so they remain semantically equivalent.
 
 Return JSON only:
-{"topics":[
-  {"topic_id":"EXACT ID","verdict":"ok|fix","patches":[
-    {"path":["pages","0","rules","0","rule_tr"],"old":"EXACT OLD VALUE",
-     "value":"CORRECT REPLACEMENT","reason":"brief factual reason"}
-  ]}
-]}
+{"topic_id":"EXACT ID",
+ "checked_paths":[["pages","0","rules","0","rule_tr"]],
+ "patches":[
+   {"path":["pages","0","rules","0","rule_tr"],"old":"EXACT OLD VALUE",
+    "value":"CORRECT REPLACEMENT","reason":"brief factual reason"}
+ ]}
 
 Contract:
-- Return exactly one entry for EVERY topic_id supplied.
+- The request contains exactly one topic. Copy its topic_id exactly.
+- checked_paths MUST contain every supplied record path exactly once. This is a
+  coverage proof, not a list of only suspicious records.
 - Use only paths present in the supplied records.
 - Copy old exactly, byte for byte.
 - Patch only correctness/scope errors, never style.
@@ -3170,20 +3243,34 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             effort="low",
             budget=budget,
             stage=f"review_risk:{unit_title}:{topic.get('title')}",
-            response_schema=_LESSON_REVIEW_SCHEMA,
+            response_schema=_RISK_REVIEW_SCHEMA,
             response_name="pedagogical_risk_review",
         )
-        rows = data.get("topics")
-        if not isinstance(rows, list) or len(rows) != 1 or \
-                not isinstance(rows[0], dict) or \
-                str(rows[0].get("topic_id") or "") != topic_id:
+        if str(data.get("topic_id") or "") != topic_id:
             raise QualityGateError(
-                f"{topic.get('title')}: risk reviewer returned incomplete topic "
-                f"coverage"
+                f"{topic.get('title')}: risk reviewer returned wrong topic id"
+            )
+        expected_paths = {
+            json.dumps([str(part) for part in rec.get("path") or []],
+                       ensure_ascii=False, separators=(",", ":"))
+            for rec in records
+        }
+        checked_paths = {
+            json.dumps([str(part) for part in path], ensure_ascii=False,
+                       separators=(",", ":"))
+            for path in (data.get("checked_paths") or [])
+            if isinstance(path, list)
+        }
+        if checked_paths != expected_paths:
+            missing = sorted(expected_paths - checked_paths)
+            extra = sorted(checked_paths - expected_paths)
+            raise QualityGateError(
+                f"{topic.get('title')}: risk reviewer coverage mismatch; "
+                f"missing={missing[:3]} extra={extra[:3]}"
             )
 
         patches = []
-        for patch in (rows[0].get("patches") or []):
+        for patch in (data.get("patches") or []):
             if not isinstance(patch, dict):
                 raise QualityGateError("risk-review patch is not an object")
             item = dict(patch)
