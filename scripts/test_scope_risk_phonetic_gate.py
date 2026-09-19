@@ -75,7 +75,7 @@ try:
     def fake_risk_call(**kwargs):
         stage=kwargs["stage"]
         payload=kwargs["payload"]
-        if stage.startswith("review_categorical_exact:"):
+        if stage.startswith("review_categorical_exact:") or stage.startswith("review_categorical_terra:"):
             current=payload["current"]
             if "only change for number" in current or "yalnızca tekillik-çoğulluğa" in current:
                 return {
