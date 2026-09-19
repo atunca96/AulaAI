@@ -169,7 +169,14 @@ def generate_lesson(*, topic: str, topic_type: str, language: str, level: str,
                     pages: int = 5, item_budget: int = 2, institution: str = "",
                     model: str = "", temperature: float = 0.55,
                     unit_title: str = "", unit_topics: Sequence[str] = ()) -> LessonResult:
-    """One lesson, repaired and audited, regenerated at most once."""
+    """Generate one mechanically usable lesson candidate.
+
+    Deterministic repair/audit still run immediately, but semantic/content
+    blockers no longer trigger a second paid regeneration. The publication
+    review pipeline is the semantic authority and already receives those
+    findings. A second author call is reserved for provider failure or unusable
+    JSON/structure only.
+    """
     ledger = ledger or B.BuildLedger(label=f"{language} {level}")
     system = P.build_lesson_system(language=language, level=level, track=track,
                                    institution=institution)
@@ -229,10 +236,14 @@ def generate_lesson(*, topic: str, topic_type: str, language: str, level: str,
         if best is None or len(A.blocking(findings)) < len(A.blocking(best_findings)):
             best, best_findings = lesson, findings
 
-        if not A.blocking(findings):
-            return LessonResult(lesson=lesson, findings=findings, attempts=attempt + 1,
-                                cost=spent)
-        correction = _correction_note(findings)
+        # Once the provider has produced a real lesson object with pages,
+        # semantic audit findings are carried forward to publication review
+        # instead of paying the author model to rewrite the whole lesson. This
+        # keeps cheap deterministic repair close to generation while removing
+        # duplicate semantic work.
+        return LessonResult(
+            lesson=lesson, findings=findings, attempts=attempt + 1, cost=spent
+        )
 
     return LessonResult(lesson=best, findings=best_findings, attempts=2, cost=spent)
 
