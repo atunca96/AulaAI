@@ -1915,7 +1915,7 @@ def _ungrounded_explanation_names(page: Any) -> List[str]:
 
     per_locale = []
     roman_label = re.compile(
-        r"\\b([^\\W\\d_]+)\\s+(?:I|II|III|IV|V|VI|VII|VIII|IX|X)\\b",
+        r"\b([^\W\d_]+)\s+(?:I|II|III|IV|V|VI|VII|VIII|IX|X)\b",
         re.UNICODE,
     )
     for keys in (_NAME_GENDER_EN_KEYS, _NAME_GENDER_TR_KEYS):
