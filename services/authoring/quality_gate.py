@@ -134,63 +134,39 @@ _RISK_REVIEW_SCHEMA = {
     "additionalProperties": False,
     "properties": {
         "topic_id": {"type": "string"},
-        "checked_paths": {
+        "checked_ids": {
             "type": "array",
-            "items": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": 1,
-            },
+            "items": {"type": "string"},
         },
         "patches": {"type": "array", "items": _NESTED_PATCH_SCHEMA},
     },
-    "required": ["topic_id", "checked_paths", "patches"],
+    "required": ["topic_id", "checked_ids", "patches"],
 }
 
 _MCq_RATIONALE_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "checked_items": {
+        "checked_ids": {
             "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    "topic_id": {"type": "string"},
-                    "page_index": {"type": "integer"},
-                },
-                "required": ["topic_id", "page_index"],
-            },
+            "items": {"type": "string"},
         },
         "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
     },
-    "required": ["checked_items", "patches"],
+    "required": ["checked_ids", "patches"],
 }
 
 _COMPLEX_NOTATION_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "checked_items": {
+        "checked_ids": {
             "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    "topic_id": {"type": "string"},
-                    "path": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "minItems": 1,
-                    },
-                },
-                "required": ["topic_id", "path"],
-            },
+            "items": {"type": "string"},
         },
         "patches": {"type": "array", "items": _TOP_LEVEL_PATCH_SCHEMA},
     },
-    "required": ["checked_items", "patches"],
+    "required": ["checked_ids", "patches"],
 }
 
 _EXACT_TARGET_REPAIR_SCHEMA = {
@@ -1118,7 +1094,7 @@ patch both so they remain semantically equivalent.
 
 Return JSON only:
 {"topic_id":"EXACT ID",
- "checked_paths":[["pages","0","rules","0","rule_tr"]],
+ "checked_ids":["r0"],
  "patches":[
    {"path":["pages","0","rules","0","rule_tr"],"old":"EXACT OLD VALUE",
     "value":"CORRECT REPLACEMENT","reason":"brief factual reason"}
@@ -1126,8 +1102,9 @@ Return JSON only:
 
 Contract:
 - The request contains exactly one topic. Copy its topic_id exactly.
-- checked_paths MUST contain every supplied record path exactly once. This is a
-  coverage proof, not a list of only suspicious records.
+- checked_ids MUST contain every supplied record_id exactly once. This is a
+  coverage proof, not a list of only suspicious records. Copy IDs exactly; do
+  not reconstruct or normalize paths.
 - Use only paths present in the supplied records.
 - Copy old exactly, byte for byte.
 - Patch only correctness/scope errors, never style.
@@ -2154,7 +2131,10 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                 "topics": [{
                     "topic_id": str(topic["id"]),
                     "title": str(topic.get("title") or ""),
-                    "records": records,
+                    "records": [
+                        dict(rec, record_id=f"r{index}")
+                        for index, rec in enumerate(records)
+                    ],
                     "deterministic_blockers": blocker_rows,
                     "render_contract_blockers": [],
                 }],
@@ -3250,23 +3230,17 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             raise QualityGateError(
                 f"{topic.get('title')}: risk reviewer returned wrong topic id"
             )
-        expected_paths = {
-            json.dumps([str(part) for part in rec.get("path") or []],
-                       ensure_ascii=False, separators=(",", ":"))
-            for rec in records
+        expected_ids = {f"r{index}" for index, _ in enumerate(records)}
+        checked_ids = {
+            str(value) for value in (data.get("checked_ids") or [])
+            if isinstance(value, str)
         }
-        checked_paths = {
-            json.dumps([str(part) for part in path], ensure_ascii=False,
-                       separators=(",", ":"))
-            for path in (data.get("checked_paths") or [])
-            if isinstance(path, list)
-        }
-        if checked_paths != expected_paths:
-            missing = sorted(expected_paths - checked_paths)
-            extra = sorted(checked_paths - expected_paths)
+        if checked_ids != expected_ids:
+            missing = sorted(expected_ids - checked_ids)
+            extra = sorted(checked_ids - expected_ids)
             raise QualityGateError(
                 f"{topic.get('title')}: risk reviewer coverage mismatch; "
-                f"missing={missing[:3]} extra={extra[:3]}"
+                f"missing_ids={missing[:5]} extra_ids={extra[:5]}"
             )
 
         patches = []
@@ -3311,14 +3285,15 @@ For every item:
 - do not rewrite a correct explanation for style alone.
 
 Return JSON only:
-{"checked_items":[{"topic_id":"EXACT ID","page_index":0}],
+{"checked_ids":["q0"],
  "patches":[
    {"topic_id":"EXACT ID","path":["pages","0","explanation_tr"],
     "old":"EXACT OLD","value":"GROUNDED REPLACEMENT","reason":"brief reason"}
  ]}
 
 Contract:
-- checked_items MUST contain every supplied topic_id/page_index exactly once.
+- checked_ids MUST contain every supplied item_id exactly once. Copy opaque IDs
+  exactly; do not reconstruct topic/page coordinates.
 - Patch ONLY existing explanation/analysis fields supplied for that item.
 - Never change stems, answers, options, distractors, titles or structure.
 - Copy old exactly, byte for byte.
@@ -3336,14 +3311,15 @@ classroom's bracket style. Do not respell, add alternatives or rewrite a correct
 transcription for style.
 
 Return JSON only:
-{"checked_items":[{"topic_id":"EXACT ID","path":["pages","0","items","0","phonetic"]}],
+{"checked_ids":["n0"],
  "patches":[
    {"topic_id":"EXACT ID","path":["pages","0","items","0","phonetic"],
     "old":"EXACT OLD","value":"CORRECT IPA","reason":"brief reason"}
  ]}
 
 Contract:
-- checked_items MUST contain every supplied topic_id/path exactly once.
+- checked_ids MUST contain every supplied item_id exactly once. Copy opaque IDs
+  exactly; do not reconstruct paths.
 - Patch ONLY the supplied notation paths.
 - Copy old exactly, byte for byte.
 """
@@ -3372,6 +3348,7 @@ def _lesson_mcq_rationale_items(topics: List[Dict[str, Any]]) -> List[Dict[str, 
             )
             options = page.get("options") or page.get("choices") or []
             items.append({
+                "item_id": f"q{len(items)}",
                 "topic_id": str(topic["id"]),
                 "page_index": page_index,
                 "stem": stem,
@@ -3408,16 +3385,16 @@ def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
         response_name="lesson_mcq_rationale_grounding",
     )
 
-    expected = {(row["topic_id"], int(row["page_index"])) for row in items}
-    checked = {
-        (str(row.get("topic_id") or ""), int(row.get("page_index")))
-        for row in (data.get("checked_items") or [])
-        if isinstance(row, dict) and str(row.get("page_index", "")).isdigit()
+    expected_ids = {row["item_id"] for row in items}
+    checked_ids = {
+        str(value) for value in (data.get("checked_ids") or [])
+        if isinstance(value, str)
     }
-    if checked != expected:
+    if checked_ids != expected_ids:
         raise QualityGateError(
             f"{unit_title}: rationale grounding coverage mismatch; "
-            f"missing={sorted(expected - checked)[:3]} extra={sorted(checked - expected)[:3]}"
+            f"missing_ids={sorted(expected_ids - checked_ids)[:5]} "
+            f"extra_ids={sorted(checked_ids - expected_ids)[:5]}"
         )
 
     by_id = {str(topic["id"]): topic for topic in topics}
@@ -3506,13 +3483,14 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
     profile = S.profile_for_language(language)
     payload_items = [
         {
+            "item_id": f"n{index}",
             "topic_id": row["topic_id"],
             "path": [str(part) for part in row["path"]],
             "term": row["term"],
             "field": row["field"],
             "value": row["value"],
         }
-        for row in items
+        for index, row in enumerate(items)
     ]
     data = _call_review(
         model=REVIEW_MODEL,
@@ -3531,24 +3509,16 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
         response_schema=_COMPLEX_NOTATION_REVIEW_SCHEMA,
         response_name="complex_notation_review",
     )
-    expected = {
-        (row["topic_id"], json.dumps([str(p) for p in row["path"]],
-                                     ensure_ascii=False, separators=(",", ":")))
-        for row in items
+    expected_ids = {f"n{index}" for index, _ in enumerate(items)}
+    checked_ids = {
+        str(value) for value in (data.get("checked_ids") or [])
+        if isinstance(value, str)
     }
-    checked = {
-        (
-            str(row.get("topic_id") or ""),
-            json.dumps([str(p) for p in (row.get("path") or [])],
-                       ensure_ascii=False, separators=(",", ":")),
-        )
-        for row in (data.get("checked_items") or [])
-        if isinstance(row, dict) and isinstance(row.get("path"), list)
-    }
-    if checked != expected:
+    if checked_ids != expected_ids:
         raise QualityGateError(
             f"{unit_title}: complex notation coverage mismatch; "
-            f"missing={sorted(expected - checked)[:2]} extra={sorted(checked - expected)[:2]}"
+            f"missing_ids={sorted(expected_ids - checked_ids)[:5]} "
+            f"extra_ids={sorted(checked_ids - expected_ids)[:5]}"
         )
 
     by_id = {str(topic["id"]): topic for topic in topics}
