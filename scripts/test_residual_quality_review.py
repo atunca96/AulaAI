@@ -53,6 +53,24 @@ _konjunktiv_page={
 assert Q._ungrounded_explanation_names(_konjunktiv_page) == []
 assert Q._rationale_has_specific_evidence(_konjunktiv_page)
 
+# Production regression: bilingual pronunciation explanations can share a
+# capitalized technical label that is absent from the stem. A term explicitly
+# presented parenthetically in one locale is teaching terminology, not a person.
+_auslaut_page={
+    "type":"mcq",
+    "prompt":"Wie wird das Wort »Zug« in der Verbindung »der Zug kommt« ausgesprochen?",
+    "answer":"Mit einem stimmlosen [k] am Wortende trotz der folgenden Wörter.",
+    "options":[
+        "Mit einem stimmlosen [k] am Wortende trotz der folgenden Wörter.",
+        "Mit einem stimmhaften [ɡ] am Wortende wegen der Satzmelodie.",
+        "Mit einem weichen [ç] am Wortende wie im Wort Küche.",
+        "Mit einem langen [ɡː] am Wortende durch Lautangleichung.",
+    ],
+    "explanation":"In standard pronunciation, final devoicing (Auslautverhärtung) causes the voiced consonant /ɡ/ at the end of 'Zug' to be pronounced as a voiceless [k], even before subsequent words in connected speech.",
+    "explanation_tr":"Standart Almancada hece ve kelime sonu sertleşmesi (Auslautverhärtung) kuralı gereğince 'Zug' kelimesinin sonundaki ötümlü /ɡ/ sesi ötümsüz [k] olarak telaffuz edilir.",
+}
+assert Q._ungrounded_explanation_names(_auslaut_page) == []
+
 try:
     Q._audit_topic=lambda topic, language, track: []
     Q._topic_render_blockers=lambda content: []
