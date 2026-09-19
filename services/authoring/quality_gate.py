@@ -1119,9 +1119,10 @@ Contract:
 - checked_ids MUST contain every supplied record_id exactly once. This is a
   coverage proof, not a list of only suspicious records. Copy IDs exactly; do
   not reconstruct or normalize paths.
-- scope_checked_ids MUST contain every supplied absolute_id exactly once (and no
-  other IDs), proving every categorical claim received an explicit scope/
-  counterexample check.
+- scope_checked_ids MUST contain every supplied absolute_id, proving every
+  server-flagged categorical claim received an explicit scope/counterexample
+  check. You MAY also include other supplied record_id values if you judge those
+  records categorical. Never invent an ID that is not present in records.
 - Use only paths present in the supplied records.
 - Copy old exactly, byte for byte.
 - Patch only correctness/scope errors, never style.
@@ -3276,11 +3277,13 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             str(value) for value in (data.get("scope_checked_ids") or [])
             if isinstance(value, str)
         }
-        if scope_checked_ids != expected_scope_ids:
+        missing_scope_ids = expected_scope_ids - scope_checked_ids
+        unknown_scope_ids = scope_checked_ids - expected_ids
+        if missing_scope_ids or unknown_scope_ids:
             raise QualityGateError(
                 f"{topic.get('title')}: categorical-scope coverage mismatch; "
-                f"missing_ids={sorted(expected_scope_ids - scope_checked_ids)[:5]} "
-                f"extra_ids={sorted(scope_checked_ids - expected_scope_ids)[:5]}"
+                f"missing_ids={sorted(missing_scope_ids)[:5]} "
+                f"unknown_ids={sorted(unknown_scope_ids)[:5]}"
             )
 
         patches = []
