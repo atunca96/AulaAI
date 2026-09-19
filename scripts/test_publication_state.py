@@ -73,8 +73,13 @@ def mcq(index, prompt):
             "title": f"Question {index}", "title_tr": f"Soru {index}",
             "prompt": prompt, "options": ["opción a", "opción b", "opción c", "opción d"],
             "answer": "opción a", "distractors": ["opción b", "opción c", "opción d"],
-            "explanation": "The taught form fits here.",
-            "explanation_tr": "Burada öğretilen biçim uygundur."}
+            "explanation": (
+                f"The visible question «{prompt}» supplies the evidence used "
+                "to select the keyed option."
+            ),
+            "explanation_tr": (
+                f"Görünür soru «{prompt}» işaretli seçeneği belirleyen kanıtı verir."
+            )}
 
 
 def assessment(unit_no, count=10):
