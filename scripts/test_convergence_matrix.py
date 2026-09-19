@@ -255,6 +255,9 @@ noop = {"stem": "Ana es ___. (alto)",
 provider = Provider({
     "review_render_name_gender:": noop,
     "review_render_exact:": {"value": "Ana es ___. (alto)", "reason": "unchanged"},
+    "converge_render_rescue:": {
+        "repairs": [{"field": "prompt", "value": "Ana es ___. (alto)"}]
+    },
 })
 raised = None
 try:
@@ -269,6 +272,7 @@ check(raised is not None, f"a non-progressing repair fails closed ({str(raised)[
 check(provider.calls == [
     "review_render_name_gender:Stuck:pages.0.prompt",
     "review_render_exact:Stuck:pages.0.prompt",
+    "converge_render_rescue:Stuck:pages.0",
 ], f"each strategy attempted once, in order ({provider.calls})")
 check(len(set(provider.calls)) == len(provider.calls),
       "no strategy is called twice for the same fingerprint")
@@ -385,8 +389,8 @@ rows = Q._detect_topic_blockers(spanish_topic([ng_page], title="Cls"),
                                language="Spanish", track="tr", canonical="Spanish")
 render_rows = [r for r in rows if r["kind"] == "render"]
 check(render_rows and render_rows[0]["strategies"] ==
-      ["render_name_gender", "render_stem"],
-      f"name/gender has a bounded fallback ({[r['strategies'] for r in render_rows]})")
+      ["render_name_gender", "render_stem", "render_rescue"],
+      f"name/gender has bounded fallbacks ({[r['strategies'] for r in render_rows]})")
 print("\n[9c] the production topic that failed on ca87655 now costs nothing")
 # "The House and Locations / Prepositions of Place / pages[3]": a preposition
 # item whose subject is called Ana and whose rationale explains another noun's
