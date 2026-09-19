@@ -527,8 +527,12 @@ def audit_item(item: Dict[str, Any], *, language: str = "", track: str = "tr",
     if stem and taught not in ("English", "Turkish"):
         detected = instructional_language_of(stem)
         if detected in ("en", "tr"):
-            add("stem_in_instructional_language", BLOCK, field="prompt",
-                detail=f"stem reads as {detected}", value=stem)
+            # Same proxy rule as the typed-string sweep above. A semantic
+            # reviewer should inspect this suspicion; a function-word overlap
+            # cannot be a fail-closed publication invariant in a 15-language
+            # system.
+            add("stem_in_instructional_language", WARN, field="prompt",
+                detail=f"proxy stem reads as {detected}", value=stem)
 
     # A gap the gloss fills in for the learner.
     if re.search(r"[_＿﹍﹏‗]{2,}", stem):
@@ -652,9 +656,16 @@ def _audit_typed_strings(node: Any, *, language: str, track: str,
             if taught not in ("English", "Turkish"):
                 detected = instructional_language_of(text)
                 if detected in ("en", "tr"):
-                    out.append(Finding("instructional_prose_in_target_field", BLOCK, path=path,
+                    # IMPORTANT: this is a lexical/function-word PROXY, not a
+                    # proof of language identity. Spanish de/o/mi, German
+                    # was/in, Dutch is/in and analogous cross-language
+                    # collisions can satisfy the EN/TR ratio even when the
+                    # learner-visible string is perfectly valid target-language
+                    # prose. Keep the signal for semantic review, but never let
+                    # this heuristic alone refuse publication.
+                    out.append(Finding("instructional_prose_in_target_field", WARN, path=path,
                                        field=field, role=spec.role,
-                                       detail=f"reads as {detected}", value=text))
+                                       detail=f"proxy reads as {detected}", value=text))
 
         elif spec.role in (S.INSTRUCTION, S.GLOSS):
             expected = spec.track or track
