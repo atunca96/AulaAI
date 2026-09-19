@@ -2087,7 +2087,8 @@ Hard contract:
 
 def repair_bilingual_preflight(*, units: List[Dict[str, Any]],
                                language: str, level: str, track: str,
-                               budget: ReviewBudget) -> int:
+                               budget: ReviewBudget,
+                               on_topic_complete: Any = None) -> int:
     """Prove EN/TR completeness for every lesson before broad review runs.
 
     Bilingual completeness used to be a tail check inside `review_unit_lessons`,
@@ -2107,6 +2108,12 @@ def repair_bilingual_preflight(*, units: List[Dict[str, Any]],
     never accepts an empty counterpart. Callers checkpoint the result before
     spending review budget, so a later unrelated failure cannot leave the
     database in an incomplete bilingual state.
+
+    `on_topic_complete(topic)` is called for each topic the moment that topic's
+    own `_missing_bilingual_pairs()` is empty — never before its own proof is
+    clean, and never for a topic still carrying a gap. A provider failure on a
+    later topic then leaves the earlier, proven ones persisted, so the outer
+    validator cannot report a gap that was in fact repaired.
     """
     if S.canonical_language(language) in ("English", "Turkish"):
         return 0
@@ -2143,6 +2150,8 @@ def repair_bilingual_preflight(*, units: List[Dict[str, Any]],
                     f"{topic.get('title')}: incomplete EN/TR field pairs after "
                     f"bilingual preflight repair: " + ", ".join(remaining[:8])
                 )
+            if on_topic_complete is not None:
+                on_topic_complete(topic)
 
     return applied
 
@@ -2176,47 +2185,85 @@ def _repair_bilingual_counterpart(*, topic: Dict[str, Any], content: Dict[str, A
                 if value not in (None, "", []):
                     page_context[key] = value
 
-    data = _call_review(
-        model=REPAIR_MODEL,
-        system=_EXACT_BILINGUAL_COUNTERPART_SYSTEM,
-        payload={
-            "taught_language": language,
-            "level": level,
-            "regional_variety": profile.variety if profile else "",
-            "instruction_track": track,
-            "unit": unit_title,
-            "topic_title": str(topic.get("title") or ""),
-            "path": path,
-            "field": slot["field"],
-            "target_locale": slot["target_locale"],
-            # Immutable evidence. The source field is read, never written.
-            "source_field": slot["source_field"],
-            "source_locale": slot["source_locale"],
-            "source_value": source_value,
-            "immutable_page_context": page_context,
-        },
-        max_tokens=500,
-        effort="low",
-        budget=budget,
-        stage=(
-            f"review_bilingual_exact:{topic.get('title')}:"
-            + ".".join(map(str, path))
-        ),
-        response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
-        response_name="lesson_bilingual_counterpart",
-    )
-    value = data.get("value")
-    if not isinstance(value, str) or not value.strip():
-        raise QualityGateError(
-            f"{topic.get('title')}: bilingual exact repair returned an empty "
-            f"counterpart for {'.'.join(map(str, path))}"
+    payload = {
+        "taught_language": language,
+        "level": level,
+        "regional_variety": profile.variety if profile else "",
+        "instruction_track": track,
+        "unit": unit_title,
+        "topic_title": str(topic.get("title") or ""),
+        "path": path,
+        "field": slot["field"],
+        "target_locale": slot["target_locale"],
+        # Immutable evidence. The source field is read, never written.
+        "source_field": slot["source_field"],
+        "source_locale": slot["source_locale"],
+        "source_value": source_value,
+        "immutable_page_context": page_context,
+    }
+    where = ".".join(map(str, path))
+
+    # A counterpart that comes back empty, or that is just the source echoed
+    # back, is a semantically invalid candidate for THIS slot — not a reason to
+    # end the build. In production the second slot of a run returned the Turkish
+    # source unchanged for an English target and the whole class-wide stage died
+    # on it, which is also why the outer validator then reported a stale gap
+    # from an earlier topic that had in fact been repaired.
+    #
+    # So the same slot gets one bounded corrective attempt, with the rejected
+    # candidate and why it was rejected handed back. Nothing else is retried:
+    # not the topic, not the unit, and not a slot that already succeeded. The
+    # validation, the exact-path write and the contract are unchanged — only a
+    # first bad candidate stops being terminal.
+    value = ""
+    rejected = ""
+    for attempt in range(2):
+        if attempt:
+            payload = dict(
+                payload,
+                rejected_candidate=rejected,
+                rejection_reason=(
+                    "That value is not a translation into the target locale. "
+                    "Return the same content written in `target_locale`, and "
+                    "never repeat `source_value`."
+                ),
+            )
+        data = _call_review(
+            model=REPAIR_MODEL,
+            system=_EXACT_BILINGUAL_COUNTERPART_SYSTEM,
+            payload=payload,
+            max_tokens=500,
+            effort="low",
+            budget=budget,
+            stage=(
+                f"review_bilingual_exact:{topic.get('title')}:{where}"
+                + (":retry" if attempt else "")
+            ),
+            response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+            response_name="lesson_bilingual_counterpart",
         )
-    value = value.strip()
-    if _stem_key(value) == _stem_key(source_value):
-        raise QualityGateError(
-            f"{topic.get('title')}: bilingual exact repair copied the "
-            f"{slot['source_locale']} source into {'.'.join(map(str, path))} "
-            f"instead of writing {slot['target_locale']}"
+        candidate = data.get("value")
+        candidate = candidate.strip() if isinstance(candidate, str) else ""
+        if not candidate:
+            rejected = ""
+            reason = "returned an empty counterpart"
+        elif _stem_key(candidate) == _stem_key(source_value):
+            rejected = candidate
+            reason = (
+                f"copied the {slot['source_locale']} source instead of writing "
+                f"{slot['target_locale']}"
+            )
+        else:
+            value = candidate
+            break
+        if attempt:
+            raise QualityGateError(
+                f"{topic.get('title')}: bilingual exact repair {reason} for "
+                f"{where} on both attempts"
+            )
+        print(
+            f"[QUALITY-REPAIR] RETRY bilingual counterpart {where}: {reason}",
+            flush=True,
         )
 
     # Exactly the target counterpart is written, at the exact path, through the
