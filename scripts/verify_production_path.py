@@ -270,11 +270,19 @@ def main():
                 mutate(unit_title, assessment_topic)
             return 0
 
+        def rationales(*, unit_title, topics, language, level, track, budget):
+            return 0
+
+        def complex_notation(*, unit_title, topics, language, level, budget):
+            return 0
+
         def terra(*, units, language, level, track, budget):
             return 0
         Q.review_unit_lessons = lessons
         Q.review_unit_risk_claims = risks
         Q.review_unit_assessment = assessment
+        Q.review_unit_mcq_rationales = rationales
+        Q.review_unit_complex_notation = complex_notation
         Q.repair_cross_topic_phonetic_conflicts = phonetics
         Q.final_terra_verify = terra
 
