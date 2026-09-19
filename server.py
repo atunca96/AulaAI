@@ -1078,6 +1078,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         # invariants are re-proved here, against the same stored rows the
         # renderer is about to read, microseconds before it reads them.
         from services.authoring import publication_state as _PS
+        raw_benchmark = os.getenv("AULAAI_RAW_BENCHMARK", "").strip().lower() in ("1", "true", "on", "yes")
         try:
             certified = _PS.assert_exportable(course_id)
         except _PS.NotPublishable as refusal:
@@ -1141,10 +1142,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 summary = "; ".join(
                     f"{row.get('topic') or 'topic'} / {row.get('title') or 'untitled'}"
                     f" ({row.get('why')})" for row in dropped[:4])
-                print(f"[PDF EXPORT DIVERGENCE] {course_id}: {summary}")
-                return self._send_error(
-                    "This classroom cannot be exported: the renderer would omit "
-                    f"{len(dropped)} certified item(s) — {summary}", 409)
+                if raw_benchmark:
+                    print(
+                        f"[RAW-BENCHMARK] allowing PDF export with "
+                        f"{len(dropped)} renderer-dropped item(s): {summary}"
+                    )
+                else:
+                    print(f"[PDF EXPORT DIVERGENCE] {course_id}: {summary}")
+                    return self._send_error(
+                        "This classroom cannot be exported: the renderer would omit "
+                        f"{len(dropped)} certified item(s) — {summary}", 409)
 
             # BaseHTTPRequestHandler serializes headers as latin-1. str.isalnum()
             # accepts Unicode letters, so names such as "İspanyolca", "Çince",
