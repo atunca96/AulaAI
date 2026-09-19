@@ -843,7 +843,8 @@ Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".
 
 
 def _run_publication_until_ready(course_id, language, level, material_language,
-                                 gen_id=None, progress=None, total_steps=None):
+                                 gen_id=None, progress=None, total_steps=None,
+                                 generation_spend_override=None):
     """Keep publication refusals inside the machine until the classroom passes.
 
     A QualityGateError is not a product state. It is validator feedback for the
@@ -863,7 +864,8 @@ def _run_publication_until_ready(course_id, language, level, material_language,
     while True:
         try:
             _run_publication_quality_gate(
-                course_id, language, level, material_language, gen_id=gen_id
+                course_id, language, level, material_language, gen_id=gen_id,
+                generation_spend_override=generation_spend_override,
             )
 
             # Do the persisted proof BEFORE mark_ready. mark_ready records a
@@ -958,6 +960,31 @@ def _run_publication_until_ready(course_id, language, level, material_language,
 
             # Avoid a hot spin if the provider repeatedly gives no usable patch.
             time.sleep(min(5.0, 0.35 * retry_attempt))
+
+        except Exception as transient_failure:
+            # Publication/review transport or orchestration failures are not a
+            # learner-visible terminal state either. Keep the classroom in
+            # quality_review and retry. Content-specific refusals take the
+            # branch above so their exact validator error can be pasted into
+            # the repair prompt.
+            retry_attempt += 1
+            _log(
+                f"[QUALITY-SELF-HEAL] retry {retry_attempt} intercepted "
+                f"non-terminal review failure: {transient_failure}"
+            )
+            with db_connection() as db:
+                db.execute(
+                    "UPDATE courses SET is_building=1, build_stage='quality_review', "
+                    "build_message=? WHERE id=? AND "
+                    "(generation_id=? OR generation_id IS NULL OR ?='LEGACY')",
+                    (
+                        f"Quality review: automatic retry {retry_attempt}",
+                        course_id, gen_id, gen_id,
+                    ),
+                )
+                db.commit()
+            bump_version()
+            time.sleep(min(15.0, 0.75 * retry_attempt))
 
 
 def _run_publication_quality_gate(course_id, language, level, material_language, gen_id=None,
