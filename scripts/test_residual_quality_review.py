@@ -134,6 +134,13 @@ try:
     )
     assert applied==1
     assert "sejis" not in topic["content"]["pages"][1]["items"][0]["phonetic"]
+    assert Q._digit_notation_requires_escalation(
+        "Teléfono: 612 34 56 78",
+        "[teˈlefono sejsˈθjentos ˈdoθe tɾejnˈtai̯ ˈkwatɾo θiŋkwenˈtai̯ ˈsejs setenˈtai̯ ˈotʃo]",
+    )
+    assert not Q._digit_notation_requires_escalation(
+        "Edad: 28", "[eˈðað bei̯nˈtjotʃo]"
+    )
 finally:
     Q._call_review=orig_call
     Q._audit_topic=orig_audit
