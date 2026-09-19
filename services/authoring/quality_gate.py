@@ -25,6 +25,7 @@ classroom from being marked ready.
 from __future__ import annotations
 
 import copy
+import difflib
 import hashlib
 import json
 import math
@@ -43,6 +44,7 @@ from services.authoring import transport as T
 
 REVIEW_MODEL = "google/gemini-3.7-flash"
 REPAIR_MODEL = "google/gemini-3.7-flash"
+ESCALATION_MODEL = "openai/gpt-5.6-terra"
 QUALITY_REVIEW_CEILING_USD = 0.22
 
 # A reviewer may change learner-facing content, never ids, page types, ordering,
@@ -3168,6 +3170,35 @@ _ABSOLUTE_RISK_RE = re.compile(
 )
 
 
+def _scope_overlap_suspicious(current: str, siblings: List[Dict[str, Any]]) -> bool:
+    """Cheap language-agnostic signal for two phrasings of the same rule.
+
+    This does not decide correctness. It only decides whether a Gemini "ok" on
+    an absolute claim deserves an independent Terra judgement.
+    """
+    base = " ".join(unicodedata.normalize("NFKC", current).casefold().split())
+    if not base:
+        return False
+    for sibling in siblings:
+        other = sibling.get("value")
+        if not isinstance(other, str) or not other.strip():
+            continue
+        normalized = " ".join(
+            unicodedata.normalize("NFKC", other).casefold().split()
+        )
+        if difflib.SequenceMatcher(None, base, normalized).ratio() >= 0.34:
+            return True
+    return False
+
+
+def _digit_ipa_structurally_suspicious(value: str) -> bool:
+    """Catch pseudo-IPA that fuses several independently stressed words."""
+    if not isinstance(value, str):
+        return False
+    body = value.strip().strip("[]/")
+    return any(token.count("ˈ") >= 2 for token in body.split())
+
+
 def _risk_review_records(content: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Compact learner-visible claims that deserve a dedicated factual pass.
 
@@ -3380,6 +3411,39 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             )
             verdict = str(exact.get("verdict") or "")
             replacement = exact.get("value")
+
+            # Gemini has twice accepted a real production overgeneralization.
+            # If an absolute claim strongly resembles a sibling rule on the same
+            # page, ask a genuinely independent model before accepting "ok".
+            if verdict == "ok" and _scope_overlap_suspicious(value, siblings):
+                exact = _call_review(
+                    model=ESCALATION_MODEL,
+                    system=_EXACT_CATEGORICAL_REVIEW_SYSTEM,
+                    payload={
+                        "language": language,
+                        "level": level,
+                        "regional_variety": profile.variety if profile else "",
+                        "unit": unit_title,
+                        "topic": str(topic.get("title") or ""),
+                        "current": value,
+                        "field": rec.get("field"),
+                        "same_page_siblings": siblings,
+                        "instruction": (
+                            "INDEPENDENT ESCALATION: Gemini accepted this absolute "
+                            "claim, but a same-page rule is lexically similar. "
+                            "Re-evaluate scope from first principles."
+                        ),
+                    },
+                    max_tokens=900,
+                    effort="high",
+                    budget=budget,
+                    stage=f"review_categorical_terra:{unit_title}:{topic.get('title')}:{exact_index}",
+                    response_schema=_EXACT_CATEGORICAL_REVIEW_SCHEMA,
+                    response_name="categorical_claim_terra_review",
+                )
+                verdict = str(exact.get("verdict") or "")
+                replacement = exact.get("value")
+
             if verdict == "ok":
                 if replacement != value:
                     raise QualityGateError(
@@ -3778,6 +3842,56 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
                     raise QualityGateError(
                         f"{unit_title}: digit notation verifier marked ok but changed value"
                     )
+                if _digit_ipa_structurally_suspicious(candidate):
+                    data = _call_review(
+                        model=ESCALATION_MODEL,
+                        system=_DIGIT_NOTATION_VERIFY_SYSTEM,
+                        payload={
+                            "language": language,
+                            "level": level,
+                            "regional_variety": profile.variety if profile else "",
+                            "unit": unit_title,
+                            "term": row["term"],
+                            "field": row["field"],
+                            "current": candidate,
+                            "phase": (
+                                "INDEPENDENT ESCALATION: Gemini marked this IPA ok, "
+                                "but a whitespace-delimited IPA token contains "
+                                "multiple primary-stress marks. Verify word "
+                                "boundaries and the complete digit reading."
+                            ),
+                        },
+                        max_tokens=1000,
+                        effort="high",
+                        budget=budget,
+                        stage=f"review_complex_digit_terra:{unit_title}:{index}:{round_index}",
+                        response_schema=_DIGIT_NOTATION_VERIFY_SCHEMA,
+                        response_name="complex_digit_notation_terra_verify",
+                    )
+                    verdict = str(data.get("verdict") or "")
+                    value = data.get("value")
+                    spoken_form = data.get("spoken_form")
+                    if not isinstance(spoken_form, str) or not spoken_form.strip():
+                        raise QualityGateError(
+                            f"{unit_title}: Terra digit verifier omitted spoken form"
+                        )
+                    if verdict == "ok":
+                        if value != candidate:
+                            raise QualityGateError(
+                                f"{unit_title}: Terra digit verifier marked ok but changed value"
+                            )
+                        accepted = True
+                        break
+                    if verdict != "fix" or not isinstance(value, str) or not value.strip():
+                        raise QualityGateError(
+                            f"{unit_title}: Terra digit verifier returned invalid fix"
+                        )
+                    if value == candidate:
+                        raise QualityGateError(
+                            f"{unit_title}: Terra digit verifier requested a no-op fix"
+                        )
+                    candidate = value
+                    continue
                 accepted = True
                 break
             if verdict != "fix" or not isinstance(value, str) or not value.strip():
