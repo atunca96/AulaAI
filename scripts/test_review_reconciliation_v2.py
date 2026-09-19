@@ -38,8 +38,8 @@ topic={
          "answer":"peruana",
          "options":["peruana","española","francesa","alemana"],
          "distractors":["española","francesa","alemana"],
-         "explanation":"Her nationality is inferred from the biographical information.",
-         "explanation_tr":"Milliyeti biyografik bilgiden çıkarılır."}
+         "explanation":"The repaired stem states «Lucía es peruana», so «peruana» answers the nationality question.",
+         "explanation_tr":"Düzeltilmiş soru kökü «Lucía es peruana» dediği için milliyet cevabı «peruana»dır."}
     ]}
 }
 
