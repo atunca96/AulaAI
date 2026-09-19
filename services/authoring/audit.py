@@ -296,6 +296,44 @@ _HYPOTHETICAL_LABEL = tuple(re.compile(p, re.IGNORECASE) for p in (
 _HYPOTHETICAL = _NOT_A_REAL_FORM + _HYPOTHETICAL_LABEL
 
 
+# ── Prose that prints itself twice ───────────────────────────────────────────
+# A published B1 German reading passage printed "Jede Woche werden die
+# verschiedenen Mülltonnen…" twice in a row, and "In modernen Sortieranlagen
+# werden die Wertstoffe…" twice as well. Nothing checked for it: `duplicate_options`
+# covers an MCQ's option list and nothing covered prose, so a generator that
+# stuttered produced a reading text no human would write and it published.
+#
+# The rule is deliberately narrow, because repetition is a legitimate teaching
+# device. Short sentences recur on purpose ("Evet.", "Das stimmt."), drills
+# repeat a frame with one slot changed, and a summary may restate a line from
+# the body. What no lesson intends is the SAME long sentence, byte for byte
+# after normalisation, printed twice inside ONE field.
+
+_SENTENCE_SPLIT = re.compile(r"[.!?…]+\s+|[\n\r]+")
+_TRAILING_TERMINATOR = re.compile(r"[.!?…\s]+$")
+_MIN_REPEAT_WORDS = 6
+
+
+def repeated_sentences(text: str) -> List[str]:
+    """Long sentences a single field prints more than once."""
+    if not isinstance(text, str) or not text.strip():
+        return []
+    seen: Dict[str, int] = {}
+    order: List[str] = []
+    for raw in _SENTENCE_SPLIT.split(text):
+        # The final sentence of a field keeps its terminator, because the split
+        # needs whitespace after it. Without stripping that, a repeat printed
+        # last would not match the same repeat printed earlier.
+        sentence = " ".join(_TRAILING_TERMINATOR.sub("", raw).split())
+        if len(sentence.split()) < _MIN_REPEAT_WORDS:
+            continue
+        key = sentence.casefold()
+        if key not in seen:
+            order.append(sentence)
+        seen[key] = seen.get(key, 0) + 1
+    return [s for s in order if seen[s.casefold()] > 1]
+
+
 def hypothetical_markers(text: str, role: str = "") -> List[str]:
     """Markers saying the material's own example is not a real form.
 
@@ -553,6 +591,12 @@ def _audit_typed_strings(node: Any, *, language: str, track: str,
         for defect in unicode_defects(text):
             out.append(Finding("unicode_corruption", BLOCK, path=path, field=field,
                                role=spec.role, detail=defect, value=text))
+
+        for sentence in repeated_sentences(text):
+            out.append(Finding("duplicate_prose_sentence", BLOCK, path=path,
+                               field=field, role=spec.role,
+                               detail=f"printed more than once: {sentence[:70]!r}",
+                               value=text))
 
         if spec.role == S.NOTATION:
             stray = S.stray_ipa_codepoints(text)

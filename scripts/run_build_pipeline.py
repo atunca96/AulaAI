@@ -67,6 +67,7 @@ VERIFICATION_STEPS = [
     "scripts/test_name_gender_proof_parity.py",
     "scripts/test_hypothetical_mood_teachable.py",
     "scripts/test_review_worker_ceiling.py",
+    "scripts/test_duplicate_prose.py",
     "scripts/test_embedded_patch_corruption.py",
     "scripts/test_camel_hump_patch_reconcile.py",
     "scripts/test_sentence_camel_corruption.py",

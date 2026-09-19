@@ -140,11 +140,56 @@ def _repair_transcription(text: str) -> Tuple[str, bool]:
     return (text, not stray)
 
 
+# ── Prose that prints itself twice ───────────────────────────────────────────
+# A published B1 German reading passage printed two of its sentences twice in a
+# row. `audit.duplicate_prose_sentence` blocks it; this removes it, so the
+# defect costs nothing to fix and never reaches a model call. Deleting a second
+# printing of a sentence the field already contains restores the text the
+# lesson meant to have — the only other outcome is a reader seeing it twice.
+#
+# The identity is `audit.repeated_sentences`, imported rather than re-derived:
+# a repair that deduplicated by a different rule than the auditor blocks on
+# would leave the blocker standing and loop.
+
+def _drop_repeated_sentences(text: str) -> str:
+    from services.authoring import audit as A
+
+    if not A.repeated_sentences(text):
+        return text
+    kept: List[str] = []
+    seen: set = set()
+    pos = 0
+    for match in A._SENTENCE_SPLIT.finditer(text):
+        kept, seen, pos = _keep_once(text, kept, seen, pos, match.end(), match.start())
+    tail = text[pos:]
+    if tail.strip():
+        key = " ".join(A._TRAILING_TERMINATOR.sub("", tail).split()).casefold()
+        if len(key.split()) < A._MIN_REPEAT_WORDS or key not in seen:
+            kept.append(tail)
+    return "".join(kept).strip()
+
+
+def _keep_once(text, kept, seen, pos, end, split_at):
+    """Keep one chunk of `text` unless it repeats a long sentence already kept."""
+    from services.authoring import audit as A
+
+    chunk = text[pos:end]
+    body = text[pos:split_at]
+    key = " ".join(A._TRAILING_TERMINATOR.sub("", body).split()).casefold()
+    short = len(key.split()) < A._MIN_REPEAT_WORDS
+    if short or key not in seen:
+        kept.append(chunk)
+        if not short:
+            seen.add(key)
+    return kept, seen, end
+
+
 def repair_text(text: str, spec: S.FieldSpec, profile: Optional[S.ScriptProfile]) -> str:
     """Repair one string according to what kind of field it is."""
     if not isinstance(text, str) or not text.strip():
         return text
     out = _clean_characters(text)
+    out = _drop_repeated_sentences(out)
     if spec.role == S.NOTATION:
         out, _ok = _repair_transcription(out)
     elif spec.role == S.TARGET and profile is not None:
