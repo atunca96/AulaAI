@@ -5245,12 +5245,87 @@ def _cleanup_orphaned_building_flags():
         db.execute("""
             UPDATE courses SET is_building = 0, build_stage = 'interrupted', build_message = 'Build interrupted by server restart'
             WHERE is_building = 1
+              AND COALESCE(build_stage, '') != 'quality_review'
         """)
         
         # 2. Reset Activity Generation flags (Always reset on startup since threads are gone)
         db.execute("UPDATE courses SET activity_status = 'idle', activity_progress = 0 WHERE activity_status = 'generating'")
         
         db.commit()
+
+def _resume_nonterminal_publication_repairs():
+    """Resume publication refusals/reviews that survived a process restart.
+
+    Publication content blockers are retry input, not a terminal course state.
+    This also repairs legacy rows written by the old review-only endpoint as
+    `failed / Publication refused: ...`, so a deploy heals the already-failed
+    classroom without requiring another lecturer click.
+    """
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Resuming publication self-heal tasks...")
+    with db_connection() as db:
+        rows = db.execute("""
+            SELECT id, language, level, material_language, generation_id
+            FROM courses
+            WHERE build_stage = 'quality_review'
+               OR (
+                    build_stage = 'failed'
+                    AND build_message LIKE 'Publication refused:%'
+               )
+        """).fetchall()
+
+    if not rows:
+        return
+
+    import threading
+
+    def _resume(row):
+        course_id = row[0]
+        language = row[1] or ""
+        level = row[2] or "A1"
+        material_language = row[3] or "tr"
+        gen_id = row[4] or "LEGACY"
+
+        with db_connection() as db:
+            db.execute(
+                "UPDATE courses SET is_building=1, build_stage='quality_review', "
+                "build_message=?, build_started_at=? WHERE id=?",
+                (
+                    "Quality review: automatic repair resumed",
+                    time.time(),
+                    course_id,
+                ),
+            )
+            count_row = db.execute(
+                "SELECT COUNT(*) FROM topics t JOIN chapters ch ON t.chapter_id = ch.id "
+                "WHERE ch.course_id = ? AND (t.type IS NULL OR t.type != 'unit_assessment')",
+                (course_id,),
+            ).fetchone()
+            db.commit()
+
+        topic_count = int(count_row[0] if count_row else 0)
+        bump_version()
+        file_log(f"[PUBLICATION-RESUME] self-heal resumed for {course_id}")
+
+        from services.legacy.pdf_pipeline import _run_publication_until_ready
+        certified = _run_publication_until_ready(
+            course_id,
+            language,
+            level,
+            material_language,
+            gen_id=gen_id,
+            progress=topic_count,
+            total_steps=topic_count,
+            generation_spend_override=0.0,
+        )
+        file_log(
+            f"[PUBLICATION-RESUME] READY {course_id}: "
+            f"topics={certified['topics']} mcqs={certified['mcqs']} "
+            f"unit_assessment_questions={certified['unit_assessment_questions']}"
+        )
+
+    for row in rows:
+        threading.Thread(target=_resume, args=(row,), daemon=True).start()
+
 
 def _repair_german_corruption():
     """Surgical repair for German OCR artifacts (e.g. Arabic characters replacing 'ß')"""
@@ -5304,6 +5379,7 @@ def main():
         init_db()
         _cleanup_orphaned_building_flags()
         _repair_german_corruption()
+        _resume_nonterminal_publication_repairs()
         
         server = RobustServer(("0.0.0.0", PORT), APIHandler)
         server.daemon_threads = True
