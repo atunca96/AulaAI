@@ -3278,23 +3278,9 @@ def _strategy_explanation_grounding(*, topic, blocker, language, level, track,
         probe[tr_key] = tr_text
         return not _explanation_grounding_blockers({"pages": [probe]})
 
-    # The model is the preferred repair because it can preserve a useful
-    # pedagogical rationale. But grounding is a repairable publication defect,
-    # so a bad candidate must not terminate the classroom. Fall back to a
-    # deterministic evidence-only rationale that introduces no outside person
-    # or fact. The keyed answer is learner-visible evidence and remains fixed.
-    if not _grounding_clear(new_en, new_tr):
-        answer = str(page.get("answer") or "").strip()
-        shown = f"‘{answer}’" if answer else "the keyed option"
-        shown_tr = f"‘{answer}’" if answer else "işaretli seçenek"
-        new_en = (
-            f"The correct answer is {shown} because it matches the information "
-            "explicitly given in the question."
-        )
-        new_tr = (
-            f"Doğru cevap {shown_tr}; çünkü soruda açıkça verilen bilgiyle eşleşir."
-        )
-
+    # A failed semantic repair must not be replaced by generic server-authored
+    # boilerplate. No proven candidate means no progress; convergence remains
+    # fail-closed.
     if not _grounding_clear(new_en, new_tr):
         return 0
 
