@@ -39,10 +39,7 @@ try:
         if stage.startswith("review_rationale_grounding:"):
             items=payload["items"]
             return {
-                "checked_items":[
-                    {"topic_id":row["topic_id"],"page_index":row["page_index"]}
-                    for row in items
-                ],
+                "checked_ids":[row["item_id"] for row in items],
                 "patches":[
                     {"topic_id":"t1","path":["pages","0","explanation_en"],
                      "old":"Ella is a female student, so the answer is mexicana.",
@@ -58,10 +55,7 @@ try:
             items=payload["items"]
             assert items and "612 34 56 78" in items[0]["term"]
             return {
-                "checked_items":[
-                    {"topic_id":row["topic_id"],"path":row["path"]}
-                    for row in items
-                ],
+                "checked_ids":[row["item_id"] for row in items],
                 "patches":[
                     {"topic_id":"t1","path":items[0]["path"],
                      "old":"[teˈlefono sejisˈθjentos ˈdoθe]",
