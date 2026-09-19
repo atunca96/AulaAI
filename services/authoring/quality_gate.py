@@ -2699,7 +2699,7 @@ def _repair_bilingual_counterpart(*, topic: Dict[str, Any], content: Dict[str, A
 # when none is left the gate fails closed with the exact diagnostic.
 
 _NON_REPAIRABLE_CODES = frozenset({"not_a_lesson", "not_an_object"})
-_CONVERGENCE_MAX_ROUNDS = 24
+_CONVERGENCE_MAX_ROUNDS = 96
 
 
 def _content_digest(node: Any) -> str:
@@ -2807,24 +2807,20 @@ def _detect_topic_blockers(topic: Dict[str, Any], *, language: str, track: str,
 
 
 def _blocker_fingerprint(topic: Dict[str, Any], blocker: Dict[str, Any]) -> str:
-    """Stable identity of "this blocker, on this content".
+    """Stable logical identity of one publication blocker.
 
-    The digest covers the object the blocker actually lives on — the page for a
-    page-scoped defect, the counterpart slot for a bilingual gap — so repairing
-    page 2 does not make page 5's untouched blocker look new.
+    Mutable content bytes MUST NOT be part of this identity. A failed repair can
+    rewrite learner-visible text without clearing the same validator. Hashing
+    that rewritten page makes the same blocker look new and re-enables the same
+    paid strategies, which previously caused 24-round loops and long retries.
+
+    Identity is therefore the invariant itself: topic, location, blocker code
+    and validator reason. If a repair truly transforms the defect, path/code/
+    reason changes and that new blocker receives its own bounded strategy set.
     """
-    content = topic.get("content")
-    scope: Any = content
-    page_index = _blocker_page_index(blocker.get("where"))
-    if page_index is not None and isinstance(content, dict):
-        pages = content.get("pages")
-        if isinstance(pages, list) and 0 <= page_index < len(pages):
-            scope = pages[page_index]
-    elif blocker.get("kind") == "bilingual":
-        scope = blocker.get("slot")
     return "|".join((
         str(topic.get("id")), str(blocker.get("where")), str(blocker.get("code")),
-        str(blocker.get("reason")), _content_digest(scope),
+        str(blocker.get("reason")),
     ))
 
 
