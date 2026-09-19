@@ -4482,14 +4482,17 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             },
         )
         risk_replay = _review_response_get(risk_cache_key)
-        if risk_replay is not None:
-            print(
-                f"[QUALITY-CACHE] REPLAY risk {unit_title}:{topic.get('title')} "
-                f"{risk_cache_key[:12]}",
-                flush=True,
-            )
-            data = risk_replay
-        elif _review_attestation_has(risk_cache_key):
+        # Order matters, and it used to be the other way round. These are two
+        # proofs of different strength: the attestation says the WHOLE risk
+        # stage — broad review AND every categorical escalation — already passed
+        # for this exact content, while the cached response only answers the
+        # first call. Consulting the response first made the stronger proof
+        # unreachable, so a retry replayed one cheap call and then paid for
+        # every escalation again. Measured on a clean three-unit classroom that
+        # was 15 avoidable escalation calls per retry, against 19 calls for the
+        # entire generation. The attestation is checked first now; the response
+        # replay remains for the case where the stage did not finish.
+        if _review_attestation_has(risk_cache_key):
             print(
                 f"[QUALITY-CACHE] HIT risk {unit_title}:{topic.get('title')} "
                 f"{risk_cache_key[:12]}",
@@ -4503,6 +4506,13 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             )
             topic[_RISK_REVIEW_DONE_KEY] = True
             continue
+        elif risk_replay is not None:
+            print(
+                f"[QUALITY-CACHE] REPLAY risk {unit_title}:{topic.get('title')} "
+                f"{risk_cache_key[:12]}",
+                flush=True,
+            )
+            data = risk_replay
         else:
             data = _call_review(
             model=REVIEW_MODEL,
@@ -4961,23 +4971,47 @@ def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
     if not items:
         return 0
     profile = S.profile_for_language(language)
-    data = _call_review(
+    rationale_payload = {
+        "language": language,
+        "level": level,
+        "regional_variety": profile.variety if profile else "",
+        "unit": unit_title,
+        "items": items,
+    }
+    # Lesson, risk and assessment review all replay a validated response when
+    # their exact input recurs; this stage did not, so every retry of a build
+    # paid for it again over content that had not changed. Measured on a clean
+    # three-unit classroom, a retry re-reviewed nothing else and still spent
+    # this call per unit. The key is the full payload, so any edit to an item's
+    # stem, options, answer or rationale is a different review and is charged.
+    rationale_cache_key = _review_attestation_key(
+        kind="rationale_grounding",
         model=REVIEW_MODEL,
         system=_RATIONALE_GROUNDING_REVIEW_SYSTEM,
-        payload={
-            "language": language,
-            "level": level,
-            "regional_variety": profile.variety if profile else "",
-            "unit": unit_title,
-            "items": items,
-        },
-        max_tokens=1800,
-        effort="low",
-        budget=budget,
-        stage=f"review_rationale_grounding:{unit_title}",
+        payload=rationale_payload,
         response_schema=_MCq_RATIONALE_REVIEW_SCHEMA,
         response_name="lesson_mcq_rationale_grounding",
     )
+    replay_data = _review_response_get(rationale_cache_key)
+    if replay_data is not None:
+        print(
+            f"[QUALITY-CACHE] REPLAY rationale {unit_title} "
+            f"{rationale_cache_key[:12]}",
+            flush=True,
+        )
+        data = replay_data
+    else:
+        data = _call_review(
+            model=REVIEW_MODEL,
+            system=_RATIONALE_GROUNDING_REVIEW_SYSTEM,
+            payload=rationale_payload,
+            max_tokens=1800,
+            effort="low",
+            budget=budget,
+            stage=f"review_rationale_grounding:{unit_title}",
+            response_schema=_MCq_RATIONALE_REVIEW_SCHEMA,
+            response_name="lesson_mcq_rationale_grounding",
+        )
 
     expected_ids = {row["item_id"] for row in items}
     checked_ids = {
@@ -5094,6 +5128,13 @@ def review_unit_mcq_rationales(*, unit_title: str, topics: List[Dict[str, Any]],
             {"pages": [pages[index]]},
             stage=f"rationale_proof:{unit_title}:{row.get('item_id')}",
         )
+
+    # Only now: the response passed coverage, passed its per-item proof and its
+    # patches applied cleanly. Caching earlier would replay an answer that never
+    # finished being accepted.
+    _review_response_store(
+        rationale_cache_key, data, stage=f"rationale:{unit_title}",
+    )
 
     # This verifier owns rationale grounding only. Do not invoke the whole
     # convergence machine after a clean local repair: that can make an
