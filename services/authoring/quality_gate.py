@@ -901,8 +901,75 @@ def _sentence_camel_corruption_cleaner(a: Any, b: Any) -> Optional[str]:
     return b if ah else a
 
 
+def _normalize_list_item_patch(content: Dict[str, Any], raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Lift a safe scalar option-item edit to its patchable parent string list.
+
+    Review schemas allow arbitrary path depth, so a model can point at
+    ["pages","3","options","0"]. Structural safety intentionally forbids
+    mutating list elements directly. When — and only when — the parent is one of
+    the learner-visible string-list fields, the index exists, old exactly
+    matches the current element, and value is a non-empty string, lift the edit
+    to an atomic whole-list replacement. No index is guessed and no structure is
+    invented.
+    """
+    if not isinstance(raw, dict):
+        return raw
+    path = raw.get("path")
+    if not isinstance(path, list) or len(path) < 2:
+        return raw
+    try:
+        coerced = _coerce_patch_path(content, path)
+    except Exception:
+        return raw
+    if not coerced or not isinstance(coerced[-1], int):
+        return raw
+    parent_path = coerced[:-1]
+    if not parent_path or str(parent_path[-1]) not in {"options", "choices", "distractors"}:
+        return raw
+    try:
+        parent = _get_path(content, parent_path)
+    except Exception:
+        return raw
+    index = coerced[-1]
+    if (
+        not isinstance(parent, list)
+        or not all(isinstance(v, str) for v in parent)
+        or index < 0 or index >= len(parent)
+    ):
+        return raw
+    old = raw.get("old")
+    value = raw.get("value")
+    if old != parent[index] or not isinstance(value, str) or not value.strip():
+        return raw
+
+    replacement = list(parent)
+    replacement[index] = value
+    lifted = dict(raw)
+    lifted["path"] = list(parent_path)
+    lifted["old"] = list(parent)
+    lifted["value"] = replacement
+    print(
+        f"[QUALITY-PATCH] LIFT list-item patch {coerced!r} -> {parent_path!r}",
+        flush=True,
+    )
+    return lifted
+
+
 def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[Any],
                    notation_conflicts: Optional[List[Dict[str, Any]]] = None) -> int:
+    # Normalize safe list-item edits before duplicate reconciliation. The
+    # canonical mutator still only ever sees patchable scalar/list fields.
+    lifted_patches: List[Any] = []
+    for raw in patches or []:
+        if isinstance(raw, dict):
+            topic_id = str(raw.get("topic_id") or "").strip()
+            topic = topics_by_id.get(topic_id)
+            content = topic.get("content") if isinstance(topic, dict) else None
+            if isinstance(content, dict):
+                raw = _normalize_list_item_patch(content, raw)
+        lifted_patches.append(raw)
+    patches = lifted_patches
+
     # Normalize duplicates before mutating content, so an ambiguous first
     # proposal cannot be written and then make the concrete duplicate stale.
     normalized: List[Any] = []
