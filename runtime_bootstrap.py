@@ -187,7 +187,10 @@ server_source = server_source.replace(quiz_single_count, "                      
 server_path.write_text(server_source, encoding="utf-8")
 
 import os as _os
-if _os.getenv("AULAAI_QUALITY_PREFLIGHT", "").strip().lower() in ("1", "true", "on", "yes"):
+if (
+    _os.getenv("AULAAI_QUALITY_PREFLIGHT", "").strip().lower() in ("1", "true", "on", "yes")
+    and _os.getenv("AULAAI_RAW_BENCHMARK", "").strip().lower() not in ("1", "true", "on", "yes")
+):
     from services.authoring.quality_gate import provider_preflight as _quality_provider_preflight
     _rows = _quality_provider_preflight()
     print("[QUALITY-PREFLIGHT] PASS " + " | ".join(
