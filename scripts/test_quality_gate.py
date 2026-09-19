@@ -25,6 +25,17 @@ def check(cond, label):
         FAILS.append(label)
 
 
+def assessment_quality_checks():
+    return [{
+        "question": i,
+        "single_answer": True,
+        "distractors_plausible": True,
+        "rationale_specific": True,
+        "cefr_fit": True,
+        "reason": "fixture final state satisfies the assessment contract",
+    } for i in range(1, 11)]
+
+
 def lesson_fixture():
     return {
         "variety": "European (Castilian) Spanish",
@@ -236,6 +247,7 @@ def test_gemini_assessment_review_removes_multi_correct_item():
     def provider(messages, **kwargs):
         data = {
             "checked_questions": [str(i) for i in reversed(range(1, 11))],
+            "quality_checks": assessment_quality_checks(),
             "patches": [
                 {
                     "topic_id": "a1",
@@ -306,7 +318,8 @@ def test_assessment_grounding_uses_exact_repair_before_generic_retry():
             )
         calls.append("assessment")
         return T.Response(
-            data={"checked_questions": list(range(1, 11)), "patches": []},
+            data={"checked_questions": list(range(1, 11)),
+                  "quality_checks": assessment_quality_checks(), "patches": []},
             input_tokens=1000, output_tokens=120, cost=0.001,
             model=kwargs.get("model", ""),
         )
