@@ -94,10 +94,13 @@ def assessment_content(poisoned=False, unit_no=1):
         # Distinct per unit: the gate refuses exact duplicate stems across a
         # course, and rightly so, so a fixture that reused ten stems six times
         # would be testing the duplicate rule rather than the render contract.
-        pages.append(mcq_page(start + offset, f"[U{unit_no}] {stem}",
-                              ["opción a", "opción b", "opción c", "opción d"],
-                              "The taught form fits here.",
-                              "Burada öğretilen biçim uygundur."))
+        visible_stem = f"[U{unit_no}] {stem}"
+        pages.append(mcq_page(
+            start + offset, visible_stem,
+            ["opción a", "opción b", "opción c", "opción d"],
+            f"The keyed option is the taught form required by '{visible_stem}'.",
+            f"Doğru seçenek, '{visible_stem}' ifadesinin gerektirdiği öğretilmiş biçimdir.",
+        ))
     return {"pages": pages}
 
 
