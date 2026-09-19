@@ -1096,11 +1096,19 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         f"[QUALITY-GATE] pedagogical-risk review running with {review_workers} "
         f"isolated unit snapshot worker(s)."
     )
+    def _risk_complete(done, total, unit):
+        with db_connection() as db:
+            db.execute(
+                "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                (f"Quality review: pedagogical risks {done}/{total}", course_id),
+            )
+            db.commit()
+
     risk_patches += _run_quality_units_parallel_snapshots(
         units=units,
         reviewer=_review_risks,
         stage="risk review",
-        on_complete=lambda done, total, unit: None,
+        on_complete=_risk_complete,
         quality_error_cls=Q.QualityGateError,
         max_workers=review_workers,
     )
@@ -1114,11 +1122,19 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         f"[QUALITY-GATE] complex pronunciation review running with "
         f"{review_workers} isolated unit snapshot worker(s)."
     )
+    def _notation_complete(done, total, unit):
+        with db_connection() as db:
+            db.execute(
+                "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                (f"Quality review: pronunciation {done}/{total}", course_id),
+            )
+            db.commit()
+
     complex_notation_patches += _run_quality_units_parallel_snapshots(
         units=units,
         reviewer=_review_complex_notation,
         stage="complex pronunciation review",
-        on_complete=lambda done, total, unit: None,
+        on_complete=_notation_complete,
         quality_error_cls=Q.QualityGateError,
         max_workers=review_workers,
     )
@@ -1165,11 +1181,19 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         f"[QUALITY-GATE] lesson + assessment rationale grounding running with "
         f"{review_workers} isolated unit snapshot worker(s)."
     )
+    def _rationale_complete(done, total, unit):
+        with db_connection() as db:
+            db.execute(
+                "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+                (f"Quality review: rationale grounding {done}/{total}", course_id),
+            )
+            db.commit()
+
     rationale_patches += _run_quality_units_parallel_snapshots(
         units=units,
         reviewer=_review_rationales,
         stage="rationale grounding review",
-        on_complete=lambda done, total, unit: None,
+        on_complete=_rationale_complete,
         quality_error_cls=Q.QualityGateError,
         max_workers=review_workers,
     )
