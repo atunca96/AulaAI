@@ -3059,6 +3059,23 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                 _audit_topic(topic, language=language, track=track)
             )
             if not blockers:
+                # Deterministic audit cleanliness is not publication cleanliness.
+                # Renderer-only blockers (notably hidden-world/name→gender) used
+                # to survive this stage untouched. If an unrelated later topic
+                # then failed preflight, the pipeline aborted before broad review
+                # ever reached this otherwise-repairable page, and the outer
+                # publication proof surfaced it as the final error. Route only
+                # topics that actually have renderer blockers into the same
+                # bounded convergence engine used after semantic review.
+                if _topic_render_blockers(content):
+                    applied += converge_topic(
+                        topic=topic,
+                        language=language,
+                        level=level,
+                        track=track,
+                        budget=budget,
+                        unit_title=str(unit.get("title") or ""),
+                    )
                 continue
 
             # Missing IPA cells are structural: the generic patcher cannot
@@ -3385,10 +3402,35 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                     }
                     for row in unresolved[:12]
                 ]
-                raise QualityGateError(
-                    f"{topic.get('title')}: deterministic blockers remain after "
-                    f"preflight exact repair: {A.summarise(still)}; "
-                    f"unresolved={detail}"
+                print(
+                    f"[QUALITY-PREFLIGHT] local exact repair did not converge for "
+                    f"{topic.get('title')}: {A.summarise(still)}; "
+                    f"delegating to bounded convergence; unresolved={detail}",
+                    flush=True,
+                )
+                applied += converge_topic(
+                    topic=topic,
+                    language=language,
+                    level=level,
+                    track=track,
+                    budget=budget,
+                    unit_title=str(unit.get("title") or ""),
+                )
+
+            # The exact local path may have cleared audit blockers while leaving
+            # a renderer-only invariant. Preflight finishes a topic only when the
+            # same publication validators that will run at the end are already
+            # clean. This is not an allowlist: converge_topic re-runs audit,
+            # bilingual and renderer proofs after every candidate and fails
+            # closed if no bounded strategy can prove a repair.
+            if _topic_render_blockers(content):
+                applied += converge_topic(
+                    topic=topic,
+                    language=language,
+                    level=level,
+                    track=track,
+                    budget=budget,
+                    unit_title=str(unit.get("title") or ""),
                 )
 
     return applied
