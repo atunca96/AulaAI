@@ -302,8 +302,26 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
             except Exception:
                 pass
             last_error = f"HTTP {exc.code}: {detail}"
-            # 4xx other than rate limiting will not improve on a retry.
-            if exc.code not in (408, 409, 425, 429) and exc.code < 500:
+            # 4xx other than rate limiting will not improve on a retry — with one
+            # exception that is easy to misread. OpenRouter answers 402 both when
+            # the account is genuinely out of credit (permanent: retrying is
+            # pointless and hides the real cause) and when too many calls are in
+            # flight against the same credit reservation, which it names
+            # `in_flight_budget_exhausted`. The second is a concurrency limit that
+            # clears on its own in seconds, and the account is fully funded. Read
+            # as permanent it takes down every concurrent stage at once; a French
+            # A1 build died this way with seventeen consecutive self-heal attempts
+            # each failing instantly on a condition that had already cleared.
+            capacity_402 = exc.code == 402 and "in_flight" in detail.casefold()
+            if capacity_402:
+                # What has to change is the number of calls in flight, not the
+                # provider's mood, so give it room to drain rather than the
+                # sub-second ramp a 429 gets.
+                if attempt + 1 < max(1, attempts):
+                    time.sleep(min(8.0, 1.5 * (attempt + 1)))
+                    total_seconds += time.perf_counter() - started
+                    continue
+            elif exc.code not in (408, 409, 425, 429) and exc.code < 500:
                 return Response(error=last_error, model=target,
                                 input_tokens=total_input, output_tokens=total_output,
                                 cached_tokens=total_cached,

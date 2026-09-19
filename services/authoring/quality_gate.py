@@ -387,6 +387,32 @@ class QualityGateError(RuntimeError):
     pass
 
 
+class MissingUnitAssessments(QualityGateError):
+    """A refusal that names an absent artifact rather than defective content.
+
+    Every other publication refusal describes something wrong with text that
+    exists, so the self-heal loop answers all of them the same way: paste the
+    validator's words into a targeted repair prompt and patch the offending
+    pages. That answer is a category error here. No edit to any lesson's prose
+    can bring a unit assessment into existence, so the refusal is byte-identical
+    on the next pass and the one after it — a French A1 build spent thirty-two
+    retries patching lesson topics in units that were never the problem, while
+    the three units missing an assessment were never touched.
+
+    The distinction has to reach the router as a type rather than as a sentence.
+    Matching the message text would make the wording of an error string load
+    bearing, and the repair for a missing artifact is to author it: the unit
+    titles travel with the exception so the caller knows precisely which.
+    """
+
+    def __init__(self, unit_titles):
+        self.unit_titles = [str(t) for t in unit_titles]
+        super().__init__(
+            "publication gate refuses a course with missing unit assessment(s): "
+            + ", ".join(self.unit_titles)
+        )
+
+
 class ReviewBudget:
     def __init__(self, ceiling: float = QUALITY_REVIEW_CEILING_USD):
         self.ceiling = float(ceiling)

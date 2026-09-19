@@ -199,14 +199,19 @@ from services.legacy import pdf_pipeline as P  # noqa: E402
 import inspect  # noqa: E402
 
 source = inspect.getsource(P._run_publication_until_ready)
+# The in-progress state write lives in `_mark_self_heal_retry` now, because the
+# loop has more than one repair branch and each of them owes the same state. The
+# invariant is unchanged: every branch marks quality_review, none marks failed.
+source += inspect.getsource(P._mark_self_heal_retry)
 assert "publication_error = str(failure)" in source
 assert "repair_publication_refusal_feedback" in source
 assert "build_stage='quality_review'" in source
+assert "_mark_self_heal_retry(" in source
 assert "UPDATE courses SET is_building=0, build_stage='failed'" not in source
 assert "mark_failed(" not in source
 assert "while True" in source
 assert "terminal_on_refusal=False" in source
-print("[PUBLICATION-FEEDBACK] outer publication loop has no content-retry ceiling")
+print("[PUBLICATION-FEEDBACK] outer publication loop keeps refusals non-terminal")
 
 # The lecturer's review-only retry endpoint must not bypass the self-healing
 # loop. That legacy bypass was the production path that still surfaced

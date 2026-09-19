@@ -842,6 +842,27 @@ Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".
 
 
 
+def _mark_self_heal_retry(course_id, gen_id, retry_attempt):
+    """Keep the course card on an in-progress state during a repair round.
+
+    Never surface the refusal itself here. Logs retain the full diagnostic; the
+    lecturer sees only that quality repair is continuing, because a repairable
+    content defect is not a product state and must not read as one.
+    """
+    with db_connection() as db:
+        db.execute(
+            "UPDATE courses SET is_building=1, build_stage='quality_review', "
+            "build_message=? WHERE id=? AND "
+            "(generation_id=? OR generation_id IS NULL OR ?='LEGACY')",
+            (
+                f"Quality review: automatic repair retry {retry_attempt}",
+                course_id, gen_id, gen_id,
+            ),
+        )
+        db.commit()
+    bump_version()
+
+
 def _run_publication_until_ready(course_id, language, level, material_language,
                                  gen_id=None, progress=None, total_steps=None,
                                  generation_spend_override=None):
@@ -852,10 +873,17 @@ def _run_publication_until_ready(course_id, language, level, material_language,
     become `Publication refused: ...` — is fed verbatim into the next targeted
     repair prompt. The user only sees an in-progress quality-review state.
 
-    This loop intentionally has no content-retry ceiling. Every candidate still
-    has to pass the unchanged quality gate and the persisted-row proof before
-    READY, so persistence/retry replaces terminal refusal without weakening any
-    validator.
+    Every candidate still has to pass the unchanged quality gate and the
+    persisted-row proof before READY, so persistence and retry replace terminal
+    refusal without weakening any validator. What bounds the loop is progress:
+    a refusal that survives repeated repairs is one the repair cannot move, and
+    further attempts only spend money to reach the same verdict.
+
+    Which repair a refusal gets is decided by what the refusal is about. Nearly
+    all of them describe defective content and go to the feedback repair. One
+    class describes an artifact that does not exist — a unit with no assessment
+    — and goes to the stage that authors it, because no patch to existing prose
+    can produce a missing one.
     """
     from services.authoring import quality_gate as Q
     from services.authoring import publication_state as PS
@@ -878,6 +906,27 @@ def _run_publication_until_ready(course_id, language, level, material_language,
     # further attempt is money for nothing.
     seen_refusals = {}
     stall_ceiling = max(1, int(os.getenv("QUALITY_SELF_HEAL_STALL_CEILING", "3")))
+
+    # An attempt whose repair call never reached the provider is not charged to
+    # the stall ceiling above — it never got the chance to move the refusal that
+    # the ceiling judges. That exemption needs its own bound, or a provider that
+    # is down rather than busy restores the unbounded loop under a new name.
+    # This one is deliberately generous: the condition it tolerates is transient
+    # capacity, and the diagnosis it eventually reports is an outage, not a
+    # content defect.
+    incomplete_streak = 0
+    provider_ceiling = max(1, int(os.getenv("QUALITY_SELF_HEAL_PROVIDER_CEILING", "12")))
+
+    def _note_incomplete(reason):
+        nonlocal incomplete_streak
+        incomplete_streak += 1
+        if incomplete_streak > provider_ceiling:
+            raise Q.QualityGateError(
+                f"quality self-heal could not reach the review provider on "
+                f"{incomplete_streak} consecutive attempts; the classroom content "
+                f"was never judged. Last transport failure: {reason}"
+            )
+
     while True:
         try:
             _run_publication_quality_gate(
@@ -904,6 +953,50 @@ def _run_publication_until_ready(course_id, language, level, material_language,
                 f"publication refusal: {publication_error}"
             )
 
+            # A refusal naming an absent artifact is not defective content, and
+            # the content repair below cannot author what is not there. Route it
+            # to the stage that can: re-run assessment authoring for exactly the
+            # units the gate named. This is the repair for this refusal in the
+            # same sense that a patched page is the repair for a bad rationale,
+            # so it takes the same place in the loop — attempt, persist, re-prove
+            # — and is bounded by the same stall ceiling when it does not move.
+            if isinstance(failure, Q.MissingUnitAssessments):
+                signature = "missing-unit-assessments:" + "|".join(
+                    sorted(failure.unit_titles)
+                )
+                seen_refusals[signature] = seen_refusals.get(signature, 0) + 1
+                if seen_refusals[signature] > stall_ceiling:
+                    _log(
+                        f"[QUALITY-SELF-HEAL] unit assessment authoring has now "
+                        f"failed {seen_refusals[signature]} times for the same "
+                        f"unit(s); the material these units hold does not support "
+                        f"a full assessment. Stopping: {publication_error}"
+                    )
+                    raise
+                _mark_self_heal_retry(course_id, gen_id, retry_attempt)
+                try:
+                    still_missing = _build_unit_assessments(
+                        course_id, language, level, material_language, gen_id,
+                        only_unit_titles=failure.unit_titles,
+                    )
+                    incomplete_streak = 0
+                    _log(
+                        f"[QUALITY-SELF-HEAL] retry {retry_attempt} re-authored "
+                        f"{len(failure.unit_titles) - len(still_missing or [])} of "
+                        f"{len(failure.unit_titles)} missing unit assessment(s)."
+                    )
+                except Exception as rebuild_failure:
+                    # Authoring is a provider call like any other; a transport
+                    # failure here is not a verdict on the unit's material.
+                    _log(
+                        f"[QUALITY-SELF-HEAL] retry {retry_attempt} unit assessment "
+                        f"authoring did not complete: {rebuild_failure}"
+                    )
+                    seen_refusals[signature] -= 1
+                    _note_incomplete(rebuild_failure)
+                time.sleep(min(5.0, 0.35 * retry_attempt))
+                continue
+
             # Identity is the refusal itself, not the attempt number. Ordinals
             # and timestamps would make every recurrence look new, which is the
             # mistake that produced the 24-round inner loop.
@@ -918,20 +1011,7 @@ def _run_publication_until_ready(course_id, language, level, material_language,
                 )
                 raise
 
-            # Never surface the refusal in the course card. Logs retain the full
-            # diagnostic; the UI only reports that quality repair is continuing.
-            with db_connection() as db:
-                db.execute(
-                    "UPDATE courses SET is_building=1, build_stage='quality_review', "
-                    "build_message=? WHERE id=? AND "
-                    "(generation_id=? OR generation_id IS NULL OR ?='LEGACY')",
-                    (
-                        f"Quality review: automatic repair retry {retry_attempt}",
-                        course_id, gen_id, gen_id,
-                    ),
-                )
-                db.commit()
-            bump_version()
+            _mark_self_heal_retry(course_id, gen_id, retry_attempt)
 
             try:
                 units = PS.load_persisted_units(course_id)
@@ -950,6 +1030,7 @@ def _run_publication_until_ready(course_id, language, level, material_language,
                     retry_attempt=retry_attempt,
                     budget=feedback_budget,
                 )
+                incomplete_streak = 0
 
                 if changed:
                     with db_connection() as db:
@@ -982,15 +1063,27 @@ def _run_publication_until_ready(course_id, language, level, material_language,
             except Q.QualityGateError as retry_failure:
                 # Provider/schema/budget failures during the repair prompt are
                 # retry transport failures, not publication verdicts.
+                #
+                # So they do not count against the stall ceiling either. That
+                # ceiling means "this repair ran and did not move the refusal",
+                # and a repair that never reached the provider has not earned
+                # that verdict. OpenRouter's in-flight capacity limit made
+                # seventeen consecutive attempts fail before any of them sent a
+                # prompt; charging those to the ceiling would stop the build at
+                # the fourth and report a content problem that does not exist.
+                seen_refusals[signature] -= 1
                 _log(
                     f"[QUALITY-SELF-HEAL] retry {retry_attempt} repair call "
                     f"did not complete: {retry_failure}"
                 )
+                _note_incomplete(retry_failure)
             except PS.NotPublishable as retry_failure:
+                seen_refusals[signature] -= 1
                 _log(
                     f"[QUALITY-SELF-HEAL] retry {retry_attempt} could not load "
                     f"a publishable-shaped snapshot yet: {retry_failure}"
                 )
+                _note_incomplete(retry_failure)
 
             # Avoid a hot spin if the provider repeatedly gives no usable patch.
             time.sleep(min(5.0, 0.35 * retry_attempt))
@@ -1006,19 +1099,13 @@ def _run_publication_until_ready(course_id, language, level, material_language,
                 f"[QUALITY-SELF-HEAL] retry {retry_attempt} intercepted "
                 f"non-terminal review failure: {transient_failure}"
             )
-            with db_connection() as db:
-                db.execute(
-                    "UPDATE courses SET is_building=1, build_stage='quality_review', "
-                    "build_message=? WHERE id=? AND "
-                    "(generation_id=? OR generation_id IS NULL OR ?='LEGACY')",
-                    (
-                        f"Quality review: automatic retry {retry_attempt}",
-                        course_id, gen_id, gen_id,
-                    ),
-                )
-                db.commit()
-            bump_version()
+            _mark_self_heal_retry(course_id, gen_id, retry_attempt)
             time.sleep(min(15.0, 0.75 * retry_attempt))
+            # Same accounting as a repair that never reached the provider: the
+            # gate did not return a verdict, so nothing here says the content is
+            # bad — but it cannot retry forever on an orchestration failure that
+            # is never going to clear.
+            _note_incomplete(transient_failure)
 
 
 def _run_publication_quality_gate(course_id, language, level, material_language, gen_id=None,
@@ -1109,10 +1196,8 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     if not units:
         raise Q.QualityGateError("publication gate found no units")
     if any(unit.get("assessment") is None for unit in units):
-        missing = [unit["title"] for unit in units if unit.get("assessment") is None]
-        raise Q.QualityGateError(
-            "publication gate refuses a course with missing unit assessment(s): "
-            + ", ".join(missing)
+        raise Q.MissingUnitAssessments(
+            unit["title"] for unit in units if unit.get("assessment") is None
         )
 
     # Cheap fail-fast pass: deterministic lesson blockers are exact and known
@@ -1526,7 +1611,8 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
 UNIT_ASSESSMENT_TYPE = "unit_assessment"
 
 
-def _build_unit_assessments(course_id, language, level, material_language, gen_id=None):
+def _build_unit_assessments(course_id, language, level, material_language, gen_id=None,
+                            only_unit_titles=None):
     """Generate and persist the closing assessment for every unit in a course.
 
     Stored as a synthetic topic at the end of its chapter, carrying lesson-shaped
@@ -1535,6 +1621,16 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
     pages, so an assessment appears at the end of every unit without a single
     renderer change. `type='unit_assessment'` keeps it identifiable, so the
     lecturer's topic pickers can exclude it from ordinary quiz sources.
+
+    `only_unit_titles` narrows the pass to named units. The publication gate is
+    the one caller that uses it: when it refuses a course for a missing unit
+    assessment, the repair is to author that unit's assessment, and re-authoring
+    the five units that already have one would pay for them twice.
+
+    Returns the titles of units that still hold no assessment after this pass.
+    A unit that cannot produce a full set publishes none — a partial assessment
+    is a worse outcome than a missing one — but the caller has to be told, or a
+    silent shortfall here becomes an unexplained refusal several phases later.
     """
     from services.ai_engine import generate_unit_assessment
     from services.assessment_scope import UNIT_ASSESSMENT_COUNT
@@ -1559,10 +1655,31 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
                 units.append({"chapter_id": ch[0], "title": ch[1], "title_tr": chapter_title_tr, "number": chapter_number,
                               "topics": topics, "next_sort": max_sort + 1})
 
-    if not units:
-        return
+    # The course-wide count, captured before any narrowing. It is what the
+    # author prompt is told ("unit 3 of 6"); a rescue pass over three units must
+    # not tell the model the course has three.
     total_units = len(units)
-    _log(f"[UNIT-ASSESSMENT] building {total_units} unit assessment(s) for {course_id}.")
+
+    requested = list(only_unit_titles or [])
+    if only_unit_titles is not None:
+        wanted = {str(t).strip().casefold() for t in only_unit_titles if str(t).strip()}
+        units = [u for u in units if str(u["title"]).strip().casefold() in wanted]
+
+    # A requested unit that never reached `units` holds no lesson material at
+    # all — nothing was built for it above. It is still unwritten, and saying
+    # otherwise by omission would tell the caller a rescue succeeded when the
+    # gate is about to refuse over the very same unit.
+    reachable = {str(u["title"]).strip().casefold() for u in units}
+    unreachable = [t for t in requested
+                   if str(t).strip().casefold() not in reachable]
+    if unreachable:
+        _log(f"[UNIT-ASSESSMENT] no lesson material to assess in: "
+             f"{', '.join(str(t) for t in unreachable)}")
+
+    if not units:
+        return unreachable
+    _log(f"[UNIT-ASSESSMENT] building {len(units)} unit assessment(s) for {course_id}"
+         f"{'' if only_unit_titles is None else f' (rescue pass of {total_units})'}.")
 
     def _one(unit):
         try:
@@ -1576,14 +1693,17 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
             return unit, []
 
     results = []
-    workers = min(int(os.getenv("PIPELINE_MAX_WORKERS", "20")), max(1, total_units))
+    workers = min(int(os.getenv("PIPELINE_MAX_WORKERS", "20")), max(1, len(units)))
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         for unit, questions in pool.map(_one, units):
             results.append((unit, questions))
 
+    unwritten = list(unreachable)
     for unit, questions in results:
         if len(questions) != UNIT_ASSESSMENT_COUNT:
-            _log(f"[UNIT-ASSESSMENT] '{unit['title']}' produced {len(questions)}; skipped.")
+            _log(f"[UNIT-ASSESSMENT] '{unit['title']}' produced {len(questions)} of "
+                 f"{UNIT_ASSESSMENT_COUNT}; no assessment written for this unit.")
+            unwritten.append(unit["title"])
             continue
         content = build_unit_assessment_content(unit["title"], questions, material_language, unit_title_tr=unit.get("title_tr"))
         title_en = unit_assessment_title(unit["title"], "en", unit_title_tr=unit.get("title_tr"))
@@ -1605,6 +1725,10 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
             db.commit()
         _log(f"[UNIT-ASSESSMENT] '{unit['title']}' published {len(questions)} questions.")
     bump_version()
+    if unwritten:
+        _log(f"[UNIT-ASSESSMENT] {len(unwritten)} unit(s) hold no assessment after this "
+             f"pass: {', '.join(unwritten)}")
+    return unwritten
 
 
 def unit_assessment_title(unit_title, material_language="tr", unit_title_tr=None):
