@@ -3206,7 +3206,10 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                 "topics": [{
                     "topic_id": topic_id,
                     "title": str(topic.get("title") or ""),
-                    "records": records,
+                    "records": [
+                        dict(rec, record_id=f"r{index}")
+                        for index, rec in enumerate(records)
+                    ],
                 }],
             },
             # One topic's worth of rows and patches rather than a whole unit's.
