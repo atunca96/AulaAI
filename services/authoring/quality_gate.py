@@ -240,6 +240,28 @@ _EXACT_CATEGORICAL_REVIEW_SCHEMA = {
     "required": ["verdict", "value", "reason"],
 }
 
+_BATCH_CATEGORICAL_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "claim_id": {"type": "string"},
+                    "verdict": {"type": "string", "enum": ["ok", "fix"]},
+                    "value": {"type": "string"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["claim_id", "verdict", "value", "reason"],
+            },
+        },
+    },
+    "required": ["results"],
+}
+
 _DIGIT_NOTATION_VERIFY_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -4203,14 +4225,15 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
         applied += _apply_patches({topic_id: topic}, patches)
 
         # Broad risk review cannot be its own final authority on categorical
-        # truth. Every SERVER-FLAGGED absolute claim receives one compact,
-        # independent exact judgement. Same-page sibling evidence is included
-        # when available but is not required: the live pronunciation defect was
-        # a standalone universal claim and previously escaped for exactly that
-        # reason. Ordinary non-absolute prose is unchanged and incurs no call.
+        # truth. Every SERVER-FLAGGED/model-declared categorical claim still
+        # receives an independent exact judgement, but transport is batched:
+        # several claims share one provider round-trip while each keeps its own
+        # opaque id, verdict, replacement and proof. This removes latency without
+        # reducing coverage or changing the fail-closed contract.
         current_records = _risk_review_records(
             topic.get("content") or {}, topic_type=str(topic.get("type") or "")
         )
+        exact_candidates = []
         for exact_index, rec in enumerate(current_records):
             value = rec.get("value")
             path = rec.get("path") or []
@@ -4218,9 +4241,7 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                 isinstance(value, str) and bool(_ABSOLUTE_RISK_RE.search(value))
             )
             model_declared = tuple(path) in categorical_paths
-            if not (server_flagged_now or model_declared):
-                continue
-            if not isinstance(value, str):
+            if not (server_flagged_now or model_declared) or not isinstance(value, str):
                 continue
             page_index = path[1] if (
                 len(path) >= 2 and path[0] == "pages" and isinstance(path[1], int)
@@ -4239,55 +4260,93 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                         "field": sibling.get("field"),
                         "value": sibling.get("value"),
                     })
-            evidence = _scope_overlap_evidence(value, siblings)
+            exact_candidates.append({
+                "claim_id": f"c{exact_index}",
+                "path": path,
+                "current": value,
+                "same_page_siblings": _scope_overlap_evidence(value, siblings),
+            })
 
+        # Keep batches deliberately small. Six independent claims comfortably fit
+        # the structured response while collapsing the dominant one-call-per-claim
+        # latency seen in production.
+        batch_size = 6
+        for batch_start in range(0, len(exact_candidates), batch_size):
+            batch = exact_candidates[batch_start:batch_start + batch_size]
             exact = _call_review(
                 model=ESCALATION_MODEL,
-                system=_EXACT_CATEGORICAL_REVIEW_SYSTEM,
+                system=_BATCH_CATEGORICAL_REVIEW_SYSTEM,
                 payload={
                     "language": language,
                     "level": level,
                     "regional_variety": profile.variety if profile else "",
-                    "current": value,
-                    "same_page_siblings": evidence,
-                    "instruction": (
-                        "Targeted scope escalation: independently test whether "
-                        "this absolute/categorical learner-visible claim is "
-                        "exceptionlessly true for the declared language and "
-                        "regional variety. Actively search for standard "
-                        "counterexamples or conditioning factors. Sibling "
-                        "evidence, when present, is supporting context only."
-                    ),
+                    "claims": [
+                        {
+                            "claim_id": row["claim_id"],
+                            "current": row["current"],
+                            "same_page_siblings": row["same_page_siblings"],
+                        }
+                        for row in batch
+                    ],
                 },
-                max_tokens=650,
+                max_tokens=1400,
                 effort="low",
                 budget=budget,
-                stage=f"review_categorical_escalation:{unit_title}:{topic.get('title')}:{exact_index}",
-                response_schema=_EXACT_CATEGORICAL_REVIEW_SCHEMA,
-                response_name="categorical_scope_escalation",
+                stage=(
+                    f"review_categorical_escalation_batch:{unit_title}:"
+                    f"{topic.get('title')}:{batch_start // batch_size}"
+                ),
+                response_schema=_BATCH_CATEGORICAL_REVIEW_SCHEMA,
+                response_name="categorical_scope_escalation_batch",
             )
-            verdict = str(exact.get("verdict") or "")
-            replacement = exact.get("value")
-            if verdict == "ok":
-                if replacement != value:
-                    raise QualityGateError(
-                        f"{topic.get('title')}: categorical escalation marked ok but changed value"
-                    )
-                continue
-            if verdict != "fix" or not isinstance(replacement, str) or not replacement.strip():
+            expected_claims = {row["claim_id"] for row in batch}
+            results = exact.get("results") or []
+            returned_claims = {
+                str(row.get("claim_id") or "") for row in results
+                if isinstance(row, dict)
+            }
+            if returned_claims != expected_claims or len(results) != len(batch):
                 raise QualityGateError(
-                    f"{topic.get('title')}: categorical escalation returned invalid fix"
+                    f"{topic.get('title')}: categorical batch coverage mismatch; "
+                    f"missing={sorted(expected_claims-returned_claims)} "
+                    f"extra={sorted(returned_claims-expected_claims)}"
                 )
-            applied += _apply_patches(
-                {topic_id: topic},
-                [{
-                    "topic_id": topic_id,
-                    "path": path,
-                    "old": value,
-                    "value": replacement,
-                    "reason": exact.get("reason") or "categorical scope correction",
-                }],
-            )
+            by_claim = {row["claim_id"]: row for row in batch}
+            for result in results:
+                claim_id = str(result.get("claim_id") or "")
+                source = by_claim[claim_id]
+                value = source["current"]
+                verdict = str(result.get("verdict") or "")
+                replacement = result.get("value")
+                if verdict == "ok":
+                    if replacement != value:
+                        raise QualityGateError(
+                            f"{topic.get('title')}: categorical escalation "
+                            f"marked ok but changed value for {claim_id}"
+                        )
+                    continue
+                if (
+                    verdict != "fix"
+                    or not isinstance(replacement, str)
+                    or not replacement.strip()
+                ):
+                    raise QualityGateError(
+                        f"{topic.get('title')}: categorical escalation returned "
+                        f"invalid fix for {claim_id}"
+                    )
+                applied += _apply_patches(
+                    {topic_id: topic},
+                    [{
+                        "topic_id": topic_id,
+                        "path": source["path"],
+                        "old": value,
+                        "value": replacement,
+                        "reason": (
+                            result.get("reason")
+                            or "categorical scope correction"
+                        ),
+                    }],
+                )
 
         # A risk patch is an ordinary content edit and can leave any of the
         # repairable classes behind it. Proving that is the convergence
@@ -4370,6 +4429,30 @@ Rules:
 - If verdict=fix, preserve the teaching point but narrow or qualify it enough to
   be factually correct. Do not add unrelated material.
 - Do not depend on the source language wording; judge the linguistic rule itself.
+"""
+
+_BATCH_CATEGORICAL_REVIEW_SYSTEM = """You are AulaAI's final semantic arbiter
+for a SMALL BATCH of categorical pedagogical claims. Judge EACH claim
+independently against the declared language, level and regional variety.
+Same-page sibling claims are supporting context only.
+
+For every supplied claim, actively search for standard counterexamples,
+conditioning factors and exception classes. Do not let one claim's verdict
+influence another merely because they are in the same batch.
+
+Return JSON only:
+{"results":[
+  {"claim_id":"c0","verdict":"ok|fix","value":"FINAL CLAIM",
+   "reason":"brief factual reason"}
+]}
+
+Contract:
+- Return exactly one result for every supplied claim_id and no others.
+- Copy claim_id exactly.
+- If verdict=ok, value MUST equal that claim's current value exactly.
+- If verdict=fix, preserve the teaching point but narrow or qualify it enough to
+  be factually correct. Do not add unrelated material.
+- Judge every claim independently; batching changes transport only, not rigor.
 """
 
 _DIGIT_NOTATION_VERIFY_SYSTEM = """You are AulaAI's final verifier for one
