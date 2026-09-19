@@ -1239,12 +1239,24 @@ def _repair_paths_for_finding(content: Dict[str, Any], finding: A.Finding) -> Li
     """
     records = _review_records(content)
     prefix = _finding_path_prefix(finding.path)
+
+    # Some deterministic findings represent a bilingual PAIR rather than one
+    # scalar field, e.g. "title/title_tr" or "explanation/explanation_tr".
+    # Treat those as two exact repair targets. Previously the router searched
+    # for a literal field named "title/title_tr", so an identical bilingual
+    # leak could be detected correctly but could never reach exact repair.
+    finding_fields = {
+        part.strip()
+        for part in str(finding.field or "").split("/")
+        if part.strip()
+    }
+
     candidates: List[List[Any]] = []
     for rec in records:
         path = rec.get("path")
         if not isinstance(path, list):
             continue
-        if finding.field and str(rec.get("field") or "") != str(finding.field):
+        if finding_fields and str(rec.get("field") or "") not in finding_fields:
             continue
         if prefix and path[:len(prefix)] != prefix:
             continue
@@ -1257,9 +1269,13 @@ def _repair_paths_for_finding(content: Dict[str, Any], finding: A.Finding) -> Li
         candidates.append(list(path))
 
     # A value-bearing finding identifies the learner-visible string itself, so
-    # every exact match is relevant. A value-less finding is safe to resolve
-    # only when the field/prefix identifies one unique record.
+    # every exact match is relevant. Pair findings deliberately return BOTH
+    # counterpart paths: repairing only one side is exactly how a bilingual leak
+    # should be resolved. A value-less scalar finding remains safe only when its
+    # field/prefix identifies one unique record.
     if finding.value:
+        return candidates
+    if len(finding_fields) > 1:
         return candidates
     return candidates if len(candidates) == 1 else []
 
