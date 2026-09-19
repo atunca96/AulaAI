@@ -78,9 +78,11 @@ try:
             rec["record_id"]
             for rec in payload["topics"][0]["records"]
         ]
+        absolute_ids=payload["topics"][0].get("absolute_ids") or []
         return {
             "topic_id":"g1",
             "checked_ids":checked_ids,
+            "scope_checked_ids":absolute_ids,
             "patches":[
                 {
                     "path":["pages","0","rules","0","rule"],
