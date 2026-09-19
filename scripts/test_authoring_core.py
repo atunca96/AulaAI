@@ -508,37 +508,30 @@ def test_budget_stops_a_runaway():
           "and the build reported that it could not finish")
 
 
-# ── 8. The audit-driven retry ────────────────────────────────────────────────
+# ── 8. Generation audit is evidence, not a paid semantic retry ───────────────
 
 def test_retry_uses_the_findings():
-    print("\n[8] a rejected draft is retried with its own defects quoted back")
+    print("\n[8] a usable draft carries audit findings forward without paid regeneration")
     seen = {}
 
     def provider(messages, *, max_tokens, temperature=0.6, model="", cache_system=True,
                  timeout=None, attempts=3):
-        user = str(messages[-1]["content"])
-        seen.setdefault("calls", []).append(user)
-        if len(seen["calls"]) == 1:
-            data = {"pages": [{"type": "vocabulary", "title_tr": "B",
-                               "text_tr": "Bu derste kelimeler ogreneceksiniz.",
-                               "items": [{"term": "cena", "phonetic": "ˈθενα",
-                                          "translation_tr": "aksam yemegi"}]}]}
-        else:
-            data = {"pages": [{"type": "vocabulary", "title_tr": "B",
-                               "text_tr": "Bu derste kelimeler ogreneceksiniz.",
-                               "items": [{"term": "cena", "phonetic": "ˈθena",
-                                          "translation_tr": "aksam yemegi"}]}]}
+        seen.setdefault("calls", []).append(str(messages[-1]["content"]))
+        data = {"pages": [{"type": "vocabulary", "title_tr": "B",
+                           "text_tr": "Bu derste kelimeler ogreneceksiniz.",
+                           "items": [{"term": "cena", "phonetic": "ˈθενα",
+                                      "translation_tr": "aksam yemegi"}]}]}
         return T.Response(data=data, input_tokens=2600, output_tokens=2000, model=model)
 
     E.T.call_model = provider
     result = E.generate_lesson(topic="Comidas", topic_type="vocabulary", language="Spanish",
                                level="A1", track="tr")
-    check(result.attempts == 2, "the defective draft caused exactly one retry")
-    check("not IPA" in seen["calls"][1],
-          "the retry named the actual defect rather than asking again blindly")
-    check(result.clean, "the second draft passed clean")
-    check(result.lesson["pages"][0]["items"][0]["phonetic"] == "ˈθena",
-          "and the repaired lesson is the one returned")
+    check(result.attempts == 1, "a structurally usable draft is authored only once")
+    check(len(seen["calls"]) == 1, "semantic audit findings do not trigger a second paid author call")
+    check(bool(A.blocking(result.findings)),
+          "the deterministic audit finding is preserved for publication review")
+    check(result.lesson["pages"][0]["items"][0]["phonetic"] == "ˈθενα",
+          "the candidate is preserved rather than silently rewritten by generation")
 
 
 # ── 9. The publication boundary ──────────────────────────────────────────────
