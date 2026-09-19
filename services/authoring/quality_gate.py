@@ -6434,57 +6434,122 @@ def repair_duplicate_mcq_stems(*, units: List[Dict[str, Any]], language: str,
                     "forbidden_duplicate_stems": forbidden,
                     "immutable_page_context": context,
                 }
-                data = _call_review(
-                    model=REPAIR_MODEL,
-                    system=_EXACT_DUPLICATE_STEM_REPAIR_SYSTEM,
-                    payload=payload,
-                    max_tokens=700,
-                    effort="low",
-                    budget=budget,
-                    stage=(
-                        f"review_duplicate_stem:{topic.get('title')}:"
-                        f"pages.{page_index}.{stem_key}"
-                    ),
-                    response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
-                    response_name="duplicate_stem_repair",
-                )
-                replacement = data.get("value")
-                if not isinstance(replacement, str) or not replacement.strip():
-                    raise QualityGateError(
-                        f"{topic.get('title')}: duplicate-stem repair returned empty value"
+                def _duplicate_candidate(call_payload: Dict[str, Any], *,
+                                         suffix: str = "") -> str:
+                    data = _call_review(
+                        model=REPAIR_MODEL,
+                        system=_EXACT_DUPLICATE_STEM_REPAIR_SYSTEM,
+                        payload=call_payload,
+                        max_tokens=700,
+                        effort="low",
+                        budget=budget,
+                        stage=(
+                            f"review_duplicate_stem:{topic.get('title')}:"
+                            f"pages.{page_index}.{stem_key}{suffix}"
+                        ),
+                        response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+                        response_name="duplicate_stem_repair",
                     )
-                replacement = replacement.strip()
-                if _stem_key(replacement) == _stem_key(before):
-                    raise QualityGateError(
-                        f"{topic.get('title')}: duplicate-stem repair made no semantic stem change"
+                    value = data.get("value")
+                    if not isinstance(value, str) or not value.strip():
+                        raise QualityGateError(
+                            f"{topic.get('title')}: duplicate-stem repair returned empty value"
+                        )
+                    return value.strip()
+
+                def _prove_duplicate_candidate(replacement: str):
+                    if _stem_key(replacement) == _stem_key(before):
+                        return None, "no semantic stem change", [], []
+
+                    probe = copy.deepcopy(topic["content"])
+                    _set_path(
+                        probe,
+                        ["pages", page_index, stem_key],
+                        replacement,
+                        old=before,
+                    )
+                    R.repair_lesson(probe, language=language)
+
+                    probe_topic = dict(topic)
+                    probe_topic["content"] = probe
+                    blockers = A.blocking(
+                        _audit_topic(probe_topic, language=language, track=track)
+                    )
+                    if blockers:
+                        return None, "deterministic blockers", blockers, []
+
+                    render = _topic_render_blockers(probe)
+                    if render:
+                        return None, "renderer blockers", [], render
+
+                    # The whole purpose of this repair is uniqueness. Prove the
+                    # candidate against every forbidden normalized stem before
+                    # canonical mutation; punctuation/cosmetic differences do
+                    # not count.
+                    replacement_key = _stem_key(replacement)
+                    forbidden_keys = {_stem_key(value) for value in forbidden}
+                    if replacement_key in forbidden_keys:
+                        return None, "still duplicates a forbidden stem", [], []
+
+                    return probe, "", [], []
+
+                replacement = _duplicate_candidate(payload)
+                probe, reject_reason, blockers, render = _prove_duplicate_candidate(
+                    replacement
+                )
+
+                if probe is None:
+                    corrective_payload = dict(payload)
+                    corrective_payload["rejected_candidate"] = replacement
+                    corrective_payload["rejection_reason"] = reject_reason
+                    corrective_payload["authoritative_deterministic_blockers"] = [
+                        finding.as_dict() for finding in blockers
+                    ]
+                    corrective_payload["authoritative_renderer_blockers"] = render
+                    corrective_payload["instruction"] = (
+                        "Your previous stem was rejected by AulaAI's authoritative "
+                        "post-candidate proof. Return ONE replacement for the SAME "
+                        "stem field that is in the declared taught language, remains "
+                        "answerable from the immutable options/context, is genuinely "
+                        "distinct from every forbidden duplicate, and introduces no "
+                        "deterministic or renderer blocker."
+                    )
+                    print(
+                        f"[QUALITY-PATCH] RETRY duplicate stem "
+                        f"{topic.get('title')} pages.{page_index}.{stem_key}: "
+                        f"{reject_reason}",
+                        flush=True,
+                    )
+                    replacement = _duplicate_candidate(
+                        corrective_payload, suffix=":corrective"
+                    )
+                    probe, reject_reason, blockers, render = _prove_duplicate_candidate(
+                        replacement
                     )
 
-                _set_path(
-                    topic["content"],
-                    ["pages", page_index, stem_key],
-                    replacement,
-                    old=before,
-                )
-                R.repair_lesson(topic["content"], language=language)
+                if probe is None:
+                    detail = (
+                        f" deterministic={A.summarise(blockers)}"
+                        if blockers else ""
+                    )
+                    if render:
+                        detail += (
+                            " renderer=" + "; ".join(
+                                f"page {x['page_index']} {x['locale']}: {x['why']}"
+                                for x in render[:4]
+                            )
+                        )
+                    raise QualityGateError(
+                        f"{topic.get('title')}: duplicate-stem repair could not "
+                        f"produce a proven candidate after corrective retry: "
+                        f"{reject_reason}{detail}"
+                    )
 
-                blockers = A.blocking(
-                    _audit_topic(topic, language=language, track=track)
-                )
-                if blockers:
-                    raise QualityGateError(
-                        f"{topic.get('title')}: duplicate-stem repair introduced blockers: "
-                        f"{A.summarise(blockers)}"
-                    )
-                render = _topic_render_blockers(topic["content"])
-                if render:
-                    detail = "; ".join(
-                        f"page {x['page_index']} {x['locale']}: {x['why']}"
-                        for x in render[:4]
-                    )
-                    raise QualityGateError(
-                        f"{topic.get('title')}: duplicate-stem repair broke renderer contract — "
-                        f"{detail}"
-                    )
+                # Commit exactly the snapshot that already passed language,
+                # deterministic, renderer and duplicate-uniqueness proof.
+                topic["content"].clear()
+                topic["content"].update(probe)
+                page = topic["content"]["pages"][page_index]
 
                 applied += 1
                 changed += 1
