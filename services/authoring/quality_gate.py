@@ -1545,6 +1545,13 @@ Language-awareness contract:
 - Judge target-language content by the grammar, writing system, morphology,
   syntax, punctuation and standard usage of the DECLARED taught language, not
   by English or Turkish expectations.
+- A claim that COUNTS or ENUMERATES a closed set is categorical, even with
+  no absolute word in it. A published Spanish A1 page taught "İspanyolca
+  yazımda tek bir sesi temsil eden iki digraf bulunur: 'll' ve 'rr'" — two,
+  omitting 'ch', which that same course teaches. "There are N of X", "the only
+  X are", "X has N forms" are all claims about the WHOLE set and must be
+  verified against it, or hedged to the subset actually being taught. Prefer
+  naming the ones taught over asserting how many exist.
 - A rule or formula must name a word by its CITATION FORM - the infinitive,
   lemma or dictionary entry - never by one of its inflected forms. A published
   German lesson listed the Prateritum of 'werden' correctly and then summarised
