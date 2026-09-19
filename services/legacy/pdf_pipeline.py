@@ -995,6 +995,39 @@ def _run_publication_until_ready(course_id, language, level, material_language,
                 )
 
                 if changed:
+                    # Before paying for another semantic pass, sweep the whole
+                    # persisted classroom snapshot for blockers we can already
+                    # see deterministically/through the renderer. The previous
+                    # flow discovered these one unit per outer retry: fix unit A,
+                    # rerun semantic review, then discover unit B. A final-repair
+                    # sweep is strictly cheaper because it makes provider calls
+                    # only for topics that are already dirty.
+                    sweep_units = copy.deepcopy(units)
+                    try:
+                        sweep_changed = Q.repair_final_publication_blockers(
+                            units=sweep_units,
+                            language=language,
+                            level=level,
+                            track=material_language,
+                            budget=feedback_budget,
+                        )
+                    except Q.QualityGateError as sweep_failure:
+                        sweep_changed = 0
+                        _log(
+                            f"[QUALITY-SELF-HEAL] retry {retry_attempt} proactive "
+                            f"blocker sweep could not fully converge; keeping the "
+                            f"already-proven targeted repair and deferring the rest: "
+                            f"{sweep_failure}"
+                        )
+                    if sweep_changed:
+                        units = sweep_units
+                        changed += sweep_changed
+                        _log(
+                            f"[QUALITY-SELF-HEAL] retry {retry_attempt} proactive "
+                            f"course sweep cleared {sweep_changed} additional "
+                            f"already-visible blocker patch(es) before semantic resume."
+                        )
+
                     with db_connection() as db:
                         for unit in units:
                             for topic in unit.get("topics") or []:
@@ -1182,6 +1215,18 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     else:
         active_units = all_units
 
+    # UI progress must describe the whole classroom, not the retry subset.
+    # A one-unit resume previously rewrote every stage from x/6 to x/1 even
+    # though five units were already proven and skipped. Keep the denominator
+    # stable and count skipped/proven units as the completed prefix.
+    display_total_units = len(all_units)
+    display_completed_base = max(
+        0, display_total_units - len(active_units)
+    )
+
+    def _display_progress(done: int):
+        return display_completed_base + int(done), display_total_units
+
     # Cheap fail-fast pass: deterministic lesson blockers are exact and known
     # before broad semantic review. Repair them first, prove them clean, and
     # persist that proven correction as a checkpoint. A provider failure here
@@ -1322,7 +1367,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         with db_connection() as db:
             db.execute(
                 "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-                (f"Quality review: lessons {done}/{total}", course_id),
+                (f"Quality review: lessons {_display_progress(done)[0]}/{_display_progress(done)[1]}", course_id),
             )
             db.commit()
 
@@ -1347,14 +1392,14 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     with db_connection() as db:
         db.execute(
             "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-            (f"Quality review: pedagogical risks 0/{len(active_units)}", course_id),
+            (f"Quality review: pedagogical risks {display_completed_base}/{display_total_units}", course_id),
         )
         db.commit()
     def _risk_complete(done, total, unit):
         with db_connection() as db:
             db.execute(
                 "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-                (f"Quality review: pedagogical risks {done}/{total}", course_id),
+                (f"Quality review: pedagogical risks {_display_progress(done)[0]}/{_display_progress(done)[1]}", course_id),
             )
             db.commit()
 
@@ -1379,14 +1424,14 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     with db_connection() as db:
         db.execute(
             "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-            (f"Quality review: pronunciation 0/{len(active_units)}", course_id),
+            (f"Quality review: pronunciation {display_completed_base}/{display_total_units}", course_id),
         )
         db.commit()
     def _notation_complete(done, total, unit):
         with db_connection() as db:
             db.execute(
                 "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-                (f"Quality review: pronunciation {done}/{total}", course_id),
+                (f"Quality review: pronunciation {_display_progress(done)[0]}/{_display_progress(done)[1]}", course_id),
             )
             db.commit()
 
@@ -1414,7 +1459,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     with db_connection() as db:
         db.execute(
             "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-            (f"Quality review: assessments 0/{len(active_units)}", course_id),
+            (f"Quality review: assessments {display_completed_base}/{display_total_units}", course_id),
         )
         db.commit()
 
@@ -1422,7 +1467,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         with db_connection() as db:
             db.execute(
                 "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-                (f"Quality review: assessments {done}/{total}", course_id),
+                (f"Quality review: assessments {_display_progress(done)[0]}/{_display_progress(done)[1]}", course_id),
             )
             db.commit()
 
@@ -1450,14 +1495,14 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     with db_connection() as db:
         db.execute(
             "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-            (f"Quality review: rationale grounding 0/{len(active_units)}", course_id),
+            (f"Quality review: rationale grounding {display_completed_base}/{display_total_units}", course_id),
         )
         db.commit()
     def _rationale_complete(done, total, unit):
         with db_connection() as db:
             db.execute(
                 "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
-                (f"Quality review: rationale grounding {done}/{total}", course_id),
+                (f"Quality review: rationale grounding {_display_progress(done)[0]}/{_display_progress(done)[1]}", course_id),
             )
             db.commit()
 
