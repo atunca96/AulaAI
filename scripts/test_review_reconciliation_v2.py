@@ -38,8 +38,8 @@ topic={
          "answer":"peruana",
          "options":["peruana","española","francesa","alemana"],
          "distractors":["española","francesa","alemana"],
-         "explanation":"The repaired stem states «Lucía es peruana», so «peruana» answers the nationality question.",
-         "explanation_tr":"Düzeltilmiş soru kökü «Lucía es peruana» dediği için milliyet cevabı «peruana»dır."}
+         "explanation":"The visible word «nacionalidad» asks for a nationality; the keyed form is «peruana».",
+         "explanation_tr":"Görünür «nacionalidad» sözcüğü milliyet sorar; işaretli biçim «peruana»dır."}
     ]}
 }
 
