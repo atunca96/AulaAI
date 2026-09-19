@@ -20,6 +20,7 @@ pin both directions of that trade.
 """
 
 from __future__ import annotations
+import inspect
 import os
 import sys
 import uuid
@@ -151,6 +152,31 @@ try:
           "a proof that cannot be read is a proof that does not exist")
 finally:
     Q._review_attestation_has = orig
+
+print("\n[7] final publication does not promote specificity proxy to semantic truth")
+_src = inspect.getsource(Q.validate_publication_integrity)
+check("_EXPLANATION_SPECIFICITY_REASON" in _src,
+      "the final gate distinguishes the two rationale classes")
+check(_src.count("rationale_blockers = [") == 1,
+      "specificity rows are filtered out of the blocking set")
+
+# A correct A1 item whose rationale names the discriminating fact in the
+# instruction language, sharing no token with the taught-language stem. The
+# proxy reports it; the final gate must not destroy the classroom over it.
+a1 = {
+    "type": "mcq", "title": "Question 3", "title_tr": "Soru 3",
+    "prompt": "¿Cómo se despide una persona por la noche?",
+    "options": ["Buenas noches", "Buenos días", "Buenas tardes", "Hasta luego"],
+    "answer": "Buenas noches",
+    "distractors": ["Buenos días", "Buenas tardes", "Hasta luego"],
+    "explanation": "The greeting used at night is «Buenas noches».",
+    "explanation_tr": "Gece kullanılan veda «Buenas noches» ifadesidir.",
+}
+rows = Q._explanation_grounding_blockers({"pages": [a1]})
+check(any(r["why"] == Q._EXPLANATION_SPECIFICITY_REASON for r in rows),
+      "the proxy still reports specificity, so repair still sees it")
+check(not any(r["why"] == Q._EXPLANATION_GROUNDING_REASON for r in rows),
+      "and it is not confused with an invented person")
 
 print()
 if FAILURES:
