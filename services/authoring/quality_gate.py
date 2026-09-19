@@ -4819,7 +4819,11 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
                                  if S.profile_for_language(language) else ""),
             "instruction_track": track,
             "assessment_topic_id": str(assessment_topic["id"]),
-            "assessment_records": _review_records(content),
+            # The ten-question semantic review already happened above. This
+            # targeted retry may only repair pages the deterministic renderer
+            # rejected, so resend only those exact assessment records while
+            # retaining the FULL unit evidence needed to verify the taught fact.
+            "assessment_records": _records_for_render_blockers(content, render_blockers),
             "unit_evidence": evidence,
             "render_contract_blockers": render_blockers,
             "instruction": (
