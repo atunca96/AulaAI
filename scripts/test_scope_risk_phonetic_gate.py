@@ -69,8 +69,32 @@ try:
             "analysis":"Different adjective classes can follow different agreement patterns.",
         }]}]},
     }
-    risk_records=Q._risk_review_records(risk_topic["content"])
+    risk_records=Q._risk_review_records(
+        risk_topic["content"], topic_type=risk_topic["type"]
+    )
     assert any(r["field"]=="rule_tr" for r in risk_records)
+
+    # Pronunciation/phonology prose is a pedagogical rule surface too. It must
+    # receive the same semantic scope/counterexample pass even when the page is
+    # stored as a generic lesson and contains no notation field.
+    pronunciation_topic={
+        "id":"p0","title":"Connected Speech","type":"pronunciation",
+        "content":{"pages":[{"type":"lesson",
+            "text":"In connected speech, every word boundary is always marked by a glottal stop.",
+            "text_tr":"Bağlantılı konuşmada her kelime sınırı daima gırtlak patlamasıyla işaretlenir."
+        }]},
+    }
+    pronunciation_records=Q._risk_review_records(
+        pronunciation_topic["content"], topic_type=pronunciation_topic["type"]
+    )
+    assert {r["field"] for r in pronunciation_records} >= {"text","text_tr"}
+
+    # The semantic contracts explicitly reject low-information rationales and
+    # distractors that can be eliminated without knowing the taught distinction.
+    assert "specific discriminating rule, form or" in Q._LESSON_REVIEW_SYSTEM
+    assert "low-information paraphrases are not publication quality" in Q._LESSON_REVIEW_SYSTEM
+    assert "SAME tested semantic or" in Q._ASSESSMENT_REVIEW_SYSTEM
+    assert "low-information restatements are a quality defect" in Q._ASSESSMENT_REVIEW_SYSTEM
 
     def fake_risk_call(**kwargs):
         stage=kwargs["stage"]
