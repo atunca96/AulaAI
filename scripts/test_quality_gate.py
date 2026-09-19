@@ -346,6 +346,76 @@ def test_assessment_grounding_uses_exact_repair_before_generic_retry():
           "the repaired assessment has no ungrounded-person rationale")
 
 
+def test_preflight_same_path_blockers_are_repaired_atomically():
+    print("\n[Q3c] same-path deterministic blockers are one atomic repair decision")
+    page = {
+        "type": "mcq",
+        "title": "Question",
+        "title_tr": "Soru",
+        "prompt": "Choose the correct greeting.",
+        "options": ["hola", "adiós", "gracias", "por favor"],
+        "answer": "hola",
+        "distractors": ["adiós", "gracias", "por favor"],
+        "explanation": "«Hola» is the standard greeting in this item.",
+        "explanation_tr": "Bu maddede standart selamlama «hola»dır.",
+    }
+    topic = {"id": "family", "title": "Family Members",
+             "content": {"pages": [page]}, "is_assessment": False}
+    units = [{"title": "Unit 1", "topics": [topic]}]
+
+    initial = A.blocking(A.audit_lesson(
+        topic["content"], language="Spanish", track="tr"))
+    codes = [f.code for f in initial]
+    check("instructional_prose_in_target_field" in codes and
+          "stem_in_instructional_language" in codes,
+          f"fixture carries both blockers on the same prompt ({codes})")
+
+    original = Q.T.call_model
+    exact_payloads = []
+
+    def provider(messages, **kwargs):
+        payload = json.loads(messages[-1]["content"])
+        if "topics" in payload:
+            tid = payload["topics"][0]["topic_id"]
+            return T.Response(
+                data={"topics": [{"topic_id": tid, "verdict": "fix", "patches": []}]},
+                input_tokens=300, output_tokens=60, cost=0.0002,
+                model=kwargs.get("model", ""),
+            )
+        exact_payloads.append(payload)
+        if "rejected_candidate" not in payload:
+            # Simulate a no-op/insufficient first repair. It must never be
+            # committed to canonical content.
+            value = payload["current_value"]
+        else:
+            value = "¿Cuál es el saludo correcto?"
+        return T.Response(
+            data={"value": value, "reason": "Clear every blocker on this prompt."},
+            input_tokens=250, output_tokens=50, cost=0.0002,
+            model=kwargs.get("model", ""),
+        )
+
+    try:
+        Q.T.call_model = provider
+        budget = Q.ReviewBudget(0.05)
+        applied = Q.repair_deterministic_preflight(
+            units=units, language="Spanish", level="A1",
+            track="tr", budget=budget)
+    finally:
+        Q.T.call_model = original
+
+    check(len(exact_payloads) == 2,
+          f"one bounded corrective retry was used ({len(exact_payloads)} calls)")
+    check(len(exact_payloads[0].get("blockers") or []) >= 2,
+          "all same-path blockers were supplied in one exact decision")
+    check(topic["content"]["pages"][0]["prompt"] == "¿Cuál es el saludo correcto?",
+          "only the candidate that cleared the whole path was committed")
+    remaining = A.blocking(A.audit_lesson(
+        topic["content"], language="Spanish", track="tr"))
+    check(not remaining,
+          f"authoritative re-audit is clean ({A.summarise(remaining) if remaining else {}})")
+
+
 def test_single_semantic_review_model():
     print("\n[Q4] broad review and targeted repair have explicit Gemini roles")
     check(Q.REVIEW_MODEL == "google/gemini-3.7-flash",
@@ -552,6 +622,7 @@ def main():
     test_gemini_lesson_review_repairs_pdf_defects()
     test_gemini_assessment_review_removes_multi_correct_item()
     test_assessment_grounding_uses_exact_repair_before_generic_retry()
+    test_preflight_same_path_blockers_are_repaired_atomically()
     test_single_semantic_review_model()
     test_publication_integrity_keeps_ten_questions()
     test_publication_integrity_catches_renderer_silent_drop()
