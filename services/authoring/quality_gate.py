@@ -4332,8 +4332,39 @@ def repair_publication_refusal_feedback(*, units: List[Dict[str, Any]],
         return 0
 
     canonical = S.canonical_language(language)
-    candidates: List[Tuple[int, Dict[str, Any], List[Dict[str, Any]]]] = []
-    for unit in units or []:
+
+    # Route the refusal to the unit/topic it actually names. A unit-level
+    # assessment exception such as "People and Nationalities ... Q9" used to
+    # miss every topic title, then fall back to the dirtiest topic anywhere in
+    # the course. That caused retry 3 to repair a different unit entirely.
+    unit_rows = list(units or [])
+    explicitly_named_units = {
+        str(unit.get("title") or "")
+        for unit in unit_rows
+        if str(unit.get("title") or "")
+        and str(unit.get("title") or "") in error_text
+    }
+    explicitly_named_topics = {
+        str(topic.get("title") or "")
+        for unit in unit_rows
+        for topic in (unit.get("topics") or [])
+        if str(topic.get("title") or "")
+        and str(topic.get("title") or "") in error_text
+    }
+    assessment_hint = bool(
+        re.search(r"\bQ\d+\b|assessment|değerlendirme", error_text, re.IGNORECASE)
+    )
+
+    candidates: List[
+        Tuple[int, str, Dict[str, Any], List[Dict[str, Any]]]
+    ] = []
+    for unit in unit_rows:
+        unit_title = str(unit.get("title") or "")
+        unit_mentioned = unit_title in explicitly_named_units
+        # If the refusal names one or more units, never repair outside them.
+        if explicitly_named_units and not unit_mentioned:
+            continue
+
         for topic in unit.get("topics") or []:
             content = topic.get("content")
             if not isinstance(content, dict):
@@ -4342,13 +4373,23 @@ def repair_publication_refusal_feedback(*, units: List[Dict[str, Any]],
                 topic, language=language, track=track, canonical=canonical
             )
             title = str(topic.get("title") or "")
-            mentioned = bool(title and title in error_text)
-            if not blockers and not mentioned:
+            topic_mentioned = title in explicitly_named_topics
+            if explicitly_named_topics and not topic_mentioned and not unit_mentioned:
                 continue
-            # Exact-title mention outranks merely being dirty. This keeps a
-            # single refusal from paying to rewrite unrelated dirty topics.
-            score = (1000 if mentioned else 0) + len(blockers)
-            candidates.append((score, topic, blockers))
+            if not blockers and not topic_mentioned and not unit_mentioned:
+                continue
+
+            is_assessment = bool(topic.get("is_assessment")) or (
+                str(topic.get("type") or "") == "unit_assessment"
+            )
+            score = len(blockers)
+            if unit_mentioned:
+                score += 1000
+            if topic_mentioned:
+                score += 2000
+            if unit_mentioned and assessment_hint and is_assessment:
+                score += 1500
+            candidates.append((score, unit_title, topic, blockers))
 
     if not candidates:
         return 0
@@ -4356,16 +4397,13 @@ def repair_publication_refusal_feedback(*, units: List[Dict[str, Any]],
     candidates.sort(key=lambda row: row[0], reverse=True)
     applied = 0
 
-    # One refusal normally names one topic. Process every equally mentioned
-    # topic if necessary, otherwise only the highest-signal dirty topic; the
-    # next gate run will name the next independent defect if one exists.
+    # One refusal names one repair locality. Keep the model inside that
+    # locality; the next authoritative proof will name the next independent
+    # defect if one exists.
     top_score = candidates[0][0]
-    selected = [
-        row for row in candidates
-        if row[0] == top_score or row[0] >= 1000
-    ][:3]
+    selected = [row for row in candidates if row[0] == top_score][:3]
 
-    for _score, topic, blockers in selected:
+    for _score, _unit_title, topic, blockers in selected:
         content = topic.get("content") or {}
 
         page_indexes: set = set()
