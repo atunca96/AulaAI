@@ -51,8 +51,8 @@ def workers(env=None):
 
 
 print("\n[2] an unset environment is today's behaviour")
-check(default == 3, f"the default is still 3 (found {default})")
-check(workers() == 3, f"an unset knob yields 3 (yields {workers()})")
+check(default == 6, f"the default is six independent unit workers (found {default})")
+check(workers() == 6, f"an unset knob yields 6 (yields {workers()})")
 
 print("\n[3] and the knob now moves in both directions")
 check(floor == 1 and workers("1") == 1, "it can still be turned down to 1")
