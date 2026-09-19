@@ -132,20 +132,30 @@ def audit(language, track, pdf):
     return doc, text, problems
 
 
+# Every CEFR band the product sells, not just the entry one. A renderer or
+# notation defect that only appears at B2/C1 — longer prose, denser
+# transcription, more complex option sets — was previously invisible here
+# because the matrix only ever built A1.
+LEVELS = ("A1", "A2", "B1", "B2", "C1", "C2")
+
+
 def main():
     langs = sorted(LANGUAGE_CEFR_STANDARDS)
-    print(f"matrix: {len(langs)} languages x 2 tracks = {len(langs)*2} runs\n")
+    total = len(langs) * 2 * len(LEVELS)
+    print(f"matrix: {len(langs)} languages x 2 tracks x {len(LEVELS)} levels "
+          f"= {total} runs\n")
     failures = []
     for language in langs:
+      for level in LEVELS:
         row = []
         for track in ("tr", "en"):
-            cid = f"c-{language}-{track}"
+            cid = f"c-{language}-{track}-{level}"
             with database.db_connection() as db:
                 db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id=?)", (cid,))
                 db.execute("DELETE FROM chapters WHERE course_id=?", (cid,))
                 db.execute("DELETE FROM courses WHERE id=?", (cid,))
                 db.execute("INSERT INTO courses (id,name,language,level,material_language) VALUES (?,?,?,?,?)",
-                           (cid, f"{language} A1", language, "A1", track))
+                           (cid, f"{language} {level}", language, level, track))
                 db.execute("INSERT INTO chapters (id,course_id,number,title) VALUES (?,?,?,?)",
                            (cid+"-ch", cid, 1, "Unit 1"))
                 db.execute("INSERT INTO topics (id,chapter_id,type,title,content,sort_order) VALUES (?,?,?,?,?,?)",
@@ -156,18 +166,19 @@ def main():
                 pdf, _ = render_course_pdf(cid, lang=track)
                 doc, text, problems = audit(language, track, pdf)
                 row.append((track, len(doc), len(pdf), problems))
-                if problems: failures.append((language, track, problems))
+                if problems: failures.append((language, track, level, problems))
             except Exception as exc:
                 row.append((track, 0, 0, [f"RENDER FAILED: {exc}"]))
-                failures.append((language, track, [f"RENDER FAILED: {exc}"]))
+                failures.append((language, track, level, [f"RENDER FAILED: {exc}"]))
         marks = " | ".join(f"{t}:{'ok' if not p else 'FAIL'}({pg}p,{b//1024}kb)" for t, pg, b, p in row)
-        print(f"{language:12} {marks}")
+        print(f"{language:12} {level}  {marks}")
         for t, _pg, _b, p in row:
             for problem in p: print(f"             {t}: {problem}")
-    print(f"\n=== {len(failures)} failing runs of {len(langs)*2} ===")
+    print(f"\n=== {len(failures)} failing runs of {total} ===")
     if failures:
         return 1
-    print(f"language matrix: {len(langs)} languages x 2 tracks, all clean")
+    print(f"language matrix: {len(langs)} languages x 2 tracks x "
+          f"{len(LEVELS)} levels, all clean")
     return 0
 
 
