@@ -663,13 +663,17 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                         _log(f"Failed fallback commit for {failed_title}: {db_err}")
 
         # ── PHASE 2a.5: PHONETIC COMPLETENESS ──
-        # Material generation occasionally returns a real vocabulary row with an
-        # empty phonetic field. Repair only those blanks, once per class, without
-        # touching any existing transcription.
-        try:
-            _repair_missing_phonetics(course_id, language)
-        except Exception as phon_err:
-            _log(f"[PHONETIC-COMPLETE] repair skipped: {phon_err}")
+        # RAW BENCHMARK deliberately measures generator output before publication
+        # review/repair. Keep the normal production repair path untouched when the
+        # benchmark flag is off.
+        raw_benchmark = os.getenv("AULAAI_RAW_BENCHMARK", "").strip().lower() in ("1", "true", "on", "yes")
+        if raw_benchmark:
+            _log("[RAW-BENCHMARK] skipping post-generation phonetic repair")
+        else:
+            try:
+                _repair_missing_phonetics(course_id, language)
+            except Exception as phon_err:
+                _log(f"[PHONETIC-COMPLETE] repair skipped: {phon_err}")
 
         # ── PHASE 2b: UNIT ASSESSMENTS ──
         # Every unit closes with a ten-question assessment drawn from that unit
@@ -683,16 +687,21 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         except Exception as ua_err:
             _log(f"[UNIT-ASSESSMENT] phase skipped: {ua_err}")
 
-        # ── PHASE 2c: FAIL-CLOSED PUBLICATION QUALITY GATE ──
-        # Generation is cheap and broad; review is narrow and independent.
-        # Every unit is reviewed by Gemini 3.7 Flash, all ten assessment questions
-        # are adversarially checked, and deterministic publication integrity verifies rules,
-        # IPA and MCQs. A failed/incomplete review aborts publication rather
-        # than silently shipping a classroom we did not actually verify.
-        certified = _run_publication_until_ready(
-            course_id, language, level, material_language,
-            gen_id=gen_id, progress=topic_count, total_steps=topic_count,
-        )
+        # ── PHASE 2c: PUBLICATION QUALITY GATE ──
+        # Benchmark mode is intentionally an A/B test of the raw generator. It
+        # skips every paid semantic review and targeted publication repair while
+        # still completing the classroom so the resulting artifact can be scored.
+        if raw_benchmark:
+            from services.authoring import publication_state as PS
+            certified = PS.mark_ready(
+                course_id, gen_id, progress=topic_count, total_steps=topic_count,
+            )
+            _log("[RAW-BENCHMARK] semantic publication review/repair bypassed")
+        else:
+            certified = _run_publication_until_ready(
+                course_id, language, level, material_language,
+                gen_id=gen_id, progress=topic_count, total_steps=topic_count,
+            )
 
         _log(f"Phase 2 Complete for {course_id}.")
         if generation_cost is not None:
