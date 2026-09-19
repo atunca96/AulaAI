@@ -1394,7 +1394,40 @@ def render_course_pdf(course_id: str, lang: str = 'en',
         if report is not None:
             report['questions'] = question_counter
             report['dropped'] = dropped_pages
-        return paginator.finish(), course_name
+
+        pdf_bytes = paginator.finish()
+
+        # The renderer is a second author: it rewrites font CMaps, folds
+        # presentation forms, localizes labels and composes the answer key. A
+        # page clean in the database can still be wrong on paper, and every
+        # other gate in this system reads the database. So the bytes are read
+        # back and checked for the defects that are decidable from them —
+        # malformed Unicode, a line printed twice, pipeline vocabulary in
+        # learner text, a transcription whose aspiration is a plain `h`.
+        #
+        # Reported, never raised. Refusing here would turn every ad-hoc export
+        # into a publication gate; the publication path decides what a finding
+        # means, and this call site only makes sure the evidence exists.
+        try:
+            from services.authoring import artifact_audit as _AA
+            findings = _AA.audit_pdf_bytes(pdf_bytes)
+            if report is not None:
+                report['artifact_findings'] = [
+                    {'code': f.code, 'detail': f.detail, 'page': f.page,
+                     'sample': f.sample}
+                    for f in findings
+                ]
+            if findings:
+                print(f"[ARTIFACT-AUDIT] {course_id} {lang}: "
+                      f"{len(findings)} finding(s): {_AA.summarise(findings)}",
+                      flush=True)
+            else:
+                print(f"[ARTIFACT-AUDIT] {course_id} {lang}: clean", flush=True)
+        except Exception as exc:
+            print(f"[ARTIFACT-AUDIT] {course_id} {lang}: audit failed {exc!r}",
+                  flush=True)
+
+        return pdf_bytes, course_name
 
 
 # AULAAI_RELEASE_HARDENING_V50
