@@ -5901,6 +5901,22 @@ def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str
                     f"publication integrity: {A.summarise(blockers)}"
                 )
 
+            # Bind rationale grounding/specificity to the exact final bytes that
+            # will be persisted and exported. Reviewer proof fields describe an
+            # earlier model response; later deterministic repairs must not be
+            # able to reintroduce an invented-person or answer+boilerplate
+            # rationale after that proof was issued.
+            rationale_blockers = _explanation_grounding_blockers(content)
+            if rationale_blockers:
+                detail = "; ".join(
+                    f"page {row.get('page_index')} {row.get('locale')}: "
+                    f"{row.get('why')}"
+                    for row in rationale_blockers[:4]
+                )
+                raise QualityGateError(
+                    f"{topic.get('title')}: final rationale integrity failed — {detail}"
+                )
+
             before_pages = content.get("pages") or []
             published = P.load_publishable_content(
                 copy.deepcopy(content), language=language, material_language=track,
