@@ -146,6 +146,10 @@ _RISK_REVIEW_SCHEMA = {
             "type": "array",
             "items": {"type": "string"},
         },
+        "categorical_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
         "scope_checks": {
             "type": "array",
             "items": {
@@ -166,7 +170,7 @@ _RISK_REVIEW_SCHEMA = {
         "patches": {"type": "array", "items": _NESTED_PATCH_SCHEMA},
     },
     "required": [
-        "topic_id", "checked_ids", "scope_checked_ids",
+        "topic_id", "checked_ids", "scope_checked_ids", "categorical_ids",
         "scope_checks", "patches"
     ],
 }
@@ -1444,6 +1448,7 @@ Return JSON only:
 {"topic_id":"EXACT ID",
  "checked_ids":["r0"],
  "scope_checked_ids":["r0"],
+ "categorical_ids":["r0"],
  "scope_checks":[
    {"record_id":"r0","counterexample_tested":true,
     "final_scope_safe":true,"reason":"brief factual scope judgement"}
@@ -1458,12 +1463,13 @@ Contract:
 - checked_ids MUST contain every supplied record_id exactly once. This is a
   coverage proof, not a list of only suspicious records. Copy IDs exactly; do
   not reconstruct or normalize paths.
-- scope_checked_ids MUST contain every supplied absolute_id, proving every
-  server-flagged categorical claim received an explicit scope/counterexample
-  check. You MAY also include other supplied record_id values if you judge those
-  records categorical. Never invent an ID that is not present in records.
-- scope_checks MUST contain every supplied absolute_id exactly once and no other
-  IDs. counterexample_tested must be true only after actively trying to find a
+- categorical_ids MUST contain EVERY supplied record_id whose statement is
+  categorical/universal in meaning, even when it contains no obvious absolute
+  keyword. Never invent an ID. The supplied absolute_ids are only a server-side
+  FLOOR: every absolute_id MUST also appear in categorical_ids.
+- scope_checked_ids MUST contain every categorical_id. Never invent an ID.
+- scope_checks MUST contain every categorical_id exactly once and no other IDs.
+  counterexample_tested must be true only after actively trying to find a
   standard counterexample or exception class. final_scope_safe judges the FINAL
   value after applying your own patches. If the current wording is too broad,
   patch it first and then mark final_scope_safe=true. Never mark an unsafe
@@ -4087,28 +4093,42 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                 f"{topic.get('title')}: risk reviewer coverage mismatch; "
                 f"missing_ids={missing[:5]} extra_ids={extra[:5]}"
             )
-        expected_scope_ids = {
+        server_scope_floor = {
             f"r{index}" for index, rec in enumerate(records)
             if isinstance(rec.get("value"), str)
             and _ABSOLUTE_RISK_RE.search(rec["value"])
+        }
+        categorical_ids = {
+            str(value) for value in (data.get("categorical_ids") or [])
+            if isinstance(value, str)
         }
         scope_checked_ids = {
             str(value) for value in (data.get("scope_checked_ids") or [])
             if isinstance(value, str)
         }
-        missing_scope_ids = expected_scope_ids - scope_checked_ids
+        missing_floor = server_scope_floor - categorical_ids
+        unknown_categorical = categorical_ids - expected_ids
+        missing_scope_ids = categorical_ids - scope_checked_ids
         unknown_scope_ids = scope_checked_ids - expected_ids
-        if missing_scope_ids or unknown_scope_ids:
+        if missing_floor or unknown_categorical or missing_scope_ids or unknown_scope_ids:
             raise QualityGateError(
                 f"{topic.get('title')}: categorical-scope coverage mismatch; "
-                f"missing_ids={sorted(missing_scope_ids)[:5]} "
-                f"unknown_ids={sorted(unknown_scope_ids)[:5]}"
+                f"floor_missing={sorted(missing_floor)[:5]} "
+                f"unknown_categorical={sorted(unknown_categorical)[:5]} "
+                f"scope_missing={sorted(missing_scope_ids)[:5]} "
+                f"scope_unknown={sorted(unknown_scope_ids)[:5]}"
             )
         _require_risk_scope_proof(
             data,
             topic_title=str(topic.get("title") or ""),
-            expected_scope_ids=expected_scope_ids,
+            expected_scope_ids=categorical_ids,
         )
+        categorical_paths = {
+            tuple(records[int(rid[1:])].get("path") or [])
+            for rid in categorical_ids
+            if rid.startswith("r") and rid[1:].isdigit()
+            and int(rid[1:]) < len(records)
+        }
 
         patches = []
         for patch in (data.get("patches") or []):
@@ -4130,9 +4150,15 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
         )
         for exact_index, rec in enumerate(current_records):
             value = rec.get("value")
-            if not (isinstance(value, str) and _ABSOLUTE_RISK_RE.search(value)):
-                continue
             path = rec.get("path") or []
+            server_flagged_now = (
+                isinstance(value, str) and bool(_ABSOLUTE_RISK_RE.search(value))
+            )
+            model_declared = tuple(path) in categorical_paths
+            if not (server_flagged_now or model_declared):
+                continue
+            if not isinstance(value, str):
+                continue
             page_index = path[1] if (
                 len(path) >= 2 and path[0] == "pages" and isinstance(path[1], int)
             ) else None
