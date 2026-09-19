@@ -3170,15 +3170,17 @@ _ABSOLUTE_RISK_RE = re.compile(
 )
 
 
-def _scope_overlap_suspicious(current: str, siblings: List[Dict[str, Any]]) -> bool:
-    """Cheap language-agnostic signal for two phrasings of the same rule.
+def _scope_overlap_evidence(current: str, siblings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return only strong same-rule sibling evidence, ordered by similarity.
 
-    This does not decide correctness. It only decides whether a Gemini "ok" on
-    an absolute claim deserves an independent independent generation-model judgement.
+    Broad risk review already checks every selected claim. This selector exists
+    only for likely scope contradictions, so precision matters more than recall:
+    unnecessary escalation calls are redundant, slow and expensive.
     """
     base = " ".join(unicodedata.normalize("NFKC", current).casefold().split())
     if not base:
-        return False
+        return []
+    scored = []
     for sibling in siblings:
         other = sibling.get("value")
         if not isinstance(other, str) or not other.strip():
@@ -3186,10 +3188,11 @@ def _scope_overlap_suspicious(current: str, siblings: List[Dict[str, Any]]) -> b
         normalized = " ".join(
             unicodedata.normalize("NFKC", other).casefold().split()
         )
-        if difflib.SequenceMatcher(None, base, normalized).ratio() >= 0.34:
-            return True
-    return False
-
+        ratio = difflib.SequenceMatcher(None, base, normalized).ratio()
+        if ratio >= 0.46:
+            scored.append((ratio, sibling))
+    scored.sort(key=lambda row: row[0], reverse=True)
+    return [row[1] for row in scored[:2]]
 
 def _digit_ipa_structurally_suspicious(value: str) -> bool:
     """Catch pseudo-IPA that fuses several independently stressed words."""
@@ -3361,11 +3364,10 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             patches.append(item)
         applied += _apply_patches({topic_id: topic}, patches)
 
-        # Broad risk review is not authoritative for categorical claims. Re-scan
-        # the CURRENT topic after its patches and arbitrate each remaining
-        # categorical statement independently, with same-page siblings as
-        # context. This prevents a batch reviewer from overlooking a local
-        # "many" vs "all" scope contradiction.
+        # Broad risk review remains the semantic authority. Escalate only a
+        # narrow, server-selected class: an absolute claim with a strongly
+        # overlapping same-page sibling. This catches likely scope
+        # contradictions without opening one model call per absolute sentence.
         current_records = _risk_review_records(topic.get("content") or {})
         for exact_index, rec in enumerate(current_records):
             value = rec.get("value")
@@ -3389,80 +3391,54 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                         "field": sibling.get("field"),
                         "value": sibling.get("value"),
                     })
+            evidence = _scope_overlap_evidence(value, siblings)
+            if not evidence:
+                continue
+
             exact = _call_review(
-                model=REVIEW_MODEL,
+                model=ESCALATION_MODEL,
                 system=_EXACT_CATEGORICAL_REVIEW_SYSTEM,
                 payload={
                     "language": language,
                     "level": level,
                     "regional_variety": profile.variety if profile else "",
-                    "unit": unit_title,
-                    "topic": str(topic.get("title") or ""),
                     "current": value,
-                    "field": rec.get("field"),
-                    "same_page_siblings": siblings,
+                    "same_page_siblings": evidence,
+                    "instruction": (
+                        "Targeted scope escalation: decide whether the current "
+                        "absolute claim improperly broadens the same rule stated "
+                        "by the supplied sibling evidence."
+                    ),
                 },
-                max_tokens=700,
+                max_tokens=650,
                 effort="low",
                 budget=budget,
-                stage=f"review_categorical_exact:{unit_title}:{topic.get('title')}:{exact_index}",
+                stage=f"review_categorical_escalation:{unit_title}:{topic.get('title')}:{exact_index}",
                 response_schema=_EXACT_CATEGORICAL_REVIEW_SCHEMA,
-                response_name="categorical_claim_exact_review",
+                response_name="categorical_scope_escalation",
             )
             verdict = str(exact.get("verdict") or "")
             replacement = exact.get("value")
-
-            # Gemini has twice accepted a real production overgeneralization.
-            # If an absolute claim strongly resembles a sibling rule on the same
-            # page, ask a genuinely independent model before accepting "ok".
-            if verdict == "ok" and _scope_overlap_suspicious(value, siblings):
-                exact = _call_review(
-                    model=ESCALATION_MODEL,
-                    system=_EXACT_CATEGORICAL_REVIEW_SYSTEM,
-                    payload={
-                        "language": language,
-                        "level": level,
-                        "regional_variety": profile.variety if profile else "",
-                        "unit": unit_title,
-                        "topic": str(topic.get("title") or ""),
-                        "current": value,
-                        "field": rec.get("field"),
-                        "same_page_siblings": siblings,
-                        "instruction": (
-                            "INDEPENDENT ESCALATION: Gemini accepted this absolute "
-                            "claim, but a same-page rule is lexically similar. "
-                            "Re-evaluate scope from first principles."
-                        ),
-                    },
-                    max_tokens=900,
-                    effort="high",
-                    budget=budget,
-                    stage=f"review_categorical_escalation:{unit_title}:{topic.get('title')}:{exact_index}",
-                    response_schema=_EXACT_CATEGORICAL_REVIEW_SCHEMA,
-                    response_name="categorical_claim_escalation_review",
-                )
-                verdict = str(exact.get("verdict") or "")
-                replacement = exact.get("value")
-
             if verdict == "ok":
                 if replacement != value:
                     raise QualityGateError(
-                        f"{topic.get('title')}: categorical exact reviewer marked ok "
-                        "but changed the value"
+                        f"{topic.get('title')}: categorical escalation marked ok but changed value"
                     )
                 continue
             if verdict != "fix" or not isinstance(replacement, str) or not replacement.strip():
                 raise QualityGateError(
-                    f"{topic.get('title')}: categorical exact reviewer returned invalid fix"
+                    f"{topic.get('title')}: categorical escalation returned invalid fix"
                 )
-            exact_patch = {
-                "topic_id": topic_id,
-                "path": path,
-                "old": value,
-                "value": replacement,
-                "reason": exact.get("reason") or "categorical scope correction",
-            }
-            applied += _apply_patches({topic_id: topic}, [exact_patch])
+            applied += _apply_patches(
+                {topic_id: topic},
+                [{
+                    "topic_id": topic_id,
+                    "path": path,
+                    "old": value,
+                    "value": replacement,
+                    "reason": exact.get("reason") or "categorical scope correction",
+                }],
+            )
 
         # A risk patch is an ordinary content edit and can leave any of the
         # repairable classes behind it. Proving that is the convergence
