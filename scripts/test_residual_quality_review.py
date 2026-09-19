@@ -55,6 +55,12 @@ try:
             assert item["item_id"]=="q1"
             return {
                 "checked_ids":["q1"],
+                "quality_checks":[{
+                    "item_id":"q1",
+                    "grounded":True,
+                    "rationale_specific":True,
+                    "reason":"Final rationale cites the visible location clue."
+                }],
                 "patches":[{
                     "item_id":"q1","field":"explanation_en",
                     "old":"The material says the keys are here.",
@@ -66,6 +72,15 @@ try:
             items=payload["items"]
             return {
                 "checked_ids":[row["item_id"] for row in items],
+                "quality_checks":[
+                    {
+                        "item_id":row["item_id"],
+                        "grounded":True,
+                        "rationale_specific":True,
+                        "reason":"Final rationale names the discriminating visible fact."
+                    }
+                    for row in items
+                ],
                 "patches":[
                     {"item_id":"q0","field":"explanation_en",
                      "old":"Ella is a female student, so the answer is mexicana.",
