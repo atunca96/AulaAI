@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+"""Regression: a would-be publication refusal becomes the next repair prompt.
+
+The production incident was:
+Family Members and Possessive Adjectives / pages[4] /
+"answer depends on gender inferred from a personal name".
+
+The first repair changed the stem while leaving the Turkish rationale's
+"'Abuela' ismi dişil..." trigger intact. This test proves the next repair call
+receives the EXACT refusal text and may patch the actual coupled field, after
+which the unchanged renderer contract passes.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+os.environ.setdefault("OPENROUTER_API_KEY", "fixture-key-never-used")
+
+from services.authoring import quality_gate as Q  # noqa: E402
+from services.authoring import render_contract as RC  # noqa: E402
+
+
+ERROR = (
+    "Family Members and Possessive Adjectives: publication blockers are not "
+    "converging; unresolved=[{'code': 'render_contract', 'where': 'pages[4]', "
+    "'reason': 'answer depends on gender inferred from a personal name'}]"
+)
+
+topic = {
+    "id": "family-pos",
+    "title": "Family Members and Possessive Adjectives",
+    "type": "grammar",
+    "is_assessment": False,
+    "content": {
+        "pages": [
+            {"type": "text", "text": "x", "text_tr": "x"},
+            {"type": "text", "text": "x", "text_tr": "x"},
+            {"type": "text", "text": "x", "text_tr": "x"},
+            {"type": "text", "text": "x", "text_tr": "x"},
+            {
+                "type": "mcq",
+                "title": "Practice: First-Person Plural Possessive",
+                "title_tr": "Alıştırma",
+                "prompt": (
+                    'Completa la frase: "Esta mujer es ________ abuela '
+                    'y vive con nosotros."'
+                ),
+                "text": (
+                    "Choose the form of 'nuestro' that correctly agrees with "
+                    "the feminine singular noun."
+                ),
+                "text_tr": (
+                    "Dişil ve tekil isimle doğru şekilde uyum sağlayan "
+                    "'nuestro' biçimini seçiniz."
+                ),
+                "answer": "nuestra",
+                "options": ["nuestra", "nuestro", "nuestras", "nuestros"],
+                "distractors": ["nuestro", "nuestras", "nuestros"],
+                "explanation": (
+                    "The noun 'abuela' is feminine and singular, so the matching "
+                    "possessive adjective is 'nuestra'."
+                ),
+                "explanation_tr": (
+                    "'Abuela' ismi dişil ve tekil olduğu için onunla uyumlu olan "
+                    "iyelik sıfatı 'nuestra'dır."
+                ),
+            },
+        ]
+    },
+}
+units = [{"title": "Family", "topics": [topic]}]
+
+assert RC.hidden_world_reason(topic["content"]["pages"][4]) == RC.NAME_GENDER_REASON
+
+orig_call = Q._call_review
+seen = {}
+
+
+def fake_call(**kwargs):
+    seen["stage"] = kwargs["stage"]
+    seen["payload"] = kwargs["payload"]
+    payload = kwargs["payload"]
+    assert payload["publication_error"] == ERROR
+    assert payload["retry_attempt"] == 2
+    assert payload["topic_title"] == topic["title"]
+    assert payload["renderer_diagnostics"], payload
+    assert any(
+        row.get("reason") == RC.NAME_GENDER_REASON
+        for row in payload["validator_blockers"]
+    )
+    current = topic["content"]["pages"][4]["explanation_tr"]
+    return {
+        "topic_id": topic["id"],
+        "patches": [{
+            "path": ["pages", "4", "explanation_tr"],
+            "old": current,
+            "value": (
+                "«abuela» sözcüğü dişil ve tekildir; bu nedenle onunla uyumlu "
+                "birinci çoğul şahıs iyelik sıfatı «nuestra»dır."
+            ),
+            "reason": (
+                "The rationale now names a lexical word/noun unambiguously "
+                "instead of wording that can mean a personal name."
+            ),
+        }],
+    }
+
+
+try:
+    Q._call_review = fake_call
+    changed = Q.repair_publication_refusal_feedback(
+        units=units,
+        language="Spanish",
+        level="A1",
+        track="tr",
+        publication_error=ERROR,
+        retry_attempt=2,
+        budget=Q.ReviewBudget(1.0),
+    )
+finally:
+    Q._call_review = orig_call
+
+assert changed == 1, changed
+page = topic["content"]["pages"][4]
+assert RC.hidden_world_reason(page) == "", RC.explain_hidden_world(page)
+assert RC.page_is_renderable(page, True)[0]
+assert RC.page_is_renderable(page, False)[0]
+assert seen["stage"].startswith(
+    "publication_feedback_retry:2:Family Members and Possessive Adjectives"
+)
+assert page["answer"] == "nuestra"
+assert page["options"] == ["nuestra", "nuestro", "nuestras", "nuestros"]
+print("[PUBLICATION-FEEDBACK] exact refusal is pasted into retry prompt and repaired")
+
+
+# The outer pipeline must keep content refusals in quality_review rather than
+# writing the old terminal failed state before the retry prompt runs.
+from services.legacy import pdf_pipeline as P  # noqa: E402
+import inspect  # noqa: E402
+
+source = inspect.getsource(P._run_publication_until_ready)
+assert "publication_error = str(failure)" in source
+assert "repair_publication_refusal_feedback" in source
+assert "build_stage='quality_review'" in source
+assert "build_stage='failed'" not in source
+assert "while True" in source
+print("[PUBLICATION-FEEDBACK] outer publication loop has no content-retry ceiling")
