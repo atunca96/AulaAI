@@ -83,6 +83,7 @@ VERIFICATION_STEPS = [
     "scripts/test_preflight_exact_residuals.py",
     "scripts/test_preflight_convergence_handoff.py",
     "scripts/test_publication_error_feedback_retry.py",
+    "scripts/test_language_identity_proxy_over_gate.py",
     "scripts/test_empty_semantic_patch.py",
     "scripts/test_gemini_review_chunking.py",
     "scripts/test_final_publication_autorepair.py",
