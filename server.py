@@ -2191,32 +2191,35 @@ table.vt td { padding: 4px 6px; }
         bump_version()
 
         def run_review_only():
-            try:
-                from services.legacy.pdf_pipeline import _run_publication_quality_gate
-                _run_publication_quality_gate(
-                    course_id, language, level, material_language, gen_id=gen_id,
-                    generation_spend_override=0.0,
-                )
-                with db_connection() as db:
-                    count_row = db.execute(
-                        "SELECT COUNT(*) FROM topics t JOIN chapters ch ON t.chapter_id = ch.id "
-                        "WHERE ch.course_id = ? AND (t.type IS NULL OR t.type != 'unit_assessment')",
-                        (course_id,),
-                    ).fetchone()
-                topic_count = int(count_row[0] if count_row else 0)
-                certified = PS.mark_ready(
-                    course_id, gen_id, progress=topic_count, total_steps=topic_count
-                )
-                file_log(
-                    f"[PUBLICATION-RETRY] READY {course_id}: "
-                    f"topics={certified['topics']} mcqs={certified['mcqs']} "
-                    f"unit_assessment_questions={certified['unit_assessment_questions']}"
-                )
-            except Exception as exc:
-                PS.mark_failed(course_id, str(exc), gen_id)
-                file_log(f"[PUBLICATION-RETRY] FAILED {course_id}: {exc}")
-            finally:
-                bump_version()
+            # Review-only retries must use the same self-healing publication
+            # loop as a fresh build. The old path called the raw gate directly
+            # and then PS.mark_failed(...) on the first non-converging blocker,
+            # which is why "Publication refused: ..." was still visible after
+            # the self-healing loop had been added elsewhere.
+            from services.legacy.pdf_pipeline import _run_publication_until_ready
+            with db_connection() as db:
+                count_row = db.execute(
+                    "SELECT COUNT(*) FROM topics t JOIN chapters ch ON t.chapter_id = ch.id "
+                    "WHERE ch.course_id = ? AND (t.type IS NULL OR t.type != 'unit_assessment')",
+                    (course_id,),
+                ).fetchone()
+            topic_count = int(count_row[0] if count_row else 0)
+            certified = _run_publication_until_ready(
+                course_id,
+                language,
+                level,
+                material_language,
+                gen_id=gen_id,
+                progress=topic_count,
+                total_steps=topic_count,
+                generation_spend_override=0.0,
+            )
+            file_log(
+                f"[PUBLICATION-RETRY] READY {course_id}: "
+                f"topics={certified['topics']} mcqs={certified['mcqs']} "
+                f"unit_assessment_questions={certified['unit_assessment_questions']}"
+            )
+            bump_version()
 
         import threading
         threading.Thread(target=run_review_only, daemon=True).start()
