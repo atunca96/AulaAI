@@ -993,6 +993,19 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             track=material_language, budget=budget,
         )
 
+    def _review_rationales(unit):
+        return Q.review_unit_mcq_rationales(
+            unit_title=unit["title"], topics=unit["lessons"],
+            language=language, level=level, track=material_language,
+            budget=budget,
+        )
+
+    def _review_complex_notation(unit):
+        return Q.review_unit_complex_notation(
+            unit_title=unit["title"], topics=unit["lessons"],
+            language=language, level=level, budget=budget,
+        )
+
     _log("[QUALITY-GATE] lesson review running serially with fail-fast unit boundaries.")
 
     def _lesson_complete(done, total, unit):
@@ -1026,6 +1039,30 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     )
     _log(
         f"[QUALITY-BUDGET] after risk review spent=${budget.spent:.4f}; "
+        f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
+    )
+
+    rationale_patches = 0
+    _log("[QUALITY-GATE] lesson rationale grounding review running serially.")
+    rationale_patches += _run_quality_units_serially(
+        units=units,
+        reviewer=_review_rationales,
+        stage="rationale grounding review",
+        on_complete=lambda done, total, unit: None,
+        quality_error_cls=Q.QualityGateError,
+    )
+
+    complex_notation_patches = 0
+    _log("[QUALITY-GATE] complex pronunciation review running serially.")
+    complex_notation_patches += _run_quality_units_serially(
+        units=units,
+        reviewer=_review_complex_notation,
+        stage="complex pronunciation review",
+        on_complete=lambda done, total, unit: None,
+        quality_error_cls=Q.QualityGateError,
+    )
+    _log(
+        f"[QUALITY-BUDGET] after rationale/notation review spent=${budget.spent:.4f}; "
         f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
     )
 
@@ -1149,6 +1186,8 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         f"[QUALITY-GATE] PASS bilingual_patches={bilingual_patches} "
         f"lesson_patches={lesson_patches} "
         f"risk_patches={risk_patches} "
+        f"rationale_patches={rationale_patches} "
+        f"complex_notation_patches={complex_notation_patches} "
         f"assessment_patches={assessment_patches} "
         f"final_repair_patches={final_repair_patches} "
         f"phonetic_conflict_patches={phonetic_conflict_patches} "
@@ -1159,6 +1198,8 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         "bilingual_patches": bilingual_patches,
         "lesson_patches": lesson_patches,
         "risk_patches": risk_patches,
+        "rationale_patches": rationale_patches,
+        "complex_notation_patches": complex_notation_patches,
         "assessment_patches": assessment_patches,
         "final_repair_patches": final_repair_patches,
         "phonetic_conflict_patches": phonetic_conflict_patches,
