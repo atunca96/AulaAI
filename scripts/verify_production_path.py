@@ -95,11 +95,12 @@ def assessment_content(poisoned=False, unit_no=1):
         # course, and rightly so, so a fixture that reused ten stems six times
         # would be testing the duplicate rule rather than the render contract.
         visible_stem = f"[U{unit_no}] {stem}"
+        cue = stem.rstrip("?.!").split()[-1]
         pages.append(mcq_page(
             start + offset, visible_stem,
             ["opción a", "opción b", "opción c", "opción d"],
-            f"The keyed option is the taught form required by '{visible_stem}'.",
-            f"Doğru seçenek, '{visible_stem}' ifadesinin gerektirdiği öğretilmiş biçimdir.",
+            f"The visible cue '{cue}' requires the taught form in the keyed option.",
+            f"Görünür '{cue}' ipucu, işaretli seçenekteki öğretilmiş biçimi gerektirir.",
         ))
     return {"pages": pages}
 
