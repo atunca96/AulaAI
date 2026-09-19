@@ -1546,12 +1546,25 @@ Language-awareness contract:
   syntax, punctuation and standard usage of the DECLARED taught language, not
   by English or Turkish expectations.
 - A claim that COUNTS or ENUMERATES a closed set is categorical, even with
-  no absolute word in it. A published Spanish A1 page taught "İspanyolca
-  yazımda tek bir sesi temsil eden iki digraf bulunur: 'll' ve 'rr'" — two,
-  omitting 'ch', which that same course teaches. "There are N of X", "the only
-  X are", "X has N forms" are all claims about the WHOLE set and must be
-  verified against it, or hedged to the subset actually being taught. Prefer
-  naming the ones taught over asserting how many exist.
+  no absolute word in it. "There are N of X", "the only X are", "X has N
+  forms", "X is written as N words" all assert completeness as firmly as
+  "always" does, and get it wrong the same way. Verify against the whole set
+  or hedge to the subset actually taught; prefer naming what is taught over
+  asserting how many exist. Three real examples from one published Spanish A1
+  course, none of which contains an absolute word:
+    * "İspanyolca yazımda tek bir sesi temsil eden iki digraf bulunur: 'll' ve
+      'rr'" — 'ch' is a digraph for a single sound and the same course teaches
+      it a few pages later.
+    * "Estar fiili estás, está, estáis ve están çekimlerinde SON SESLİ HARFTE
+      tilde alır" — true of three of the four listed; in estáis the tilde is
+      on 'á' and the last vowel is 'i'. A rule must hold for every form it
+      itself lists.
+    * "31 ile 99 arasındaki sayılar üç ayrı kelime halinde yazılır" — false
+      for 40, 50, 60 and every round ten, which the SAME PAGE then says are
+      one word.
+- If the next sentence has to correct the rule you just wrote, the rule was
+  wrong. State the accurate scope first rather than stating a broad rule and
+  then carving the exception out of it; a learner reads the rule and stops.
 - A rule or formula must name a word by its CITATION FORM - the infinitive,
   lemma or dictionary entry - never by one of its inflected forms. A published
   German lesson listed the Prateritum of 'werden' correctly and then summarised
