@@ -1,0 +1,552 @@
+================================================================================
+DIAGNOSIS — persistent render_contract blocker that survives all three strategies
+"answer depends on gender inferred from a personal name"
+================================================================================
+
+Course   b66bb60d-560b-4e10-aab9-56823c260ce9
+Topic    Relative Clauses with Nominative, Accusative, and Dative
+Unit     Living Spaces and Neighborhoods
+Page     pages[4]
+Deploy   248e5237-e14f-46d7-91ce-d83fa20145a6
+Commit   5557be59e990f1c7b23fd0a02b05603f15bd2d7f
+Failure  03:12:31 UTC, strategies_tried=3
+
+METHOD. Everything below was measured by running the deployed commit, not
+inferred from the symptom. A git worktree was checked out at 5557be59 and the
+predicate chain was executed directly. Commands and outputs are reproduced.
+No German, no name, and no grammatical category was used as an input to the
+diagnosis — the same probe is run across several of the 15 taught languages and
+the effect tracks ORTHOGRAPHY, not language identity.
+
+
+================================================================================
+A. ROOT CAUSE, RANKED BY EVIDENCE
+================================================================================
+
+--------------------------------------------------------------------------------
+A1. CONFIRMED — the detector's "is this a person?" test is CAPITALISATION, and
+    capitalisation does not mean "proper noun" in the taught languages.
+--------------------------------------------------------------------------------
+
+render_contract.personal_name_tokens() classifies a stem token as a PERSON when
+it is capitalised, >= 3 characters, not ALL-CAPS, and not already present in the
+option/answer/taught-vocabulary set. That is the entire test. There is no other
+signal.
+
+Measured, on the deployed commit, with a textbook relative-clause item:
+
+    stem                  : Das ist die Wohnung, ___ wir gemietet haben.
+    names (alleged PEOPLE): ['wohnung']          <-- "apartment"
+    options normalised    : ['die', 'der', 'das', 'den']
+    answer_turns_on_form  : False
+    options_are_gender    : False
+    explicit_gender       : False
+      explanation    : gender_hit=['feminine'] shared_with_names=['wohnung']
+      explanation_tr : gender_hit=[]           shared_with_names=['wohnung']
+    VERDICT               : 'answer depends on gender inferred from a personal name'
+
+The rule fired because the rationale names "Wohnung" and says "feminine". No
+person exists anywhere on the page. The detector believes a common noun is a
+person because the orthography capitalises it.
+
+This is not a German fact. It is an orthography fact, and it has TWO sides:
+
+  OVER-FIRING. Same probe, same shape, other taught languages:
+
+      admitted  names=['esta']             | Spanish
+      admitted  names=['книга', 'это']     | Russian
+      admitted  names=['αυτο', 'σπιτι']    | Greek
+      REFUSED   names=['dit', 'woning']    | Dutch      <-- same defect, not German
+
+    Spanish/Russian/Greek escaped only by luck: their antecedent noun happens to
+    be lower-case in the stem, so it never becomes a "name" candidate. The
+    moment a rationale cites a capitalised stem token — which includes the
+    SENTENCE-INITIAL WORD OF EVERY STEM IN EVERY CASED SCRIPT — the same refusal
+    appears. Demonstrated:
+
+      stem "Casa es grande." + rationale "Casa is feminine, so «la»."
+      -> 'answer depends on gender inferred from a personal name'
+
+    So all 11 cased-script taught languages (en, es, de, fr, it, pt, ru, tr, nl,
+    sv, el) are exposed; de and nl are exposed on every noun rather than only on
+    the first word.
+
+  UNDER-FIRING. The same test makes the rule completely inert where there is no
+  letter case at all:
+
+      names=[] verdict='' | Chinese
+      names=[] verdict='' | Japanese
+      names=[] verdict='' | Korean
+      names=[] verdict='' | Arabic
+
+    And a GENUINELY unsafe item in one of those scripts is admitted:
+
+      prompt      田中さんは___です。
+      options     女性 / 男性 / 学生 / 先生
+      explanation "Tanaka is a woman's name, so the answer is 女性."
+      -> hidden_world_reason() == ''      <-- SHOULD refuse, does not
+
+    The learner-safety rule this whole subsystem exists to enforce does not
+    function at all for 4 of the 15 taught languages. That is a second, silent
+    production defect of the same root cause and should be tracked even though
+    it is not what is blocking this build.
+
+--------------------------------------------------------------------------------
+A2. CONFIRMED — the repair CONTRACT and the detector's escape hatch are
+    mutually unsatisfiable for 13 of the 15 taught languages.
+--------------------------------------------------------------------------------
+
+Every one of the three strategies is prompted, in substance, with:
+
+    "make the required grammatical evidence explicit in the visible stem"
+
+The detector's only corresponding escape is `explicit_gender`, computed as
+
+    _V57_GENDER_WORDS.search(_fold(stem))  or  any(noun in stem for _V57_GENDER_NOUNS)
+
+against a ~10-token lexicon that contains English, Turkish and Russian words
+only. But the STEM IS IN THE TAUGHT LANGUAGE. Measured — the same item with the
+gender stated explicitly in the stem, per language:
+
+    escape_open=False  verdict=REFUSED   | German  (feminin)
+    escape_open=False  verdict=REFUSED   | Spanish (femenino)
+    escape_open=False  verdict=REFUSED   | French  (féminin)
+    escape_open=False  verdict=REFUSED   | Italian (femminile)
+    escape_open=False  verdict=REFUSED   | Russian (женский род)
+    escape_open=False  verdict=REFUSED   | Swedish (femininum)
+    escape_open=True   verdict=admitted  | English (feminine)
+    escape_open=True   verdict=admitted  | Turkish (dişil)
+
+The escape opens ONLY for the two INSTRUCTIONAL track languages. For a course
+whose taught language is anything else, a model that follows the repair
+instruction perfectly still cannot clear the blocker. The better the model
+complies, the more certainly it is refused.
+
+THIS IS THE CONTRACT MISMATCH YOU ASKED FOR. It is not a control-flow bug, not a
+field-resolution bug, and not a bad model candidate. The repair surface and the
+acceptance predicate disagree about what counts as evidence, and the
+disagreement is structural.
+
+--------------------------------------------------------------------------------
+A3. CONFIRMED — the dependency gate that was supposed to prevent exactly this
+    over-firing is a no-op for grammar items.
+--------------------------------------------------------------------------------
+
+_name_gender_rationale() only fires when the gender claim could actually decide
+the answer. Three routes:
+
+    (1) options are a form paradigm      -> False here ('die/der/das/den':
+                                            shared prefix < 3, not a paradigm)
+    (2) two options are gender values    -> False here (relative pronouns)
+    (3) the statement names the keyed answer -> TRUE
+
+Route (3) is satisfied by any rationale that quotes its own answer — which every
+competently written grammar rationale does ("... so «die»"). So the safety net
+that keeps this rule off ordinary grammar content is open by construction for
+precisely the class of item that trips A1.
+
+--------------------------------------------------------------------------------
+A4. CONFIRMED — the quoted-vocabulary escape is case-gated, so it cannot help
+    a language that capitalises its nouns.
+--------------------------------------------------------------------------------
+
+_quoted_common_tokens() deliberately keeps CAPITALISED quoted tokens as name
+candidates (so that a rationale citing 'Анна' is still caught). In a language
+whose common nouns are capitalised, quoting the vocabulary — «Wohnung» — does
+not exempt it. Measured:
+
+    REFUSED | rationale quotes the antecedent: "The antecedent «Wohnung» is feminine..."
+
+So the one idiom a model would naturally reach for ("cite the word, don't name a
+person") is unavailable in exactly the languages that need it.
+
+--------------------------------------------------------------------------------
+A5. RULED OUT — hypotheses that are NOT the cause.
+--------------------------------------------------------------------------------
+
+  * NOT the convergence loop. Already fixed by 321f7aec; strategies_tried=3 is
+    a finite, correct exhaustion.
+  * NOT locale stem-alias mismatch. a5f9a3ea was a real architectural risk and
+    was correctly fixed, but the detector reads _v57_stem() (a single
+    first-non-empty field) and the refusal reproduces with a single `prompt`
+    field present, so alias divergence is not required to produce it.
+  * NOT a bad model candidate. Three different prompts and models produce the
+    same outcome, and the failure reproduces deterministically with NO model in
+    the loop at all — the probe above is pure predicate evaluation.
+  * NOT the rescue being model-trusted. Inspected: the rescue deep-copies,
+    applies, runs R.repair_lesson, _audit_topic, _topic_render_blockers and
+    _explanation_grounding_blockers, and commits only if all clear. It is
+    architecturally sound. It returns 0 because the SAME wrong predicate gates
+    it. A validator-proven repair cannot outrun a wrong validator.
+  * NOT normalisation undoing the repair. R.repair_lesson is idempotent text
+    normalisation; the refusal is present before and after it.
+  * NOT the immutable answer/options/distractors tuple. See F.
+
+
+================================================================================
+B. THE DIAGNOSTIC INSTRUMENTATION PATCH (add this FIRST, before any fix)
+================================================================================
+
+The point of this patch is to make the gate emit, for any blocker that reaches
+non-convergence, the exact predicate state that produced it — so this class of
+question is never answered by inspection again.
+
+Add to services/authoring/render_contract.py:
+
+    def explain_hidden_world(page: Dict[str, Any]) -> Dict[str, Any]:
+        """Every input the hidden-world predicate used, and what it concluded.
+
+        Pure. No side effects. Used by the gate's failure path and by tests.
+        """
+        stem_v57 = _v57_stem(page)
+        names = personal_name_tokens(page, stem_v57)
+        folded_stem = _fold(stem_v57)
+        out = {
+            "mcq_like": mcq_like(page),
+            "stem_v57_field": next(
+                (k for k in _V57_STEM_KEYS
+                 if isinstance(page.get(k), str) and page.get(k).strip()), None),
+            "stem_v57_value": stem_v57,
+            "stem_tr_resolved": resolve_stem(page, True),
+            "stem_en_resolved": resolve_stem(page, False),
+            "name_candidates": sorted(names),
+            "lexical_tokens": sorted(_lexical_tokens(page))[:40],
+            "options_normalised": _normalised_options(page),
+            "answer_turns_on_form": answer_turns_on_form(page),
+            "options_are_gender_values": _options_are_gender_values(
+                page, _V57_GENDER_WORDS),
+            "explicit_gender_escape": bool(_V57_GENDER_WORDS.search(folded_stem))
+                or any(n in folded_stem for n in _V57_GENDER_NOUNS),
+            "explanations": {},
+            "verdict": hidden_world_reason(page),
+        }
+        answer_tokens = set(_WORD_TOKEN.findall(_fold(page.get("answer"))))
+        for key in _V57_EXPLANATION_KEYS:
+            text = page.get(key)
+            if not isinstance(text, str) or not text.strip():
+                continue
+            per_statement = []
+            for statement in _STATEMENT_SPLIT.split(text):
+                f = _fold(statement)
+                toks = set(_WORD_TOKEN.findall(f))
+                per_statement.append({
+                    "statement": statement.strip()[:160],
+                    "gender_hits": _V57_GENDER_WORDS.findall(f),
+                    "name_word_hits": _V57_NAME_WORDS.findall(f),
+                    "shared_with_name_candidates": sorted(toks & names),
+                    "names_the_keyed_answer": bool(
+                        answer_tokens and answer_tokens <= toks),
+                    "quoted_common": sorted(_quoted_common_tokens(statement)),
+                })
+            out["explanations"][key] = per_statement
+        return out
+
+Add to services/authoring/quality_gate.py, in converge_topic()'s non-convergence
+path (the branch that raises _convergence_diagnostic) and in each strategy's
+zero-return path:
+
+    def _dump_blocker_state(topic, blocker, label):
+        """One structured line per (blocker, moment). Safe to leave on."""
+        from services.authoring import render_contract as RC
+        idx = _blocker_page_index(blocker.get("where"))
+        pages = (topic.get("content") or {}).get("pages") or []
+        page = pages[idx] if isinstance(idx, int) and 0 <= idx < len(pages) else None
+        payload = {
+            "label": label,
+            "topic": str(topic.get("title") or ""),
+            "where": blocker.get("where"),
+            "reason": blocker.get("reason"),
+            "strategies": blocker.get("strategies"),
+            "page_digest": _content_digest(page),
+            "page_keys": sorted(page.keys()) if isinstance(page, dict) else None,
+            "hidden_world": RC.explain_hidden_world(page) if isinstance(page, dict) else None,
+            "grounding": _ungrounded_explanation_names(page) if isinstance(page, dict) else None,
+        }
+        print("[QUALITY-DIAG] " + json.dumps(payload, ensure_ascii=False,
+                                             default=str), flush=True)
+
+Call it:
+  * once per convergence round, BEFORE dispatching a strategy
+      _dump_blocker_state(topic, blocker, f"round{n}.before.{strategy_name}")
+  * immediately AFTER the strategy returns, with the return value appended
+      _dump_blocker_state(topic, blocker, f"round{n}.after.{strategy_name}.applied={r}")
+  * once in the non-convergence raise path
+      _dump_blocker_state(topic, blocker, "terminal")
+
+And inside _repair_name_gender_page_exact() / _strategy_render_rescue(), where
+a candidate is rejected, log the CANDIDATE's explain_hidden_world() too — this
+is the single most valuable record, because it distinguishes "model wrote a bad
+sentence" from "no sentence can pass":
+
+    print("[QUALITY-DIAG] " + json.dumps({
+        "label": "candidate.rejected",
+        "stage": stage,
+        "updates": updates,                     # field -> proposed value
+        "candidate_hidden_world": RC.explain_hidden_world(probe_page),
+        "candidate_audit": [f.code for f in A.blocking(...)],
+    }, ensure_ascii=False, default=str), flush=True)
+
+
+================================================================================
+C. EXACT STATE TO DUMP FOR pages[4]
+================================================================================
+
+Run this against the live row (no model calls, no writes):
+
+    python3 - <<'PY'
+    import json, sqlite3, sys
+    sys.path.insert(0, ".")
+    from database import db_connection
+    from services.authoring import render_contract as RC
+    from services.authoring import quality_gate as Q
+
+    COURSE = "b66bb60d-560b-4e10-aab9-56823c260ce9"
+    TITLE  = "Relative Clauses with Nominative, Accusative, and Dative"
+
+    with db_connection() as db:
+        row = db.execute(
+            "SELECT t.id, t.title, t.content FROM topics t "
+            "JOIN chapters c ON t.chapter_id = c.id "
+            "WHERE c.course_id = ? AND t.title = ?", (COURSE, TITLE)).fetchone()
+    content = json.loads(row[2])
+    page = content["pages"][4]
+
+    print("RAW PAGE:");        print(json.dumps(page, ensure_ascii=False, indent=1))
+    print("PAGE KEYS:",        sorted(page.keys()))
+    print("HIDDEN WORLD:");    print(json.dumps(RC.explain_hidden_world(page),
+                                                ensure_ascii=False, indent=1))
+    print("TR stem  ->", repr(RC.resolve_stem(page, True)))
+    print("EN stem  ->", repr(RC.resolve_stem(page, False)))
+    print("v57 stem ->", repr(RC._v57_stem(page)))
+    print("renderable TR:", RC.page_is_renderable(page, True))
+    print("renderable EN:", RC.page_is_renderable(page, False))
+    print("grounding:", Q._ungrounded_explanation_names(page))
+    PY
+
+The five values that decide the case, in order:
+
+  1. name_candidates            — if this contains a COMMON NOUN, A1 is confirmed
+                                  for this exact page.
+  2. explanations[*][*].shared_with_name_candidates
+                                — which rationale statement cites it.
+  3. explanations[*][*].gender_hits
+                                — which gender token co-occurs with it.
+  4. explanations[*][*].names_the_keyed_answer
+                                — confirms the dependency gate (A3) was opened
+                                  by route 3 rather than by a real paradigm.
+  5. explicit_gender_escape     — expected False; confirms A2.
+
+
+================================================================================
+D. HOW TO COMPARE THE SIX PAGE STATES
+================================================================================
+
+Emit one JSON line per state with a STABLE shape, then diff them mechanically.
+For each of:
+
+    s0  original stored page (straight from the DB row)
+    s1  post-broad-review page
+    s2  post render_name_gender candidate     (the PROBE page, not the committed one)
+    s3  post render_stem candidate            (ditto)
+    s4  post render_rescue candidate          (ditto)
+    s5  post R.repair_lesson(normalised)
+
+record exactly:
+
+    { "state": <s0..s5>,
+      "page_digest": _content_digest(page),
+      "fields": {k: page[k] for k in sorted(page)},            # full, untruncated
+      "stem_tr": RC.resolve_stem(page, True),
+      "stem_en": RC.resolve_stem(page, False),
+      "stem_v57_field": <which key _v57_stem picked>,
+      "stem_v57": RC._v57_stem(page),
+      "hidden_world": RC.explain_hidden_world(page),
+      "render_tr": RC.page_is_renderable(page, True),
+      "render_en": RC.page_is_renderable(page, False) }
+
+Then the decision table is mechanical:
+
+  * s2/s3/s4 fields DIFFER from s1 but hidden_world.verdict is unchanged
+        -> the repair wrote to the right place and the PREDICATE is wrong.   (A1/A2)
+  * s2/s3/s4 fields IDENTICAL to s1
+        -> the model returned a no-op; look at candidate.rejected logs.
+  * s2/s3/s4 clean but s5 (post-normalisation) refuses again
+        -> normalisation reintroduces it; inspect R.repair_lesson.
+  * stem_v57_field differs from the field the repair wrote
+        -> field-resolution mismatch; the repair is editing a field the
+           DETECTOR does not read. (This is distinct from the renderer alias
+           issue a5f9a3ea fixed: _v57_stem has its OWN key order,
+           prompt_tr > question_tr > stem_tr > prompt_en > ... > prompt,
+           which is NOT resolve_stem's order.)
+  * hidden_world.name_candidates contains a common noun in every state
+        -> A1, definitively.
+
+Predicted result from the reproduction above: the FIRST row. The repairs land
+correctly; the predicate refuses them.
+
+
+================================================================================
+E. ANSWERS TO THE SPECIFIC QUESTIONS
+================================================================================
+
+1. WHAT RUNTIME STATE TO INSPECT NEXT
+   The live pages[4] row (section C). Specifically name_candidates and, for each
+   rationale statement, shared_with_name_candidates + gender_hits. Nothing else
+   is needed to close this.
+
+2. WHICH FUNCTIONS TO INSTRUMENT
+   render_contract.personal_name_tokens, _name_gender_rationale,
+   hidden_world_reason (via the single explain_hidden_world wrapper);
+   quality_gate.converge_topic (per-round, before/after dispatch),
+   _repair_name_gender_page_exact, _repair_topic_render_stems_exact,
+   _strategy_render_rescue (candidate rejection paths).
+
+3. WHAT TO LOG BEFORE/AFTER EACH STRATEGY
+   Before: page_digest, full field map, stem_v57_field/value, resolved TR+EN
+   stems, name_candidates, dependency-route booleans, verdict.
+   After:  the strategy's return value, the candidate `updates` map, and the
+   candidate probe's explain_hidden_world(). The after-candidate dump is what
+   separates "bad sentence" from "unsatisfiable predicate".
+
+4. WHERE THE OFFENDING TEXT LIVES — how to prove it
+   It is not "offending text" at all; it is an offending CLASSIFICATION of
+   ordinary text. Proof procedure: take name_candidates, and for each token ask
+   whether it appears lower-cased anywhere in the taught-language material
+   (vocabulary tables, other stems, glossary). A token that appears lower-cased
+   elsewhere is a common noun, not a name. In the reproduction, 'wohnung' is the
+   antecedent of the relative clause, present in the stem, and the rationale must
+   cite it. If instead name_candidates were EMPTY and the verdict still fired,
+   the cause would be the name-word fallback branch, and the log's
+   name_word_hits field would show it.
+
+5. BAD CANDIDATE vs WRONG FIELD vs LATER NORMALISATION
+   Use the s0..s5 table in D. Concretely, all three are already excluded here:
+   - wrong field: excluded, the refusal reproduces with a single `prompt` key;
+   - normalisation: excluded, the refusal is present before R.repair_lesson;
+   - bad candidate: excluded, the refusal reproduces with NO model in the loop.
+
+6. IS THE IMMUTABLE answer/options/distractors TUPLE THE BLOCKER?
+   NO. This is important and it is measured, not assumed. Holding the tuple
+   fixed, three of six candidate rewrites were ADMITTED:
+
+       REFUSED  | original
+       REFUSED  | rationale quotes the antecedent
+       admitted | rationale avoids naming the antecedent
+       admitted | stem states the gender explicitly (+ rationale avoids it)
+       admitted | rationale cites the article instead
+       admitted | no gender vocabulary at all
+
+   So the item is satisfiable. But look at WHAT satisfies it: every admitted
+   variant works by REFUSING TO SAY WHICH WORD GOVERNS THE AGREEMENT — which is
+   the entire pedagogical content of a relative-pronoun item. The predicate is
+   therefore not making the item impossible; it is making the item impossible TO
+   EXPLAIN CORRECTLY. Do not relax the immutable tuple: that would be fixing the
+   wrong thing, and it would let a repair silently change what the item tests.
+
+7. THE CORRECT GENERIC POLICY
+   Not "regenerate the page", not "allow tuple repair", not "swap in another
+   item". Those all presuppose the item is defective. It is not. The correct fix
+   is to make the predicate mean what it says:
+
+   (i)  A name candidate must be evidenced as a PROPER noun, not merely
+        capitalised. Language-agnostic signals available today, no lexicon:
+          - the token also occurs LOWER-CASED elsewhere in the same topic
+            (vocabulary rows, other stems, glosses) -> it is a common noun;
+          - the token is capitalised in NON-sentence-initial position;
+          - the token is absent from the topic's taught-vocabulary inventory.
+        Cheap, and it removes 'wohnung' and every sentence-initial artefact in
+        all 11 cased-script languages at once.
+
+   (ii) Replace the `explicit_gender` stem lexicon with a language-agnostic
+        test. The claim "the evidence is visible" is really "the rationale's
+        gender claim is anchored to a token the STEM shows". Compare the
+        rationale's cited token against the stem rather than matching an EN/TR
+        word list against a taught-language stem. This closes A2 for all 15.
+
+   (iii) Close the route-3 hole in the dependency gate: a rationale naming the
+        keyed answer is NOT evidence that a person's gender decides the answer;
+        it is the normal shape of every grammar rationale. Route 3 should
+        require the answer AND a name candidate in the same statement, not the
+        answer alone.
+
+   (iv) Fix the under-firing half (Chinese/Japanese/Korean/Arabic). Since
+        capitalisation carries no information there, name detection must fall
+        back to a script-independent signal — e.g. a token in the stem that the
+        rationale asserts a gender about AND that appears in no taught-vocabulary
+        inventory. Same predicate, no per-language branch.
+
+   Only after (i)-(iii) should anyone ask whether a strategy is missing. My
+   expectation is that render_name_gender alone will clear this page once the
+   predicate stops refusing correct content, and that render_rescue becomes
+   dead weight for this class.
+
+8. MAKING IT APPLY TO ALL 15 LANGUAGES
+   Every signal in (7) is computed from the page's own fields and the topic's own
+   vocabulary inventory — relative evidence, not absolute word lists. Gate the
+   change behind a regression matrix that runs the SAME item shape in, at
+   minimum: German and Dutch (noun capitalisation), Spanish/French/Italian/
+   Portuguese/Swedish/Greek/Russian (sentence-initial capitalisation), Turkish
+   and English (instructional tracks, where the current escape works and must
+   keep working), and Chinese/Japanese/Korean/Arabic (no case — must start
+   REFUSING the genuinely unsafe item shown in A1). Assert both directions:
+   the grammar item is admitted, the name-inference item is refused.
+
+
+================================================================================
+F. SUMMARY
+================================================================================
+
+The three strategies do not fail because they are weak, mis-routed, or
+model-limited. They fail because they are all gated by one predicate that is
+wrong in a way no rewrite can satisfy:
+
+  * personal_name_tokens() equates CAPITALISATION with PERSONHOOD. In a language
+    that capitalises common nouns, the antecedent of a relative clause is
+    classified as a person; in every cased script, so is the first word of every
+    stem.
+  * The repair contract instructs the model to make grammatical evidence
+    explicit in the stem, while the detector's only "evidence is explicit"
+    escape matches an English/Turkish/Russian word list against a stem written
+    in the TAUGHT language. Measured: the escape is reachable in 2 of 15
+    languages.
+  * The dependency gate that should have prevented the over-firing is opened by
+    any rationale that quotes its own answer — i.e. by every correct grammar
+    rationale.
+
+Consequence: a correct, well-grounded item is refused, and the only rewrites
+that pass are ones that omit the grammatical explanation the item exists to
+teach. The rescue's validator-proof behaves exactly as designed and returns 0
+every time, because a validator-proven repair cannot outrun a wrong validator.
+
+Same root cause, opposite sign: the rule is inert in Chinese, Japanese, Korean
+and Arabic, where a genuinely unsafe name-inference item is currently admitted.
+
+Fix the predicate. Do not add a fourth strategy, do not relax the immutable
+tuple, and do not weaken the renderer rule.
+
+
+================================================================================
+REPRODUCTION
+================================================================================
+
+    git worktree add --detach /tmp/deployed 5557be59
+    cd /tmp/deployed
+    python3 - <<'PY'
+    import sys; sys.path.insert(0, ".")
+    from services.authoring import render_contract as RC
+    page = {
+      "type": "mcq", "title": "Relativpronomen", "title_tr": "İlgi Zamiri",
+      "prompt": "Das ist die Wohnung, ___ wir gemietet haben.",
+      "answer": "die", "options": ["die", "der", "das", "den"],
+      "distractors": ["der", "das", "den"],
+      "explanation": "The antecedent Wohnung is feminine and the clause needs "
+                     "the accusative, so «die».",
+      "explanation_tr": "Öncül «Wohnung» dişildir ve yan cümle akkusatif ister; "
+                        "bu yüzden «die» kullanılır.",
+    }
+    print(sorted(RC.personal_name_tokens(page, RC._v57_stem(page))))
+    print(repr(RC.hidden_world_reason(page)))
+    PY
+
+    -> ['wohnung']
+    -> 'answer depends on gender inferred from a personal name'
