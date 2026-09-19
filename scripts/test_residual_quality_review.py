@@ -85,18 +85,26 @@ try:
                      "reason":"Gerekçeyi assessment kökündeki açık kanıta bağla."},
                 ],
             }
-        if stage.startswith("review_complex_digit_notation:") or stage.startswith("review_complex_notation:"):
-            items=payload["items"]
-            assert items and "612 34 56 78" in items[0]["term"]
+        if stage.startswith("review_complex_digit_notation:"):
+            assert "612 34 56 78" in payload["term"]
+            current=payload["current"]
+            good="[teˈlefono ˈsejs ˈuno ˈðos ˈtɾes ˈkwatɾo ˈθiŋko ˈsejs ˈsjete ˈotʃo]"
+            if current != good:
+                return {
+                    "verdict":"fix",
+                    "spoken_form":"teléfono seis uno dos tres cuatro cinco seis siete ocho",
+                    "value":good,
+                    "reason":"The stored transcription did not match the written digit sequence."
+                }
             return {
-                "checked_ids":[row["item_id"] for row in items],
-                "patches":[
-                    {"topic_id":"t1","path":items[0]["path"],
-                     "old":"[teˈlefono sejisˈθjentos ˈdoθe]",
-                     "value":"[teˈlefono ˈsejs ˈuno ˈðos ˈtɾes ˈkwatɾo ˈθiŋko ˈsejs ˈsjete ˈotʃo]",
-                     "reason":"The stored transcription did not match the written digit sequence."},
-                ],
+                "verdict":"ok",
+                "spoken_form":"teléfono seis uno dos tres cuatro cinco seis siete ocho",
+                "value":good,
+                "reason":"Digit order and IPA now agree."
             }
+        if stage.startswith("review_complex_notation:"):
+            items=payload["items"]
+            return {"checked_ids":[row["item_id"] for row in items],"patches":[]}
         raise AssertionError(stage)
 
     Q._call_review=fake_call
