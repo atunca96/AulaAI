@@ -6492,7 +6492,18 @@ def validate_publication_integrity(*, units: List[Dict[str, Any]], language: str
             # earlier model response; later deterministic repairs must not be
             # able to reintroduce an invented-person or answer+boilerplate
             # rationale after that proof was issued.
-            rationale_blockers = _explanation_grounding_blockers(content)
+            # The specificity check is a token-overlap PROXY, not a semantic
+            # publication invariant. It remains visible to the rationale repair
+            # stage, where it is useful as a cheap candidate signal, but it must
+            # not have the last word after the language-aware reviewer has
+            # already judged the item. This matters especially cross-language:
+            # a correct rationale can name the discriminating fact in the
+            # instruction language while sharing no token with the taught-
+            # language stem. Invented-person/grounding failures remain blocking.
+            rationale_blockers = [
+                row for row in _explanation_grounding_blockers(content)
+                if row.get("why") != _EXPLANATION_SPECIFICITY_REASON
+            ]
             if rationale_blockers:
                 detail = "; ".join(
                     f"page {row.get('page_index')} {row.get('locale')}: "
