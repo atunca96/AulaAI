@@ -300,7 +300,14 @@ def main():
 
     def edit_first_stem(unit_title, topic):
         if unit_title.startswith("Unit 2"):
-            topic["content"]["pages"][1]["prompt"] = REVIEWER_EDIT
+            page = topic["content"]["pages"][1]
+            page["prompt"] = REVIEWER_EDIT
+            page["explanation"] = (
+                "The visible cue 'tarde' makes this item about the afternoon greeting."
+            )
+            page["explanation_tr"] = (
+                "Görünür 'tarde' ipucu, sorunun öğleden sonra selamlaşmasını ölçtüğünü gösterir."
+            )
 
     seed_course("gatepass")
     stub_reviews(edit_first_stem)
