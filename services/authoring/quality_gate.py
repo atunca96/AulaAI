@@ -4379,31 +4379,53 @@ def repair_publication_refusal_feedback(*, units: List[Dict[str, Any]],
             if index is not None:
                 page_indexes.add(index)
 
-        records = _review_records(content)
-        if page_indexes:
-            scoped = [
-                rec for rec in records
-                if isinstance(rec.get("path"), list)
-                and len(rec["path"]) >= 2
-                and rec["path"][0] == "pages"
-                and rec["path"][1] in page_indexes
+        all_records = _review_records(content)
+
+        # Prefer the auditor's exact learner-visible repair paths over whole
+        # topic/page context. This is language-agnostic and eliminates the
+        # ambiguity that made a two-field Spanish leak retry with ~120 records.
+        exact_paths = {
+            tuple(path)
+            for blocker in blockers
+            if blocker.get("finding") is not None
+            for path in _repair_paths_for_finding(content, blocker["finding"])
+        }
+        if exact_paths:
+            records = [
+                rec for rec in all_records
+                if tuple(rec.get("path") or []) in exact_paths
             ]
-            if scoped:
-                records = scoped
-        # Keep the retry prompt compact but complete enough to repair all
-        # coupled fields on the implicated page(s).
+        else:
+            records = list(all_records)
+            if page_indexes:
+                scoped = [
+                    rec for rec in records
+                    if isinstance(rec.get("path"), list)
+                    and len(rec["path"]) >= 2
+                    and rec["path"][0] == "pages"
+                    and rec["path"][1] in page_indexes
+                ]
+                if scoped:
+                    records = scoped
+
+        # Keep the retry prompt compact but complete enough to repair coupled
+        # fields. Exact-path failures normally send only 1-4 records.
         records = records[:120]
 
-        blocker_rows = [
-            {
+        blocker_rows = []
+        for b in blockers[:20]:
+            row = {
                 "kind": b.get("kind"),
                 "code": b.get("code"),
                 "where": b.get("where"),
                 "reason": b.get("reason"),
                 "strategies": b.get("strategies"),
             }
-            for b in blockers[:20]
-        ]
+            if b.get("finding") is not None:
+                row["repair_paths"] = _repair_paths_for_finding(
+                    content, b["finding"]
+                )
+            blocker_rows.append(row)
 
         render_diagnostics = []
         pages = content.get("pages") if isinstance(content, dict) else None
@@ -4464,14 +4486,19 @@ def repair_publication_refusal_feedback(*, units: List[Dict[str, Any]],
             patch["topic_id"] = str(topic.get("id") or "")
             patches.append(patch)
 
-        # Apply one proposal at a time so one malformed patch cannot discard a
-        # valid coupled fix beside it. Structural/path safety remains owned by
-        # the existing patch guard.
+        # PROVE BEFORE COMMIT. A syntactically valid patch is not progress if
+        # normalization/audit turns 2 blockers into 8. Apply the whole coupled
+        # proposal to a copy, normalize it, re-detect every authoritative
+        # blocker, and persist only when the logical blocker set actually moves.
+        before_fingerprints = {
+            _blocker_fingerprint(topic, blocker) for blocker in blockers
+        }
+        probe_topic = copy.deepcopy(topic)
         changed = 0
         for patch in patches:
             try:
                 changed += _apply_patches(
-                    {str(topic.get("id") or ""): topic}, [patch]
+                    {str(probe_topic.get("id") or ""): probe_topic}, [patch]
                 )
             except QualityGateError as exc:
                 print(
@@ -4481,15 +4508,47 @@ def repair_publication_refusal_feedback(*, units: List[Dict[str, Any]],
                 )
 
         if changed:
-            R.repair_lesson(content, language=language)
-            applied += changed
+            R.repair_lesson(probe_topic["content"], language=language)
             remaining = _detect_topic_blockers(
-                topic, language=language, track=track, canonical=canonical
+                probe_topic, language=language, track=track, canonical=canonical
             )
+            after_fingerprints = {
+                _blocker_fingerprint(probe_topic, blocker)
+                for blocker in remaining
+            }
+            removed = before_fingerprints - after_fingerprints
+            same_or_better_count = len(remaining) <= len(blockers)
+
+            # When the current refusal names blockers we can detect locally,
+            # at least one of those logical invariants must disappear and the
+            # total blocker count may not increase. A 1->1 transformation is
+            # allowed: the next retry gets the newly exposed predicate.
+            proven_progress = (
+                (not blockers and changed > 0)
+                or (bool(removed) and same_or_better_count)
+            )
+
+            if not proven_progress:
+                print(
+                    f"[QUALITY-SELF-HEAL] retry {retry_attempt} discarded "
+                    f"unproved candidate for {topic.get('title')}: "
+                    f"blockers={len(blockers)}->{len(remaining)} "
+                    f"removed={len(removed)}",
+                    flush=True,
+                )
+                continue
+
+            topic_content = topic.get("content")
+            probe_content = probe_topic.get("content")
+            if not isinstance(topic_content, dict) or not isinstance(probe_content, dict):
+                continue
+            topic_content.clear()
+            topic_content.update(probe_content)
+            applied += changed
             print(
-                f"[QUALITY-SELF-HEAL] retry {retry_attempt} applied {changed} "
-                f"patch(es) to {topic.get('title')}; "
-                f"remaining_blockers={len(remaining)}",
+                f"[QUALITY-SELF-HEAL] retry {retry_attempt} committed {changed} "
+                f"proven patch(es) to {topic.get('title')}; "
+                f"blockers={len(blockers)}->{len(remaining)}",
                 flush=True,
             )
 
