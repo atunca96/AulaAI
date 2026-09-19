@@ -1096,6 +1096,12 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         f"[QUALITY-GATE] pedagogical-risk review running with {review_workers} "
         f"isolated unit snapshot worker(s)."
     )
+    with db_connection() as db:
+        db.execute(
+            "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+            (f"Quality review: pedagogical risks 0/{len(units)}", course_id),
+        )
+        db.commit()
     def _risk_complete(done, total, unit):
         with db_connection() as db:
             db.execute(
@@ -1122,6 +1128,12 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         f"[QUALITY-GATE] complex pronunciation review running with "
         f"{review_workers} isolated unit snapshot worker(s)."
     )
+    with db_connection() as db:
+        db.execute(
+            "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+            (f"Quality review: pronunciation 0/{len(units)}", course_id),
+        )
+        db.commit()
     def _notation_complete(done, total, unit):
         with db_connection() as db:
             db.execute(
@@ -1151,6 +1163,12 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         "[QUALITY-GATE] assessment review running serially with fail-fast unit boundaries. "
         "It remains serial to preserve worst-case budget headroom for large structured payloads."
     )
+    with db_connection() as db:
+        db.execute(
+            "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+            (f"Quality review: assessments 0/{len(units)}", course_id),
+        )
+        db.commit()
 
     def _assessment_complete(done, total, unit):
         with db_connection() as db:
@@ -1181,6 +1199,12 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
         f"[QUALITY-GATE] lesson + assessment rationale grounding running with "
         f"{review_workers} isolated unit snapshot worker(s)."
     )
+    with db_connection() as db:
+        db.execute(
+            "UPDATE courses SET build_stage='quality_review', build_message=? WHERE id=?",
+            (f"Quality review: rationale grounding 0/{len(units)}", course_id),
+        )
+        db.commit()
     def _rationale_complete(done, total, unit):
         with db_connection() as db:
             db.execute(
