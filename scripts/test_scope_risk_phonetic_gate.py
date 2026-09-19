@@ -124,6 +124,15 @@ try:
             # A reviewer may conservatively scope-check additional valid records.
             # This is extra verification, not a publication defect.
             "scope_checked_ids":checked_ids,
+            "scope_checks":[
+                {
+                    "record_id":rid,
+                    "counterexample_tested":True,
+                    "final_scope_safe":True,
+                    "reason":"The final patched claim is correctly scoped.",
+                }
+                for rid in absolute_ids
+            ],
             "patches":[
                 {
                     "path":["pages","0","rules","0","rule"],
@@ -164,6 +173,15 @@ try:
             "topic_id":"g2",
             "checked_ids":checked,
             "scope_checked_ids":absolute+["r999"],
+            "scope_checks":[
+                {
+                    "record_id":rid,
+                    "counterexample_tested":True,
+                    "final_scope_safe":True,
+                    "reason":"Fixture scope proof.",
+                }
+                for rid in absolute
+            ],
             "patches":[],
         }
     Q._call_review=fake_unknown_scope_call
