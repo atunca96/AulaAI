@@ -90,42 +90,71 @@ for index, page in enumerate(CORPUS):
     check(page == before, f"case {index}: the page is not mutated")
 
 print()
-print("the decisive x name-word matrix, and which cells the fixtures cover")
-MATRIX = {
-    # (decisive, name-word present): refused?
-    ("decisive", "absent"): True,
-    ("decisive", "present"): True,
-    ("not-decisive", "absent"): False,
-    ("not-decisive", "present"): True,     # <- the production cell
-}
-for (shape, word), expect_refused in MATRIX.items():
-    options, answer = (PARADIGM, "alta") if shape == "decisive" else (DISTINCT, "grande")
-    # `isimdir` is the same claim as `isim`; only the suffix differs, and only
-    # the bare form is reachable by a word-boundary lexicon.
-    rationale = ("Casa dişil bir isim; doğru cevap." if word == "present"
-                 else "Casa dişil bir isimdir; doğru cevap.")
-    page = mcq("Casa es ___.", options, answer,
-               explanation="Casa is feminine.", explanation_tr=rationale)
-    refused = any(not RC.page_is_renderable(page, is_tr)[0]
-                  for is_tr in RC.EXPORT_LOCALES)
-    check(refused is expect_refused,
-          f"decisive={shape:12} name-word={word:7} -> refused={expect_refused}")
+print("production false positives are gone without disabling real name inference")
 
-# The two cells differ by one Turkish suffix and nothing else, which is what
-# makes the green fixture no evidence about the red production page.
-suffixed = mcq("Casa es ___.", DISTINCT, "grande",
-               explanation="Casa is feminine.",
-               explanation_tr="Casa dişil bir isimdir; doğru cevap.")
-bare = mcq("Casa es ___.", DISTINCT, "grande",
-           explanation="Casa is feminine.",
-           explanation_tr="Casa dişil bir isim; doğru cevap.")
-check(all(RC.page_is_renderable(suffixed, is_tr)[0] for is_tr in RC.EXPORT_LOCALES),
-      "`isimdir` (agglutinated) is not reached by the name-word lexicon")
-check(not any(RC.page_is_renderable(bare, is_tr)[0] for is_tr in RC.EXPORT_LOCALES),
-      "`isim` (bare) refuses the identical grammatical claim")
-check(RC.explain_hidden_world(bare)["classification"]
-      == "name_word_false_positive_with_capitalised_token",
-      "the classification names that cell without anyone reading the page")
+# Exact production shape 1: a capitalised common noun is quoted as linguistic
+# material, while the option set is form-like. The noun must not become a person.
+prod_relative = mcq(
+    "Welches Relativpronomen passt in die Lücke?\n"
+    "„Der Mietvertrag, _____ ich gestern unterschrieben habe, liegt auf dem Tisch.“",
+    ["den", "der", "dem", "denen"], "den",
+    explanation="'Der Mietvertrag' is masculine singular. In the relative clause, "
+                "'ich' is the subject and the pronoun is the direct object.",
+    explanation_tr="'Der Mietvertrag' eril ve tekildir. İlgi cümlesinde 'ich' özne, "
+                   "zamir ise doğrudan nesnedir.",
+)
+check(all(RC.page_is_renderable(prod_relative, is_tr)[0]
+          for is_tr in RC.EXPORT_LOCALES),
+      "quoted capitalised common noun does not become a person in a decisive option set")
+
+# Exact production shape 2: Turkish 'isim' is ordinary grammatical metalanguage
+# meaning noun/name. With no candidate-person token in that statement it must not
+# create a personal-name inference by itself.
+prod_time = mcq(
+    "Der Zug zum Hauptbahnhof fährt pünktlich ______ ab.",
+    ["in einer halben Stunde", "in eine halbe Stunde",
+     "in einer halbe Stunde", "in eines halben Stunde"],
+    "in einer halben Stunde",
+    explanation="The temporal preposition 'in' requires the dative case. "
+                "The feminine noun 'Stunde' takes 'einer halben Stunde'.",
+    explanation_tr="Zaman bildiren 'in' edatı Dativ ister. Dişil isim olan "
+                   "'Stunde' 'einer halben Stunde' biçimini alır.",
+)
+check(all(RC.page_is_renderable(prod_time, is_tr)[0]
+          for is_tr in RC.EXPORT_LOCALES),
+      "bare grammatical 'isim' without a person token does not trigger name inference")
+
+# Real unsafe case: unquoted personal-name candidate + decisive gendered form set.
+unsafe_unquoted = mcq(
+    "Ana es ___.", PARADIGM, "alta",
+    explanation="Ana is feminine, so «alta».",
+    explanation_tr="Ana dişildir; bu yüzden «alta».",
+)
+check(not any(RC.page_is_renderable(unsafe_unquoted, is_tr)[0]
+              for is_tr in RC.EXPORT_LOCALES),
+      "unquoted person candidate plus decisive gendered forms is still refused")
+
+# Real unsafe case even when the name itself is quoted: explicit NAME wording
+# keeps the protection active.
+unsafe_quoted = mcq(
+    "Ana es ___.", PARADIGM, "alta",
+    explanation="'Ana' is a feminine name, so «alta».",
+    explanation_tr="'Ana' kadın adıdır; bu yüzden «alta».",
+)
+check(not any(RC.page_is_renderable(unsafe_quoted, is_tr)[0]
+              for is_tr in RC.EXPORT_LOCALES),
+      "quoted token explicitly identified as a personal name is still refused")
+
+# The diagnostic must agree with each of the new boundary cases.
+for label, page in [
+    ("prod_relative", prod_relative),
+    ("prod_time", prod_time),
+    ("unsafe_unquoted", unsafe_unquoted),
+    ("unsafe_quoted", unsafe_quoted),
+]:
+    report = RC.explain_hidden_world(page)
+    check(all(field["trace_agrees"] for field in report["rationale_fields"]),
+          f"{label}: diagnostic trace remains faithful")
 
 print()
 print("the two layers can disagree, and the diagnostic reports both")
