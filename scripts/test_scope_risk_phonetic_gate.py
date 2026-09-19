@@ -74,13 +74,13 @@ try:
     def fake_risk_call(**kwargs):
         payload=kwargs["payload"]
         assert payload["topics"][0]["topic_id"]=="g1"
-        checked_paths=[
-            [str(part) for part in rec["path"]]
+        checked_ids=[
+            rec["record_id"]
             for rec in payload["topics"][0]["records"]
         ]
         return {
             "topic_id":"g1",
-            "checked_paths":checked_paths,
+            "checked_ids":checked_ids,
             "patches":[
                 {
                     "path":["pages","0","rules","0","rule"],
