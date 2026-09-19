@@ -64,6 +64,7 @@ VERIFICATION_STEPS = [
     "scripts/test_residual_quality_review.py",
     "scripts/test_rationale_specificity_repair.py",
     "scripts/test_rationale_proof_over_proxy.py",
+    "scripts/test_name_gender_proof_parity.py",
     "scripts/test_embedded_patch_corruption.py",
     "scripts/test_camel_hump_patch_reconcile.py",
     "scripts/test_sentence_camel_corruption.py",

@@ -2226,29 +2226,14 @@ _RATIONALE_PROOF_KIND = "rationale_page_semantic_proof"
 def _rationale_semantic_digest(page: Any) -> str:
     """The exact surface the rationale proxies read, as one stable key.
 
-    Stem, option set, keyed answer and every rationale locale. A proof is valid
-    only for this tuple: change any of it and the attestation no longer matches.
+    Defined in `render_contract` and only re-exported here. The renderer resolves
+    proofs without importing this module, so two implementations of the digest
+    would be two answers to the same question — the drift this whole layer was
+    built to remove.
     """
-    if not isinstance(page, dict):
-        return ""
     from services.authoring import render_contract as RC
 
-    surface: Dict[str, Any] = {
-        "stem_tr": RC.resolve_stem(page, True),
-        "stem_en": RC.resolve_stem(page, False),
-        "answer": str(page.get("answer") or ""),
-        "options": [str(v) for v in (page.get("options")
-                                     or page.get("choices") or [])],
-        "distractors": [str(v) for v in (page.get("distractors") or [])],
-    }
-    for key in tuple(dict.fromkeys(_NAME_GENDER_EN_KEYS + _NAME_GENDER_TR_KEYS)):
-        value = page.get(key)
-        if isinstance(value, str) and value.strip():
-            surface[key] = value
-    return _review_attestation_key(
-        kind=_RATIONALE_PROOF_KIND, model="", system=_RATIONALE_PROOF_KIND,
-        payload=surface, response_schema={}, response_name=_RATIONALE_PROOF_KIND,
-    )
+    return RC.rationale_semantic_digest(page)
 
 
 def _rationale_proof_covers(page: Any) -> bool:
@@ -2262,6 +2247,20 @@ def _rationale_proof_covers(page: Any) -> bool:
         # A proof that cannot be read is a proof that does not exist: the proxy
         # keeps its blocker and publication stays fail-closed.
         return False
+
+
+def _install_rationale_proof_lookup() -> None:
+    """Give the shared predicate the same proof the gate reads.
+
+    `render_contract` owns the name/gender rule for BOTH the publication gate
+    and the renderer, so the proof has to be visible from inside it rather than
+    consulted by one caller. Installed at import: any process that has the
+    review layer loaded resolves proofs, and any process without it keeps the
+    strict predicate, which is the fail-closed direction.
+    """
+    from services.authoring import render_contract as RC
+
+    RC.set_rationale_proof_lookup(_rationale_proof_covers)
 
 
 def attest_rationale_pages(content: Any, *, stage: str) -> int:
@@ -6667,3 +6666,7 @@ def gate_summary(budget: ReviewBudget) -> str:
         f"{row['stage']}=${row['cost']:.4f}" for row in budget.calls
     )
     return f"quality_review=${budget.spent:.4f}/{budget.ceiling:.2f}; {calls}"
+
+# The shared predicate must resolve proofs wherever the review layer is loaded,
+# so this runs at import rather than from a caller that might not exist.
+_install_rationale_proof_lookup()

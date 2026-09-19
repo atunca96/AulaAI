@@ -416,7 +416,7 @@ def unsafe_reason(page: Dict[str, Any], stem: str, is_tr: bool) -> str:
     if not explicit_gender and _name_gender_rationale(
         explanation, _NAME_WORDS, _GENDER_WORDS,
         personal_name_tokens(page, stem), page,
-    ):
+    ) and not _reviewer_cleared(page):
         return NAME_GENDER_REASON
 
     # Same invariant: the biographical fact must be able to decide the answer.
@@ -498,6 +498,120 @@ def mcq_like(page: Any) -> bool:
     return bool((page.get("options") or page.get("choices")) and _v57_stem(page))
 
 
+# ── Proof over proxy, for the one rule both callers share ────────────────────
+#
+# `personal_name_tokens` decides who is a person from CAPITALISATION. Measured
+# across the taught languages that signal does not exist in Chinese, Japanese,
+# Korean or Arabic — an explicit "X is a feminine name, so the answer is
+# feminine" is not caught in any of them — and in German, where every noun is
+# capitalised, ordinary grammar prose is refused as personal-name inference.
+#
+# The rule still earns its place: where it fires correctly there is no arguing
+# with it. What it must not be is the LAST word, because a proxy that wrong in
+# both directions cannot be the thing that refuses a fully paid classroom.
+#
+# The answer-key grounding reviewer already adjudicates this exact question —
+# its contract says in as many words "do not infer gender, identity,
+# nationality, profession or other properties from a personal name" — and
+# certifies the FINAL state per item. Where it has cleared these exact bytes,
+# its verdict stands.
+#
+# The lookup lives HERE, in the predicate both the gate and the renderer call,
+# and not in either caller. That is the whole point of this module: if the gate
+# consulted a proof the renderer could not see, a page would be validated and
+# then silently dropped, which is the divergence this file exists to end.
+
+# Resolved HERE rather than handed in by a caller, and deliberately so. The
+# renderer process does not import the review layer, so a lookup installed by
+# the gate would leave the renderer strict — the gate would validate a page the
+# renderer then dropped, which is precisely the divergence this file exists to
+# end. Reading the store directly means one predicate with one answer in every
+# process, however it was reached.
+
+_RATIONALE_PROOF_KEYS = ("explanation_en", "explanation", "analysis_en",
+                         "analysis", "explanation_tr", "analysis_tr")
+
+
+def rationale_proof_db_path() -> str:
+    import os
+
+    if os.getenv("RAILWAY_ENVIRONMENT"):
+        return "/data/aula_quality_review_attest.sqlite3"
+    return os.path.join(os.getcwd(), "data", "aula_quality_review_attest.sqlite3")
+
+
+def rationale_semantic_digest(page: Any) -> str:
+    """The exact surface the name/gender and rationale proxies read.
+
+    Stem, option set, keyed answer and every rationale locale. A reviewer's
+    verdict is valid for this tuple and nothing else, so any later edit to any
+    of it drops the page back under the strict predicate.
+    """
+    if not isinstance(page, dict):
+        return ""
+    import hashlib
+    import json
+
+    surface: Dict[str, Any] = {
+        "stem_tr": resolve_stem(page, True),
+        "stem_en": resolve_stem(page, False),
+        "answer": str(page.get("answer") or ""),
+        "options": [str(v) for v in (page.get("options")
+                                     or page.get("choices") or [])],
+        "distractors": [str(v) for v in (page.get("distractors") or [])],
+    }
+    for key in _RATIONALE_PROOF_KEYS:
+        value = page.get(key)
+        if isinstance(value, str) and value.strip():
+            surface[key] = value
+    blob = {
+        "v": 1, "kind": "rationale_page_semantic_proof", "model": "",
+        "system": "rationale_page_semantic_proof", "payload": surface,
+        "response_schema": {}, "response_name": "rationale_page_semantic_proof",
+        "contract_extra": None,
+    }
+    raw = json.dumps(blob, ensure_ascii=False, sort_keys=True,
+                     separators=(",", ":"), default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+_rationale_proof_lookup: Optional[Any] = None
+
+
+def set_rationale_proof_lookup(lookup: Optional[Any]) -> None:
+    """Override how a proof is resolved. Passing None restores the default."""
+    global _rationale_proof_lookup
+    _rationale_proof_lookup = lookup
+
+
+def _default_proof_lookup(page: Dict[str, Any]) -> bool:
+    import sqlite3
+
+    digest = rationale_semantic_digest(page)
+    if not digest:
+        return False
+    path = rationale_proof_db_path()
+    conn = sqlite3.connect(path, timeout=2.0)
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM review_attestations WHERE digest=? LIMIT 1", (digest,)
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def _reviewer_cleared(page: Dict[str, Any]) -> bool:
+    lookup = _rationale_proof_lookup or _default_proof_lookup
+    try:
+        return bool(lookup(page))
+    except Exception:
+        # A missing store, a locked database, a schema that is not there yet:
+        # a proof that cannot be read is a proof that does not exist, and the
+        # strict predicate keeps the page.
+        return False
+
+
 def hidden_world_reason(page: Dict[str, Any]) -> str:
     """Why the renderer's page filter would remove this item, or ''."""
     if not mcq_like(page):
@@ -515,7 +629,7 @@ def hidden_world_reason(page: Dict[str, Any]) -> str:
         _name_gender_rationale(page.get(key), _V57_NAME_WORDS, _V57_GENDER_WORDS,
                                names, page)
         for key in _V57_EXPLANATION_KEYS
-    ):
+    ) and not _reviewer_cleared(page):
         return NAME_GENDER_REASON
 
     if _has_biography_marker(prompt, _V57_BIOGRAPHY) and _V57_IDENTITY.search(expl) \
