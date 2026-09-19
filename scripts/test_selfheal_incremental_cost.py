@@ -117,6 +117,32 @@ check(Q._rationale_semantic_digest(page) == before
       or not Q._rationale_proof_covers(page),
       "an edited item does not keep a proof it no longer matches")
 
+print("\n[5] a categorical claim judged safe is not re-judged")
+# Each escalation verdict carries its own claim_id, verdict and proof, so it is
+# about one claim and nothing else. A topic whose OTHER content changed used to
+# re-buy an escalation for claims that were word-for-word what a previous pass
+# had already cleared, and the self-heal loop reran this stage after every
+# repair.
+claim = "Adjectives ending in -e never change for gender."
+digest = Q._categorical_claim_digest(claim, [], language="Spanish", level="A1")
+check(bool(digest), "a claim digest is produced")
+check(not Q._categorical_claim_proven(digest), "an unjudged claim is not proven")
+Q._review_attestation_store(digest, stage="test_claim")
+check(Q._categorical_claim_proven(digest), "a judged claim is remembered")
+for label, other in (
+    ("the claim text changes",
+     Q._categorical_claim_digest(claim + " Mostly.", [], language="Spanish", level="A1")),
+    ("the sibling evidence changes",
+     Q._categorical_claim_digest(claim, [{"field": "rule", "value": "Some do."}],
+                                 language="Spanish", level="A1")),
+    ("the taught language changes",
+     Q._categorical_claim_digest(claim, [], language="French", level="A1")),
+    ("the level changes",
+     Q._categorical_claim_digest(claim, [], language="Spanish", level="C1")),
+):
+    check(not Q._categorical_claim_proven(other),
+          f"the proof does not carry over when {label}")
+
 print()
 if FAILURES:
     print(f"FAILED ({len(FAILURES)}):")

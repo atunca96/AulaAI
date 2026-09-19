@@ -2295,6 +2295,34 @@ def _install_rationale_proof_lookup() -> None:
     RC.set_rationale_proof_lookup(_rationale_proof_covers)
 
 
+def _categorical_claim_digest(value: str, siblings: Any, *,
+                              language: str, level: str) -> str:
+    """The exact evidence one categorical escalation judges.
+
+    The claim text, the sibling evidence it was weighed against, and the
+    language and level that decide what "true for the whole class" means. A
+    verdict is valid for this tuple and nothing else.
+    """
+    return _review_attestation_key(
+        kind="categorical_claim_v1",
+        model=ESCALATION_MODEL,
+        system=_BATCH_CATEGORICAL_REVIEW_SYSTEM,
+        payload={"language": language, "level": level,
+                 "current": str(value or ""), "siblings": siblings},
+        response_schema=_BATCH_CATEGORICAL_REVIEW_SCHEMA,
+        response_name="categorical_scope_escalation_batch",
+    )
+
+
+def _categorical_claim_proven(digest: str) -> bool:
+    if not digest:
+        return False
+    try:
+        return _review_attestation_has(digest)
+    except Exception:
+        return False
+
+
 def attest_rationale_pages(content: Any, *, stage: str) -> int:
     """Record that a reviewer judged these pages' exact rationale surface.
 
@@ -5048,6 +5076,28 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                 "same_page_siblings": _scope_overlap_evidence(value, siblings),
             })
 
+        # Each claim carries its own id, verdict and proof, so a verdict is
+        # about ONE claim and nothing else. That makes it cacheable per claim:
+        # a topic whose other content changed used to re-buy an escalation for
+        # every claim in it, including the ones that were word-for-word what a
+        # previous pass had already judged safe. The self-heal loop reruns this
+        # stage after every repair, so that was paid again on each heal.
+        for row in exact_candidates:
+            row["_digest"] = _categorical_claim_digest(
+                row["current"], row["same_page_siblings"],
+                language=language, level=level,
+            )
+        pending = [r for r in exact_candidates if not _categorical_claim_proven(r["_digest"])]
+        if exact_candidates and not pending:
+            print(f"[QUALITY-CACHE] HIT categorical {unit_title}:"
+                  f"{topic.get('title')}: all {len(exact_candidates)} claim(s) proven",
+                  flush=True)
+        elif len(pending) < len(exact_candidates):
+            print(f"[QUALITY-CACHE] PARTIAL categorical {unit_title}:"
+                  f"{topic.get('title')}: {len(pending)}/{len(exact_candidates)} "
+                  f"claim(s) need judgement", flush=True)
+        exact_candidates = pending
+
         # Keep batches deliberately small. Six independent claims comfortably fit
         # the structured response while collapsing the dominant one-call-per-claim
         # latency seen in production.
@@ -5105,6 +5155,18 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                             f"{topic.get('title')}: categorical escalation "
                             f"marked ok but changed value for {claim_id}"
                         )
+                    # Judged safe, on this exact text against this exact
+                    # sibling evidence. Record it so the next pass over the
+                    # same claim asks nothing. Only "ok" is attested: a claim
+                    # that needed a fix is replaced, and the replacement is new
+                    # text that has not been judged yet.
+                    try:
+                        _review_attestation_store(
+                            source["_digest"],
+                            stage=f"categorical:{unit_title}:{claim_id}",
+                        )
+                    except Exception:
+                        pass
                     continue
                 if (
                     verdict != "fix"
