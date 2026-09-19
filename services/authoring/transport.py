@@ -283,6 +283,12 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
     encoded = json.dumps(payload).encode("utf-8")
 
     last_error = "unknown"
+    total_input = 0
+    total_output = 0
+    total_cached = 0
+    total_cost = 0.0
+    total_seconds = 0.0
+
     for attempt in range(max(1, attempts)):
         started = time.perf_counter()
         try:
@@ -299,36 +305,70 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
             # 4xx other than rate limiting will not improve on a retry.
             if exc.code not in (408, 409, 425, 429) and exc.code < 500:
                 return Response(error=last_error, model=target,
-                                seconds=time.perf_counter() - started)
+                                input_tokens=total_input, output_tokens=total_output,
+                                cached_tokens=total_cached,
+                                cost=(total_cost or None),
+                                seconds=total_seconds + time.perf_counter() - started)
         except Exception as exc:
             last_error = f"{type(exc).__name__}: {exc}"
         else:
             elapsed = time.perf_counter() - started
+            total_seconds += elapsed
             usage = _usage_of(parsed)
+            total_input += usage["input"]
+            total_output += usage["output"]
+            total_cached += usage["cached"]
+            if usage["cost"] is not None:
+                total_cost += float(usage["cost"] or 0.0)
+
             choices = parsed.get("choices") or []
             if not choices:
-                return Response(error=f"no choices: {str(parsed)[:200]}", model=target,
-                                input_tokens=usage["input"], output_tokens=usage["output"],
-                                cached_tokens=usage["cached"], cost=usage["cost"],
-                                seconds=elapsed)
-            choice = choices[0] or {}
-            text = _message_text((choice.get("message") or {}).get("content"))
-            finish_reason = str(choice.get("finish_reason") or "").lower()
-            truncated = finish_reason in ("length", "max_tokens")
-            data = extract_json(text)
-            parse_error = ""
-            if data is None:
-                preview = re.sub(r"\s+", " ", text[:180]).strip()
-                parse_error = (
-                    f"unparseable JSON body (finish_reason={finish_reason or 'unknown'}, "
-                    f"chars={len(text)}, preview={preview!r})"
-                )
-            return Response(
-                data=data, raw=text, truncated=truncated,
-                error=parse_error,
-                input_tokens=usage["input"], output_tokens=usage["output"],
-                cached_tokens=usage["cached"], cost=usage["cost"],
-                model=target, seconds=elapsed)
-        time.sleep(0.6 * (attempt + 1))
+                last_error = f"no choices: {str(parsed)[:200]}"
+                if attempt + 1 >= max(1, attempts):
+                    return Response(
+                        error=last_error, model=target,
+                        input_tokens=total_input, output_tokens=total_output,
+                        cached_tokens=total_cached, cost=(total_cost or None),
+                        seconds=total_seconds,
+                    )
+            else:
+                choice = choices[0] or {}
+                text = _message_text((choice.get("message") or {}).get("content"))
+                finish_reason = str(choice.get("finish_reason") or "").lower()
+                truncated = finish_reason in ("length", "max_tokens")
+                data = extract_json(text)
+                parse_error = ""
+                if data is None:
+                    preview = re.sub(r"\s+", " ", text[:180]).strip()
+                    parse_error = (
+                        f"unparseable JSON body (finish_reason={finish_reason or 'unknown'}, "
+                        f"chars={len(text)}, preview={preview!r})"
+                    )
 
-    return Response(error=last_error, model=target)
+                # OpenRouter/Google occasionally returns HTTP 200 plus a partial
+                # structured body and finish_reason=error. That is a provider
+                # execution failure, not a semantic/schema verdict. Use the
+                # transport's existing bounded attempts before surfacing it.
+                # Aggregate usage across attempts so billing remains accurate.
+                retryable_structured_error = (
+                    data is None and finish_reason == "error"
+                )
+                if retryable_structured_error and attempt + 1 < max(1, attempts):
+                    last_error = parse_error
+                else:
+                    return Response(
+                        data=data, raw=text, truncated=truncated,
+                        error=parse_error,
+                        input_tokens=total_input, output_tokens=total_output,
+                        cached_tokens=total_cached, cost=(total_cost or None),
+                        model=target, seconds=total_seconds,
+                    )
+        if attempt + 1 < max(1, attempts):
+            time.sleep(0.6 * (attempt + 1))
+
+    return Response(
+        error=last_error, model=target,
+        input_tokens=total_input, output_tokens=total_output,
+        cached_tokens=total_cached, cost=(total_cost or None),
+        seconds=total_seconds,
+    )
