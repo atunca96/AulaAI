@@ -138,9 +138,13 @@ _RISK_REVIEW_SCHEMA = {
             "type": "array",
             "items": {"type": "string"},
         },
+        "scope_checked_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
         "patches": {"type": "array", "items": _NESTED_PATCH_SCHEMA},
     },
-    "required": ["topic_id", "checked_ids", "patches"],
+    "required": ["topic_id", "checked_ids", "scope_checked_ids", "patches"],
 }
 
 _MCq_RATIONALE_REVIEW_SCHEMA = {
@@ -1089,12 +1093,22 @@ in general) rather than reading as categorical. A sentence of the form "X does n
 depend on Y" is universal; if some members of X do depend on Y, it is wrong as
 written even though it contains no absolute word.
 
+The payload also names absolute_ids: records containing categorical language.
+For EVERY absolute_id, actively try to falsify the claim with a standard
+counterexample before accepting it. Scope consistency inside one lesson is
+mandatory: if a nearby claim about the same form/category says "many", "most",
+"usually", "often" or otherwise names exceptions/subclasses, a second statement
+must not silently broaden that same category to ALL members. Narrow the broader
+statement unless the broader claim is genuinely universal. This applies
+language-agnostically to morphology, spelling, pronunciation, syntax and usage.
+
 Preserve CEFR level and meaning. If one correction has paired English/Turkish fields,
 patch both so they remain semantically equivalent.
 
 Return JSON only:
 {"topic_id":"EXACT ID",
  "checked_ids":["r0"],
+ "scope_checked_ids":["r0"],
  "patches":[
    {"path":["pages","0","rules","0","rule_tr"],"old":"EXACT OLD VALUE",
     "value":"CORRECT REPLACEMENT","reason":"brief factual reason"}
@@ -1105,6 +1119,9 @@ Contract:
 - checked_ids MUST contain every supplied record_id exactly once. This is a
   coverage proof, not a list of only suspicious records. Copy IDs exactly; do
   not reconstruct or normalize paths.
+- scope_checked_ids MUST contain every supplied absolute_id exactly once (and no
+  other IDs), proving every categorical claim received an explicit scope/
+  counterexample check.
 - Use only paths present in the supplied records.
 - Copy old exactly, byte for byte.
 - Patch only correctness/scope errors, never style.
@@ -2134,6 +2151,11 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                     "records": [
                         dict(rec, record_id=f"r{index}")
                         for index, rec in enumerate(records)
+                    ],
+                    "absolute_ids": [
+                        f"r{index}" for index, rec in enumerate(records)
+                        if isinstance(rec.get("value"), str)
+                        and _ABSOLUTE_RISK_RE.search(rec["value"])
                     ],
                     "deterministic_blockers": blocker_rows,
                     "render_contract_blockers": [],
@@ -3245,6 +3267,21 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                 f"{topic.get('title')}: risk reviewer coverage mismatch; "
                 f"missing_ids={missing[:5]} extra_ids={extra[:5]}"
             )
+        expected_scope_ids = {
+            f"r{index}" for index, rec in enumerate(records)
+            if isinstance(rec.get("value"), str)
+            and _ABSOLUTE_RISK_RE.search(rec["value"])
+        }
+        scope_checked_ids = {
+            str(value) for value in (data.get("scope_checked_ids") or [])
+            if isinstance(value, str)
+        }
+        if scope_checked_ids != expected_scope_ids:
+            raise QualityGateError(
+                f"{topic.get('title')}: categorical-scope coverage mismatch; "
+                f"missing_ids={sorted(expected_scope_ids - scope_checked_ids)[:5]} "
+                f"extra_ids={sorted(scope_checked_ids - expected_scope_ids)[:5]}"
+            )
 
         patches = []
         for patch in (data.get("patches") or []):
@@ -3285,6 +3322,9 @@ For every item:
   from a personal name;
 - keep English and Turkish rationales semantically equivalent;
 - keep useful grammatical explanation when it is genuinely required by the item;
+- when the stem itself explicitly states the evidence that selects the answer,
+  explain from that exact visible evidence. Do not replace it with a looser fact
+  from another lesson or with vague phrases such as "the material says here";
 - do not rewrite a correct explanation for style alone.
 
 Return JSON only:
@@ -3309,9 +3349,13 @@ written headword, declared language and regional variety.
 Complex entries may contain numbers, symbols, punctuation or several words.
 Check the whole expression, not merely whether the string looks IPA-like.
 Correct malformed segments, omitted material, wrong sounds, impossible symbols
-or transcription that belongs to a different written form. Preserve the
-classroom's bracket style. Do not respell, add alternatives or rewrite a correct
-transcription for style.
+or transcription that belongs to a different written form. For any written
+digit sequence, independently verify every spoken number segment and its IPA:
+digits/groups must be represented in the same order, no digit may disappear or
+be invented, and a valid number word written in malformed pseudo-IPA is still a
+defect. If the term includes a label plus digits, verify both the label and the
+digit reading. Preserve the classroom's bracket style. Do not respell, add
+alternatives or rewrite a correct transcription for style.
 
 Return JSON only:
 {"checked_ids":["n0"],
@@ -3479,11 +3523,68 @@ def _complex_notation_items(topics: List[Dict[str, Any]]) -> List[Dict[str, Any]
 def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]],
                                  language: str, level: str,
                                  budget: ReviewBudget) -> int:
-    """Verify only complex pronunciation rows; ordinary notation keeps its path."""
+    """Verify complex pronunciation rows, with exact focus for digit-bearing terms."""
     items = _complex_notation_items(topics)
     if not items:
         return 0
     profile = S.profile_for_language(language)
+    by_id = {str(topic["id"]): topic for topic in topics}
+    applied = 0
+
+    # Digit-bearing learner strings (phone numbers, addresses, codes, prices)
+    # are unusually easy for a broad batch reviewer to glance past because a
+    # malformed transcription can still look IPA-like. Give each one an exact
+    # one-item judgement. The arbiter may return the current value unchanged.
+    digit_items = [row for row in items if re.search(r"\d", row["term"])]
+    for index, row in enumerate(digit_items):
+        data = _call_review(
+            model=REVIEW_MODEL,
+            system=_COMPLEX_NOTATION_REVIEW_SYSTEM,
+            payload={
+                "language": language,
+                "level": level,
+                "regional_variety": profile.variety if profile else "",
+                "unit": unit_title,
+                "items": [{
+                    "item_id": "n0",
+                    "topic_id": row["topic_id"],
+                    "path": [str(part) for part in row["path"]],
+                    "term": row["term"],
+                    "field": row["field"],
+                    "value": row["value"],
+                }],
+            },
+            max_tokens=700,
+            effort="low",
+            budget=budget,
+            stage=f"review_complex_digit_notation:{unit_title}:{index}",
+            response_schema=_COMPLEX_NOTATION_REVIEW_SCHEMA,
+            response_name="complex_digit_notation_review",
+        )
+        if set(data.get("checked_ids") or []) != {"n0"}:
+            raise QualityGateError(
+                f"{unit_title}: digit notation reviewer coverage mismatch"
+            )
+        patches = data.get("patches") or []
+        if patches:
+            patch = dict(patches[0])
+            topic = by_id.get(str(patch.get("topic_id") or ""))
+            if topic is None:
+                raise QualityGateError("digit notation patch targets unknown topic")
+            coerced = _coerce_patch_path(topic["content"], patch.get("path") or [])
+            expected = json.dumps([str(p) for p in row["path"]],
+                                  ensure_ascii=False, separators=(",", ":"))
+            actual = json.dumps([str(p) for p in coerced],
+                                ensure_ascii=False, separators=(",", ":"))
+            if str(patch.get("topic_id") or "") != row["topic_id"] or actual != expected:
+                raise QualityGateError("digit notation reviewer patched a different field")
+            patch["path"] = coerced
+            applied += _apply_patches({row["topic_id"]: topic}, [patch])
+
+    # The remaining non-digit complex forms are safe to verify in one compact batch.
+    items = [row for row in items if not re.search(r"\d", row["term"])]
+    if not items:
+        return applied
     payload_items = [
         {
             "item_id": f"n{index}",
@@ -3524,7 +3625,6 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
             f"extra_ids={sorted(checked_ids - expected_ids)[:5]}"
         )
 
-    by_id = {str(topic["id"]): topic for topic in topics}
     allowed = {
         (
             row["topic_id"],
@@ -3554,7 +3654,7 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
             )
         patch["path"] = coerced
         patches.append(patch)
-    return _apply_patches(by_id, patches)
+    return applied + _apply_patches(by_id, patches)
 
 
 def _cross_topic_phonetic_occurrences(
