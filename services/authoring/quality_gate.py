@@ -3735,54 +3735,77 @@ def review_unit_complex_notation(*, unit_title: str, topics: List[Dict[str, Any]
     applied = 0
 
     # Digit-bearing learner strings (phone numbers, addresses, codes, prices)
-    # are unusually easy for a broad batch reviewer to glance past because a
-    # malformed transcription can still look IPA-like. Give each one an exact
-    # one-item judgement. The arbiter may return the current value unchanged.
+    # get bounded exact convergence. A candidate is not committed merely because
+    # one reviewer produced plausible-looking IPA: the next independent call
+    # must accept the complete digit reading and transcription unchanged.
     digit_items = [row for row in items if re.search(r"\d", row["term"])]
     for index, row in enumerate(digit_items):
-        data = _call_review(
-            model=REVIEW_MODEL,
-            system=_COMPLEX_NOTATION_REVIEW_SYSTEM,
-            payload={
-                "language": language,
-                "level": level,
-                "regional_variety": profile.variety if profile else "",
-                "unit": unit_title,
-                "items": [{
-                    "item_id": "n0",
-                    "topic_id": row["topic_id"],
-                    "path": [str(part) for part in row["path"]],
+        candidate = row["value"]
+        accepted = False
+        for round_index in range(3):
+            data = _call_review(
+                model=REVIEW_MODEL,
+                system=_DIGIT_NOTATION_VERIFY_SYSTEM,
+                payload={
+                    "language": language,
+                    "level": level,
+                    "regional_variety": profile.variety if profile else "",
+                    "unit": unit_title,
                     "term": row["term"],
                     "field": row["field"],
-                    "value": row["value"],
-                }],
-            },
-            max_tokens=700,
-            effort="low",
-            budget=budget,
-            stage=f"review_complex_digit_notation:{unit_title}:{index}",
-            response_schema=_COMPLEX_NOTATION_REVIEW_SCHEMA,
-            response_name="complex_digit_notation_review",
-        )
-        if set(data.get("checked_ids") or []) != {"n0"}:
-            raise QualityGateError(
-                f"{unit_title}: digit notation reviewer coverage mismatch"
+                    "current": candidate,
+                    "phase": (
+                        "initial exact judgement" if round_index == 0
+                        else "independent verification of the previous candidate"
+                    ),
+                },
+                max_tokens=800,
+                effort="low",
+                budget=budget,
+                stage=f"review_complex_digit_notation:{unit_title}:{index}:{round_index}",
+                response_schema=_DIGIT_NOTATION_VERIFY_SCHEMA,
+                response_name="complex_digit_notation_verify",
             )
-        patches = data.get("patches") or []
-        if patches:
-            patch = dict(patches[0])
-            topic = by_id.get(str(patch.get("topic_id") or ""))
-            if topic is None:
-                raise QualityGateError("digit notation patch targets unknown topic")
-            coerced = _coerce_patch_path(topic["content"], patch.get("path") or [])
-            expected = json.dumps([str(p) for p in row["path"]],
-                                  ensure_ascii=False, separators=(",", ":"))
-            actual = json.dumps([str(p) for p in coerced],
-                                ensure_ascii=False, separators=(",", ":"))
-            if str(patch.get("topic_id") or "") != row["topic_id"] or actual != expected:
-                raise QualityGateError("digit notation reviewer patched a different field")
-            patch["path"] = coerced
-            applied += _apply_patches({row["topic_id"]: topic}, [patch])
+            verdict = str(data.get("verdict") or "")
+            value = data.get("value")
+            spoken_form = data.get("spoken_form")
+            if not isinstance(spoken_form, str) or not spoken_form.strip():
+                raise QualityGateError(
+                    f"{unit_title}: digit notation verifier omitted spoken form"
+                )
+            if verdict == "ok":
+                if value != candidate:
+                    raise QualityGateError(
+                        f"{unit_title}: digit notation verifier marked ok but changed value"
+                    )
+                accepted = True
+                break
+            if verdict != "fix" or not isinstance(value, str) or not value.strip():
+                raise QualityGateError(
+                    f"{unit_title}: digit notation verifier returned invalid fix"
+                )
+            if value == candidate:
+                raise QualityGateError(
+                    f"{unit_title}: digit notation verifier requested a no-op fix"
+                )
+            candidate = value
+
+        if not accepted:
+            raise QualityGateError(
+                f"{unit_title}: digit notation did not converge after 3 exact judgements"
+            )
+        if candidate != row["value"]:
+            topic = by_id[row["topic_id"]]
+            applied += _apply_patches(
+                {row["topic_id"]: topic},
+                [{
+                    "topic_id": row["topic_id"],
+                    "path": row["path"],
+                    "old": row["value"],
+                    "value": candidate,
+                    "reason": "digit-bearing pronunciation exact convergence",
+                }],
+            )
 
     # The remaining non-digit complex forms are safe to verify in one compact batch.
     items = [row for row in items if not re.search(r"\d", row["term"])]
