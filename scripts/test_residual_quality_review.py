@@ -71,6 +71,34 @@ _auslaut_page={
 }
 assert Q._ungrounded_explanation_names(_auslaut_page) == []
 
+# Production regression: capitalized German tense/grammar labels shared across
+# English and Turkish rationales are terminology, not invented people.
+_passive_labels_page={
+    "type":"mcq",
+    "prompt":"Welcher Satz steht im Passiv Präsens?",
+    "answer":"Das neue Smartphone wird von den Kunden sofort bestellt.",
+    "options":[
+        "Das neue Smartphone wird von den Kunden sofort bestellt.",
+        "Das neue Smartphone wurde von den Kunden sofort bestellt.",
+        "Das neue Smartphone war von den Kunden sofort bestellt worden.",
+        "Das neue Smartphone hat die Kundin sofort bestellt.",
+    ],
+    "explanation":"The present passive requires the present tense of 'werden' ('wird') combined with the past participle ('bestellt'). 'Wurde' is Präteritum passive, 'war ... bestellt worden' is Plusquamperfekt passive, and 'hat ... bestellt' is active Perfekt.",
+    "explanation_tr":"Şimdiki zaman edilgen çatı, 'werden' fiilinin şimdiki zaman çekimi ('wird') ve Partizip II ('bestellt') ile kurulur. 'Wurde' Präteritum edilgen, 'war ... bestellt worden' Plusquamperfekt edilgen, 'hat ... bestellt' ise etken Perfekt yapısıdır.",
+}
+assert Q._ungrounded_explanation_names(_passive_labels_page) == []
+
+# High-confidence invented-person identity evidence remains blocked.
+_invented_person_page={
+    "type":"mcq",
+    "question":"¿Cuál es la forma femenina de «mexicano»?",
+    "answer":"mexicana",
+    "options":["mexicana","mexicano","mexicanas","mexicanos"],
+    "explanation_en":"Ella is a female student, so the answer is mexicana.",
+    "explanation_tr":"Ella kadın bir öğrencidir, bu yüzden cevap mexicana'dır.",
+}
+assert Q._ungrounded_explanation_names(_invented_person_page) == ["ella"]
+
 try:
     Q._audit_topic=lambda topic, language, track: []
     Q._topic_render_blockers=lambda content: []
