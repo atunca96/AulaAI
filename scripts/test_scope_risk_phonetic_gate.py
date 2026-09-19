@@ -102,6 +102,17 @@ try:
     def fake_risk_call(**kwargs):
         stage=kwargs["stage"]
         payload=kwargs["payload"]
+        if stage.startswith("review_categorical_escalation_batch:"):
+            results=[]
+            for claim in payload["claims"]:
+                current=claim["current"]
+                results.append({
+                    "claim_id":claim["claim_id"],
+                    "verdict":"ok",
+                    "value":current,
+                    "reason":"Scoped claim is correct.",
+                })
+            return {"results":results}
         if stage.startswith("review_categorical_exact:") or stage.startswith("review_categorical_escalation:"):
             current=payload["current"]
             if "only change for number" in current or "yalnızca tekillik-çoğulluğa" in current:
