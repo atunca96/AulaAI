@@ -1064,7 +1064,15 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             language=language, level=level, budget=budget,
         )
 
-    review_workers = max(1, min(3, int(os.getenv("QUALITY_REVIEW_WORKERS", "3"))))
+    # The cap used to be 3, which meant QUALITY_REVIEW_WORKERS could only ever
+    # LOWER concurrency: six units ran as two waves of three, and the risk stage
+    # — the longest of the four, at two provider round-trips per topic — paid
+    # that serialization twice over. The default is still 3, so a build that
+    # sets nothing behaves exactly as it does today; the ceiling is raised only
+    # so the knob can be turned up when the provider is not throttling. 429s are
+    # retried with backoff in transport, which is what makes turning it up
+    # survivable rather than merely faster.
+    review_workers = max(1, min(8, int(os.getenv("QUALITY_REVIEW_WORKERS", "3"))))
     _log(
         f"[QUALITY-GATE] lesson review running with {review_workers} isolated "
         f"unit snapshot worker(s); merge remains serial."
