@@ -110,14 +110,33 @@ def main():
             # invariants against the persisted rows and refuses if they fail.
             from services.authoring import publication_state as PS
             try:
-                enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path, gen_id=gen_id)
-                PS.mark_ready(course_id, gen_id)
+                # enrich_classroom_phase2 now returns only after the shared
+                # self-healing publication loop has certified READY. Do not run
+                # a second terminal mark_ready proof here; that old duplicate
+                # boundary could re-introduce a user-visible refusal.
+                enrich_classroom_phase2(
+                    course_id,
+                    pdf_path,
+                    source_markdown_path=source_markdown_path,
+                    gen_id=gen_id,
+                )
+                PS.assert_exportable(course_id)
                 from database import enroll_permanent_students_in_course
                 enroll_permanent_students_in_course(course_id)
             except PS.NotPublishable as refusal:
-                # mark_ready has already recorded the refusal and why.
+                # A race at the export assertion must not convert a content
+                # refusal into a terminal state. The course stays in review and
+                # can be resumed by the shared publication repair path.
+                with db_connection() as db:
+                    db.execute(
+                        "UPDATE courses SET is_building=1, build_stage='quality_review', "
+                        "build_message='Quality review: automatic repair resuming' "
+                        "WHERE id=? AND (generation_id=? OR generation_id IS NULL OR ?='LEGACY')",
+                        (course_id, gen_id, gen_id),
+                    )
+                    db.commit()
                 with open("pipeline.log", "a", encoding="utf-8") as f:
-                    f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] REGENERATE refused publication: {refusal}\n")
+                    f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] REGENERATE publication race kept non-terminal: {refusal}\n")
             except Exception as e:
                 PS.mark_failed(course_id, str(e), gen_id)
                 with open("pipeline.log", "a", encoding="utf-8") as f:
