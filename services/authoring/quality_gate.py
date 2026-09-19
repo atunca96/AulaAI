@@ -1918,6 +1918,28 @@ def _ungrounded_explanation_names(page: Any) -> List[str]:
         r"\b([^\W\d_]+)\s+(?:I|II|III|IV|V|VI|VII|VIII|IX|X)\b",
         re.UNICODE,
     )
+
+    # A technical/grammar label may be shared verbatim across localized
+    # rationales. Parenthetical labels are especially common in language
+    # teaching: "final devoicing (Auslautverhärtung)" in English and the same
+    # German term in Turkish. Cross-locale capitalization alone must not turn
+    # such a label into an invented person. Build this exemption from the
+    # rationale text itself rather than from a language-specific allowlist.
+    technical_labels: set = set()
+    for key in tuple(dict.fromkeys(_NAME_GENDER_EN_KEYS + _NAME_GENDER_TR_KEYS)):
+        value = page.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        for parenthetical in re.findall(r"\(([^()]{1,80})\)", value):
+            for raw in RC._WORD_TOKEN.findall(parenthetical):
+                if len(raw) >= 3 and raw[:1].isupper() and not raw.isupper():
+                    technical_labels.add(RC._fold(raw))
+        technical_labels.update(
+            RC._fold(match.group(1))
+            for match in roman_label.finditer(value)
+            if match.group(1)
+        )
+
     for keys in (_NAME_GENDER_EN_KEYS, _NAME_GENDER_TR_KEYS):
         found: set = set()
         present = False
@@ -1940,7 +1962,12 @@ def _ungrounded_explanation_names(page: Any) -> List[str]:
                 if len(raw) < 3 or not raw[:1].isupper() or raw.isupper():
                     continue
                 folded = RC._fold(raw)
-                if folded and folded not in quoted and folded not in grammar_labels:
+                if (
+                    folded
+                    and folded not in quoted
+                    and folded not in grammar_labels
+                    and folded not in technical_labels
+                ):
                     found.add(folded)
         if present:
             per_locale.append(found)
