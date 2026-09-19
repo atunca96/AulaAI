@@ -2152,11 +2152,6 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                         dict(rec, record_id=f"r{index}")
                         for index, rec in enumerate(records)
                     ],
-                    "absolute_ids": [
-                        f"r{index}" for index, rec in enumerate(records)
-                        if isinstance(rec.get("value"), str)
-                        and _ABSOLUTE_RISK_RE.search(rec["value"])
-                    ],
                     "deterministic_blockers": blocker_rows,
                     "render_contract_blockers": [],
                 }],
@@ -3231,6 +3226,11 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
                     "records": [
                         dict(rec, record_id=f"r{index}")
                         for index, rec in enumerate(records)
+                    ],
+                    "absolute_ids": [
+                        f"r{index}" for index, rec in enumerate(records)
+                        if isinstance(rec.get("value"), str)
+                        and _ABSOLUTE_RISK_RE.search(rec["value"])
                     ],
                 }],
             },
