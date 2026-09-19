@@ -220,6 +220,27 @@ _EXACT_TARGET_REPAIR_SCHEMA = {
     "required": ["value", "reason"],
 }
 
+_RENDER_RESCUE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "repairs": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "field": {"type": "string"},
+                    "value": {"type": "string", "minLength": 1},
+                },
+                "required": ["field", "value"],
+            },
+            "minItems": 1,
+        },
+    },
+    "required": ["repairs"],
+}
+
 _ASSESSMENT_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -2822,10 +2843,11 @@ def _detect_topic_blockers(topic: Dict[str, Any], *, language: str, track: str,
             # from the stem clears the blocker too — so it is the fallback
             # rather than a dead end when the page repair cannot converge.
             "strategies": (
-                ["render_name_gender", "render_stem"]
+                ["render_name_gender", "render_stem", "render_rescue"]
                 if why == _name_gender_reason()
-                else ["explanation_grounding"]
-                if why == _EXPLANATION_GROUNDING_REASON else ["render_stem"]
+                else ["explanation_grounding", "render_rescue"]
+                if why == _EXPLANATION_GROUNDING_REASON
+                else ["render_stem", "render_rescue"]
             ),
         })
 
@@ -3003,6 +3025,115 @@ def _strategy_render_stem(*, topic, blocker, language, level, track, budget,
     )
 
 
+def _strategy_render_rescue(*, topic, blocker, language, level, track, budget,
+                            unit_title):
+    """Generic page-scoped rescue accepted only after authoritative re-validation."""
+    content = topic.get("content")
+    pages = content.get("pages") if isinstance(content, dict) else None
+    page_index = _blocker_page_index(blocker.get("where"))
+    if not isinstance(pages, list) or page_index is None or not 0 <= page_index < len(pages):
+        return 0
+    page = pages[page_index]
+    if not isinstance(page, dict):
+        return 0
+
+    immutable_fields = {
+        "type", "title", "title_tr", "answer", "options", "choices",
+        "distractors", "term", "word", "target",
+    }
+    editable_names = {
+        "prompt", "prompt_tr", "prompt_en",
+        "question", "question_tr", "question_en",
+        "stem", "stem_tr", "stem_en",
+        "text", "text_tr", "text_en",
+        "explanation", "explanation_en", "explanation_tr",
+        "analysis", "analysis_en", "analysis_tr",
+        "why", "why_tr", "context", "context_tr",
+    }
+    editable = {
+        key: value
+        for key, value in page.items()
+        if key in editable_names and isinstance(value, str) and value.strip()
+    }
+    if not editable:
+        return 0
+
+    profile = S.profile_for_language(language)
+    data = _call_review(
+        model=ESCALATION_MODEL,
+        system=(
+            "Repair exactly one learner-visible MCQ page that failed a "
+            "deterministic renderer contract. Work language-agnostically using "
+            "the declared taught language. Return only existing editable fields "
+            "that must change. Preserve answer, options, distractors, structure "
+            "and pedagogical target exactly. Make the keyed answer derivable "
+            "from explicit learner-visible grammatical or lexical evidence. "
+            "Never rely on an unstated identity fact, personal-name stereotype, "
+            "biography, workplace, residence or cultural assumption. Preserve "
+            "valid language-specific grammar, morphology, script and agreement. "
+            "Any rationale must justify the answer only from the rewritten "
+            "visible item. No commentary or markdown."
+        ),
+        payload={
+            "taught_language": language,
+            "level": level,
+            "regional_variety": profile.variety if profile else "",
+            "blocker_reason": blocker.get("reason"),
+            "editable_fields": editable,
+            "immutable_fields": {
+                key: value for key, value in page.items()
+                if key in immutable_fields and value not in (None, "", [])
+            },
+        },
+        max_tokens=1800,
+        effort="low",
+        budget=budget,
+        stage=f"converge_render_rescue:{topic.get('title')}:pages.{page_index}",
+        response_schema=_RENDER_RESCUE_SCHEMA,
+        response_name="render_convergence_rescue",
+    )
+
+    updates = {}
+    for raw in data.get("repairs") or []:
+        if not isinstance(raw, dict):
+            return 0
+        field = str(raw.get("field") or "").strip()
+        value = str(raw.get("value") or "").strip()
+        if field not in editable or not value:
+            return 0
+        if field in updates:
+            return 0
+        if value != editable[field]:
+            updates[field] = value
+    if not updates:
+        return 0
+
+    probe_topic = copy.deepcopy(topic)
+    probe_page = probe_topic["content"]["pages"][page_index]
+    probe_page.update(updates)
+    R.repair_lesson(probe_topic["content"], language=language)
+
+    if A.blocking(_audit_topic(probe_topic, language=language, track=track)):
+        return 0
+    remaining = [
+        row for row in _topic_render_blockers(probe_topic["content"])
+        if row.get("page_index") == page_index
+    ]
+    remaining += [
+        row for row in _explanation_grounding_blockers(probe_topic["content"])
+        if row.get("page_index") == page_index
+    ]
+    if remaining:
+        return 0
+
+    changed = 0
+    for field, value in updates.items():
+        if page.get(field) != value:
+            page[field] = value
+            changed += 1
+    return changed
+
+
 def _strategy_exact_field(*, topic, blocker, language, level, track, budget,
                           unit_title):
     """One bounded exact-path repair for a single deterministic finding."""
@@ -3065,6 +3196,7 @@ _REPAIR_STRATEGIES = {
     "explanation_grounding": _strategy_explanation_grounding,
     "render_name_gender": _strategy_render_name_gender,
     "render_stem": _strategy_render_stem,
+    "render_rescue": _strategy_render_rescue,
     "exact_field": _strategy_exact_field,
 }
 
