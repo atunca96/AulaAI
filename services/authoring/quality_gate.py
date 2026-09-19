@@ -4557,13 +4557,38 @@ def repair_publication_refusal_feedback(*, units: List[Dict[str, Any]],
             removed = before_fingerprints - after_fingerprints
             same_or_better_count = len(remaining) <= len(blockers)
 
-            # When the current refusal names blockers we can detect locally,
-            # at least one of those logical invariants must disappear and the
-            # total blocker count may not increase. A 1->1 transformation is
-            # allowed: the next retry gets the newly exposed predicate.
+            # Fingerprints include location so a patch that merely moves the
+            # SAME logical validator class to another page can look like
+            # progress (old fingerprint disappears, new one appears). That was
+            # observed live as 1 -> 1 name/gender and caused an unnecessary
+            # outer retry. Track class multiplicity independently of location:
+            # a 1 -> 1 with the same code+reason is NOT progress; a 1 -> 1 is
+            # accepted only when the old logical class really disappeared and
+            # a genuinely different predicate was exposed.
+            def _class_counts(rows):
+                counts = {}
+                for row in rows:
+                    key = (
+                        str(row.get("code") or ""),
+                        str(row.get("reason") or ""),
+                    )
+                    counts[key] = counts.get(key, 0) + 1
+                return counts
+
+            before_classes = _class_counts(blockers)
+            after_classes = _class_counts(remaining)
+            logical_class_reduced = any(
+                after_classes.get(key, 0) < count
+                for key, count in before_classes.items()
+            )
+
             proven_progress = (
                 (not blockers and changed > 0)
-                or (bool(removed) and same_or_better_count)
+                or (
+                    bool(removed)
+                    and same_or_better_count
+                    and logical_class_reduced
+                )
             )
 
             if not proven_progress:
