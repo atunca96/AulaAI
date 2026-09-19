@@ -132,5 +132,7 @@ persist_pos = outer_source.index("if changed:")
 sweep_pos = outer_source.index("repair_final_publication_blockers", persist_pos)
 db_pos = outer_source.index("with db_connection() as db:", sweep_pos)
 assert persist_pos < sweep_pos < db_pos
-assert "proactive course sweep cleared" in outer_source
+assert "repair_final_publication_blockers" in outer_source
+assert "sweep_units = copy.deepcopy(units)" in outer_source
+assert "before semantic resume" in outer_source
 print("[SELF-HEAL-PROGRESS] course-wide visible blocker sweep runs before semantic resume")
