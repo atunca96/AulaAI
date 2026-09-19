@@ -1663,24 +1663,43 @@ def _call_review(*, model: str, system: str, payload: Dict[str, Any],
                 response_schema=response_schema, response_name=response_name,
             )
             error_text = str(getattr(response, "error", "") or "")
-            transient_429 = (
+            zero_cost_failure = (
                 not response.ok
                 and float(getattr(response, "cost", 0.0) or 0.0) == 0.0
+            )
+            transient_429 = (
+                zero_cost_failure
                 and "429" in error_text
                 and (
                     "openrouter_admission_control" in error_text
                     or "could not verify available credits" in error_text.casefold()
                 )
             )
-            if not transient_429 or admission_attempt == 2:
-                break
-            delay = 2.0 * (admission_attempt + 1)
-            print(
-                f"[QUALITY-CALL] RETRY {stage} transient OpenRouter admission 429; "
-                f"sleeping {delay:.0f}s",
-                flush=True,
+            transient_structured_json = (
+                zero_cost_failure
+                and "unparseable json body" in error_text.casefold()
+                and "finish_reason=error" in error_text.casefold()
             )
-            time.sleep(delay)
+            if not (transient_429 or transient_structured_json) or admission_attempt == 2:
+                break
+            if transient_429:
+                delay = 2.0 * (admission_attempt + 1)
+                print(
+                    f"[QUALITY-CALL] RETRY {stage} transient OpenRouter admission 429; "
+                    f"sleeping {delay:.0f}s",
+                    flush=True,
+                )
+                time.sleep(delay)
+            else:
+                # Provider returned a partial structured body but charged $0 and
+                # explicitly marked finish_reason=error. This is transport/provider
+                # failure, not a semantic/schema judgement. Re-issue the exact strict
+                # request once/twice; do not relax the schema or mutate the payload.
+                print(
+                    f"[QUALITY-CALL] RETRY {stage} transient zero-cost structured "
+                    f"JSON transport failure ({admission_attempt + 1}/2)",
+                    flush=True,
+                )
     except Exception:
         budget.release(reservation)
         raise
