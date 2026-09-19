@@ -14,6 +14,26 @@ orig_call=Q._call_review
 orig_audit=Q._audit_topic
 orig_render=Q._topic_render_blockers
 
+# Final-artifact specificity invariant: a generic answer+boilerplate rationale
+# fails, while a real grammar rationale may cite forms inside a sentence answer
+# after quoting that answer once.
+_generic_page={
+    "type":"mcq",
+    "question":"Welche Form ist richtig?",
+    "answer":"Herr Weber geht früher schlafen, um morgen fit zu sein.",
+    "options":[
+        "Herr Weber geht früher schlafen, um morgen fit zu sein.",
+        "Herr Weber geht früher schlafen, um morgen fit sein zu."
+    ],
+    "explanation":"The correct answer is 'Herr Weber geht früher schlafen, um morgen fit zu sein.' because it matches the information explicitly given in the question.",
+    "explanation_tr":"Doğru cevap 'Herr Weber geht früher schlafen, um morgen fit zu sein.'; çünkü soruda açıkça verilen bilgiyle eşleşir.",
+}
+_specific_page=dict(_generic_page)
+_specific_page["explanation"]="In 'Herr Weber geht früher schlafen, um morgen fit zu sein', 'um' introduces the purpose clause and 'zu' stands before 'sein'."
+_specific_page["explanation_tr"]="'Herr Weber geht früher schlafen, um morgen fit zu sein' cümlesinde 'um' amaç yan cümlesini başlatır ve 'zu', 'sein' fiilinden önce gelir."
+assert not Q._rationale_has_specific_evidence(_generic_page)
+assert Q._rationale_has_specific_evidence(_specific_page)
+
 try:
     Q._audit_topic=lambda topic, language, track: []
     Q._topic_render_blockers=lambda content: []
