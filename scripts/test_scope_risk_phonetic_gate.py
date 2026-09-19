@@ -197,7 +197,7 @@ try:
         )
         raise AssertionError("unknown scope id must fail closed")
     except Q.QualityGateError as exc:
-        assert "unknown_ids=['r999']" in str(exc)
+        assert "scope_unknown=['r999']" in str(exc)
 
     p1={
         "id":"p1","title":"Daily Activities","type":"vocabulary",
