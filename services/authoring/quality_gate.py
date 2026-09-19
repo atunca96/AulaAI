@@ -3235,12 +3235,71 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                         if replacement == before:
                             continue
 
-                        _set_path(content, list(marker), replacement, old=before)
-                        after = _get_path(content, list(marker))
-                        if after != before:
-                            applied += 1
-                            progress = True
-                            R.repair_lesson(content, language=language)
+                        # Never let path-at-a-time repairs fight each other across
+                        # convergence rounds. A single learner-visible field can
+                        # carry several deterministic findings at once (for
+                        # example a target-language stem that also reads as
+                        # instructional prose). The model already receives ALL
+                        # findings for this path; prove its candidate against ALL
+                        # of them on a copy before mutating canonical content.
+                        probe = copy.deepcopy(content)
+                        _set_path(probe, list(marker), replacement, old=before)
+                        R.repair_lesson(probe, language=language)
+
+                        probe_topic = dict(topic)
+                        probe_topic["content"] = probe
+                        probe_blockers = A.blocking(
+                            _audit_topic(probe_topic, language=language, track=track)
+                        )
+
+                        def _finding_hits_marker(finding: A.Finding) -> bool:
+                            paths = _repair_paths_for_finding(probe, finding)
+                            return any(tuple(p) == marker for p in paths)
+
+                        unresolved_here = [
+                            finding for finding in probe_blockers
+                            if _finding_hits_marker(finding)
+                        ]
+
+                        before_signature = {
+                            (
+                                finding.code,
+                                str(getattr(finding, "path", "") or ""),
+                                str(getattr(finding, "field", "") or ""),
+                                str(getattr(finding, "detail", "") or ""),
+                            )
+                            for finding in still
+                        }
+                        after_signature = {
+                            (
+                                finding.code,
+                                str(getattr(finding, "path", "") or ""),
+                                str(getattr(finding, "field", "") or ""),
+                                str(getattr(finding, "detail", "") or ""),
+                            )
+                            for finding in probe_blockers
+                        }
+                        introduced = after_signature - before_signature
+
+                        if unresolved_here or introduced or                                 len(after_signature) >= len(before_signature):
+                            print(
+                                f"[QUALITY-PATCH] REJECT atomic exact candidate "
+                                f"{list(marker)!r}: unresolved_here="
+                                f"{A.summarise(unresolved_here) if unresolved_here else {}} "
+                                f"introduced={len(introduced)} "
+                                f"blockers={len(before_signature)}->{len(after_signature)}",
+                                flush=True,
+                            )
+                            continue
+
+                        # Commit exactly the candidate that passed authoritative
+                        # audit on the probe. No second normalization pass is
+                        # allowed to transform it into a different, unproved
+                        # value before the next full re-audit.
+                        content.clear()
+                        content.update(probe)
+                        applied += 1
+                        progress = True
 
                     refreshed = A.blocking(
                         _audit_topic(topic, language=language, track=track)
