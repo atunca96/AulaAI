@@ -61,6 +61,7 @@ VERIFICATION_STEPS = [
     "scripts/test_editorial_slash_patch_reconcile.py",
     "scripts/test_cross_topic_duplicate_stem_repair.py",
     "scripts/test_scope_risk_phonetic_gate.py",
+    "scripts/test_residual_quality_review.py",
     "scripts/test_embedded_patch_corruption.py",
     "scripts/test_camel_hump_patch_reconcile.py",
     "scripts/test_sentence_camel_corruption.py",
