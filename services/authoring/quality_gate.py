@@ -1863,6 +1863,10 @@ Hard contract:
 - Rewrite only explanation_en and explanation_tr.
 - Both explanations must justify the keyed answer using only evidence visible
   in the supplied stem/options or the grammatical fact directly tested there.
+- Each explanation must QUOTE at least one form it relies on from the stem,
+  options or distractors, exactly as that form is spelled there, and must do so
+  in addition to naming the keyed answer. A rationale that only restates the
+  answer and says it matches the question cites nothing and is rejected.
 - Do not introduce a person, place, biography or fact the question does not
   show. If a personal name is absent from the question, do not mention one.
 - Do not infer gender, nationality, profession or identity from a personal name.
@@ -3299,6 +3303,10 @@ def _strategy_explanation_grounding(*, topic, blocker, language, level, track,
     if not en_key or not tr_key:
         return 0
 
+    blocker_reasons = sorted({
+        str(row.get("why") or "") for row in rows if str(row.get("why") or "")
+    }) or [_EXPLANATION_GROUNDING_REASON]
+
     immutable = {}
     for key in ("prompt", "question", "stem", "answer", "options", "choices",
                 "distractors", "term", "word", "target"):
@@ -3318,7 +3326,15 @@ def _strategy_explanation_grounding(*, topic, blocker, language, level, track,
             "immutable_page_context": immutable,
             "current_explanation_en": page[en_key],
             "current_explanation_tr": page[tr_key],
-            "blocker": _EXPLANATION_GROUNDING_REASON,
+            # The ACTUAL reasons this page was refused. This strategy owns two
+            # rationale invariants, and `_grounding_clear` below accepts a
+            # candidate only when BOTH pass. Naming one of them unconditionally
+            # asked the repairer to remove a person from an item that has none
+            # while the real defect — a rationale citing no item-specific
+            # evidence — went unstated, so the candidate failed the acceptance
+            # predicate and the strategy could never converge.
+            "blocker": "; ".join(blocker_reasons),
+            "blockers": blocker_reasons,
         },
         max_tokens=700,
         effort="low",
