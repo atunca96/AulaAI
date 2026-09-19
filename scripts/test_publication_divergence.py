@@ -54,8 +54,20 @@ def codes(lesson, language="Spanish", track="tr"):
 
 # ── Fixtures shaped exactly like stored content ──────────────────────────────
 
-def mcq(index, prompt, options, answer=None, explanation="The taught form fits here.",
-        explanation_tr="Burada öğretilen biçim uygundur.", **extra):
+def mcq(index, prompt, options, answer=None, explanation=None,
+        explanation_tr=None, **extra):
+    # A "clean" fixture must satisfy the same final-artifact rationale invariant
+    # as production: cite learner-visible evidence beyond merely naming the key.
+    # Tests that intentionally need a bad rationale pass one explicitly.
+    if explanation is None:
+        explanation = (
+            f"The visible question «{prompt}» supplies the evidence used to "
+            "select the keyed option."
+        )
+    if explanation_tr is None:
+        explanation_tr = (
+            f"Görünür soru «{prompt}» işaretli seçeneği belirleyen kanıtı verir."
+        )
     # The two explanation fields are DIFFERENT strings, as production stores
     # them: `explanation` comes from the item's `why` and `explanation_tr` from
     # its `why_tr`. An identical pair is itself a defect this suite checks for,
