@@ -6,6 +6,7 @@ import threading
 import subprocess
 import sys
 import json
+import copy
 import concurrent.futures
 import time
 import urllib.request
@@ -67,6 +68,63 @@ def _run_quality_units_serially(*, units, reviewer, stage, on_complete,
         )
         on_complete(done, total, unit)
     return applied
+
+
+def _run_quality_units_parallel_snapshots(*, units, reviewer, stage, on_complete,
+                                          quality_error_cls, max_workers=3):
+    """Parallelize independent unit review without parallel mutation.
+
+    Each worker receives a deep-copy snapshot. Model calls and any local
+    convergence happen on that isolated copy. Only after every unit in the stage
+    succeeds are content snapshots merged back to the live unit objects, in
+    original order, on the caller thread. Therefore concurrency cannot create
+    cross-unit patch races or partially mutate the publication candidate.
+    """
+    total = len(units)
+    if total <= 1 or int(max_workers or 1) <= 1:
+        return _run_quality_units_serially(
+            units=units, reviewer=reviewer, stage=stage,
+            on_complete=on_complete, quality_error_cls=quality_error_cls,
+        )
+
+    workers = min(max(1, int(max_workers)), total)
+
+    def _one(index_and_unit):
+        index, original = index_and_unit
+        snapshot = copy.deepcopy(original)
+        try:
+            applied = reviewer(snapshot)
+            return index, snapshot, applied, None
+        except quality_error_cls as failure:
+            return index, snapshot, 0, failure
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        results = list(pool.map(_one, enumerate(units)))
+
+    results.sort(key=lambda row: row[0])
+    failures = [row for row in results if row[3] is not None]
+    if failures:
+        index, _snapshot, _applied, failure = failures[0]
+        unit = units[index]
+        _log(f"[QUALITY-GATE] {stage} failed for {unit['title']}: {failure}")
+        raise failure
+
+    applied_total = 0
+    for done, (index, snapshot, applied, _failure) in enumerate(results, 1):
+        original = units[index]
+        snap_by_id = {str(t["id"]): t for t in snapshot.get("topics") or []}
+        for topic in original.get("topics") or []:
+            snap_topic = snap_by_id.get(str(topic["id"]))
+            if snap_topic is not None:
+                topic["content"] = copy.deepcopy(snap_topic["content"])
+        applied_total += int(applied or 0)
+        _log(
+            f"[QUALITY-GATE] {stage} {done}/{total} complete "
+            f"({original['title']})."
+        )
+        on_complete(done, total, original)
+    return applied_total
+
 
 def generate_classroom_code():
     return "".join([str(random.randint(0, 9)) for _ in range(5)])
@@ -995,7 +1053,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
 
     def _review_rationales(unit):
         return Q.review_unit_mcq_rationales(
-            unit_title=unit["title"], topics=unit["lessons"],
+            unit_title=unit["title"], topics=unit["topics"],
             language=language, level=level, track=material_language,
             budget=budget,
         )
@@ -1006,7 +1064,11 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             language=language, level=level, budget=budget,
         )
 
-    _log("[QUALITY-GATE] lesson review running serially with fail-fast unit boundaries.")
+    review_workers = max(1, min(3, int(os.getenv("QUALITY_REVIEW_WORKERS", "3"))))
+    _log(
+        f"[QUALITY-GATE] lesson review running with {review_workers} isolated "
+        f"unit snapshot worker(s); merge remains serial."
+    )
 
     def _lesson_complete(done, total, unit):
         with db_connection() as db:
@@ -1016,12 +1078,13 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
             )
             db.commit()
 
-    lesson_patches += _run_quality_units_serially(
+    lesson_patches += _run_quality_units_parallel_snapshots(
         units=units,
         reviewer=_review_lessons,
         stage="lesson review",
         on_complete=_lesson_complete,
         quality_error_cls=Q.QualityGateError,
+        max_workers=review_workers,
     )
     _log(
         f"[QUALITY-BUDGET] after lessons spent=${budget.spent:.4f}; "
@@ -1029,48 +1092,48 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     )
 
     risk_patches = 0
-    _log("[QUALITY-GATE] pedagogical-risk review running serially.")
-    risk_patches += _run_quality_units_serially(
+    _log(
+        f"[QUALITY-GATE] pedagogical-risk review running with {review_workers} "
+        f"isolated unit snapshot worker(s)."
+    )
+    risk_patches += _run_quality_units_parallel_snapshots(
         units=units,
         reviewer=_review_risks,
         stage="risk review",
         on_complete=lambda done, total, unit: None,
         quality_error_cls=Q.QualityGateError,
+        max_workers=review_workers,
     )
     _log(
         f"[QUALITY-BUDGET] after risk review spent=${budget.spent:.4f}; "
         f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
     )
 
-    rationale_patches = 0
-    _log("[QUALITY-GATE] lesson rationale grounding review running serially.")
-    rationale_patches += _run_quality_units_serially(
-        units=units,
-        reviewer=_review_rationales,
-        stage="rationale grounding review",
-        on_complete=lambda done, total, unit: None,
-        quality_error_cls=Q.QualityGateError,
-    )
-
     complex_notation_patches = 0
-    _log("[QUALITY-GATE] complex pronunciation review running serially.")
-    complex_notation_patches += _run_quality_units_serially(
+    _log(
+        f"[QUALITY-GATE] complex pronunciation review running with "
+        f"{review_workers} isolated unit snapshot worker(s)."
+    )
+    complex_notation_patches += _run_quality_units_parallel_snapshots(
         units=units,
         reviewer=_review_complex_notation,
         stage="complex pronunciation review",
         on_complete=lambda done, total, unit: None,
         quality_error_cls=Q.QualityGateError,
+        max_workers=review_workers,
     )
     _log(
-        f"[QUALITY-BUDGET] after rationale/notation review spent=${budget.spent:.4f}; "
+        f"[QUALITY-BUDGET] after notation review spent=${budget.spent:.4f}; "
         f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
     )
 
     # Assessment payloads are the largest review calls. Run them one at a time:
     # concurrent worst-case budget reservations can reject a healthy third unit
     # even though the first two calls release their reservations seconds later.
-    assessment_workers = 1
-    _log("[QUALITY-GATE] assessment review running serially with fail-fast unit boundaries.")
+    _log(
+        "[QUALITY-GATE] assessment review remains serial to preserve worst-case "
+        "budget headroom for its large structured payloads."
+    )
 
     def _assessment_complete(done, total, unit):
         with db_connection() as db:
@@ -1089,6 +1152,28 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     )
     _log(
         f"[QUALITY-BUDGET] after assessments spent=${budget.spent:.4f}; "
+        f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
+    )
+
+    # Ground rationales after assessment editing so the answer key is checked
+    # against the final stem/options state. One unit call covers both lesson and
+    # assessment MCQs; this widens coverage without adding calls versus the old
+    # lesson-only rationale stage.
+    rationale_patches = 0
+    _log(
+        f"[QUALITY-GATE] lesson + assessment rationale grounding running with "
+        f"{review_workers} isolated unit snapshot worker(s)."
+    )
+    rationale_patches += _run_quality_units_parallel_snapshots(
+        units=units,
+        reviewer=_review_rationales,
+        stage="rationale grounding review",
+        on_complete=lambda done, total, unit: None,
+        quality_error_cls=Q.QualityGateError,
+        max_workers=review_workers,
+    )
+    _log(
+        f"[QUALITY-BUDGET] after rationale grounding spent=${budget.spent:.4f}; "
         f"remaining=${max(0.0, budget.ceiling - budget.spent):.4f}"
     )
 
