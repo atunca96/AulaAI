@@ -262,6 +262,43 @@ _BATCH_CATEGORICAL_REVIEW_SCHEMA = {
     "required": ["results"],
 }
 
+_MISSING_TRANSCRIPTION_REPAIR_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "rows": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "row_id": {"type": "string"},
+                    "phonetic": {"type": "string", "minLength": 1},
+                },
+                "required": ["row_id", "phonetic"],
+            },
+        },
+    },
+    "required": ["rows"],
+}
+
+_MISSING_TRANSCRIPTION_REPAIR_SYSTEM = """You fill ONLY missing IPA cells in one
+learner-visible pronunciation table.
+
+For every supplied row, transcribe the exact written term in the declared
+language and regional variety. Return one IPA value per row_id. Do not respell,
+translate, omit, merge or add rows. Preserve the table's existing bracket style
+when one is visible.
+
+Return JSON only:
+{"rows":[{"row_id":"m0","phonetic":"[...IPA...]"}]}
+
+Contract:
+- Return every supplied row_id exactly once and no others.
+- phonetic must be a complete IPA transcription of that exact term.
+- Do not return explanations or alternatives.
+"""
+
 _DIGIT_NOTATION_VERIFY_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -2685,6 +2722,90 @@ def _repair_mcq_structural_blockers(*, topic: Dict[str, Any], language: str,
     return applied
 
 
+def _repair_partial_transcription_columns(*, topic: Dict[str, Any],
+                                          language: str, level: str,
+                                          budget: ReviewBudget,
+                                          blockers: Sequence[A.Finding]) -> int:
+    """Fill missing IPA cells atomically; never delete a partially useful column."""
+    content = topic.get("content")
+    if not isinstance(content, dict):
+        return 0
+    profile = S.profile_for_language(language)
+    applied = 0
+    for finding in blockers:
+        if getattr(finding, "code", "") != "partial_transcription_column":
+            continue
+        prefix = _finding_path_prefix(getattr(finding, "path", ""))
+        try:
+            rows = _get_path(content, prefix)
+        except Exception:
+            rows = None
+        if not isinstance(rows, list):
+            raise QualityGateError(
+                f"{topic.get('title')}: partial transcription container is not addressable"
+            )
+        missing = []
+        bracketed = False
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict):
+                continue
+            term = str(row.get("term") or row.get("word") or row.get("target") or "").strip()
+            if not term:
+                continue
+            current = str(row.get("phonetic") or "").strip()
+            if current:
+                bracketed = bracketed or (
+                    (current.startswith("[") and current.endswith("]"))
+                    or (current.startswith("/") and current.endswith("/"))
+                )
+                continue
+            missing.append({"row_id": f"m{index}", "index": index, "term": term})
+        if not missing:
+            continue
+        data = _call_review(
+            model=REPAIR_MODEL,
+            system=_MISSING_TRANSCRIPTION_REPAIR_SYSTEM,
+            payload={
+                "language": language,
+                "level": level,
+                "regional_variety": profile.variety if profile else "",
+                "bracketed_style_present": bracketed,
+                "rows": [{"row_id": r["row_id"], "term": r["term"]} for r in missing],
+            },
+            max_tokens=max(500, 180 * len(missing)),
+            effort="low",
+            budget=budget,
+            stage=f"review_missing_transcriptions:{topic.get('title')}",
+            response_schema=_MISSING_TRANSCRIPTION_REPAIR_SCHEMA,
+            response_name="missing_transcription_repair",
+        )
+        returned = data.get("rows") or []
+        expected = {r["row_id"] for r in missing}
+        got = {
+            str(r.get("row_id") or "") for r in returned if isinstance(r, dict)
+        }
+        if got != expected or len(returned) != len(missing):
+            raise QualityGateError(
+                f"{topic.get('title')}: missing-transcription coverage mismatch"
+            )
+        by_id = {r["row_id"]: r for r in missing}
+        for row in returned:
+            row_id = str(row.get("row_id") or "")
+            phonetic = row.get("phonetic")
+            if not isinstance(phonetic, str) or not phonetic.strip():
+                raise QualityGateError(
+                    f"{topic.get('title')}: empty IPA for {row_id}"
+                )
+            target = rows[by_id[row_id]["index"]]
+            if str(target.get("phonetic") or "").strip():
+                raise QualityGateError(
+                    f"{topic.get('title')}: missing IPA row changed concurrently"
+                )
+            target["phonetic"] = phonetic.strip()
+            applied += 1
+    return applied
+
+
 def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                                    language: str, level: str, track: str,
                                    budget: ReviewBudget) -> int:
@@ -2713,6 +2834,21 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
             )
             if not blockers:
                 continue
+
+            # Missing IPA cells are structural: the generic patcher cannot
+            # patch a field that does not yet exist. Fill only the missing cells,
+            # then re-audit before any broad semantic review.
+            if any(f.code == "partial_transcription_column" for f in blockers):
+                applied += _repair_partial_transcription_columns(
+                    topic=topic, language=language, level=level,
+                    budget=budget, blockers=blockers,
+                )
+                R.repair_lesson(content, language=language)
+                blockers = A.blocking(
+                    _audit_topic(topic, language=language, track=track)
+                )
+                if not blockers:
+                    continue
 
             # MCQ option-set defects are structural, not editorial: they live in
             # three fields that must agree, and distractor_count resolves to no
