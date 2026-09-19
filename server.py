@@ -5379,7 +5379,10 @@ def main():
         init_db()
         _cleanup_orphaned_building_flags()
         _repair_german_corruption()
-        _resume_nonterminal_publication_repairs()
+        if os.getenv("AULAAI_RAW_BENCHMARK", "").strip().lower() in ("1", "true", "on", "yes"):
+            print("[RAW-BENCHMARK] startup publication self-heal disabled")
+        else:
+            _resume_nonterminal_publication_repairs()
         
         server = RobustServer(("0.0.0.0", PORT), APIHandler)
         server.daemon_threads = True
