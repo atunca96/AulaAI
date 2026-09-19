@@ -36,8 +36,8 @@ topic = {
                 "answer": "madre",
                 "options": ["madre", "padre", "hermano", "abuela"],
                 "distractors": ["padre", "hermano", "abuela"],
-                "explanation": "The prompt asks for a «miembro de la familia»; the keyed term «madre» is that family member.",
-                "explanation_tr": "Soru bir «miembro de la familia» ister; işaretli terim «madre»dir.",
+                "explanation": "Unlike the visible alternatives «padre» and «hermano», the keyed family term is «madre».",
+                "explanation_tr": "Görünür «padre» ve «hermano» seçeneklerinden farklı olarak işaretli aile terimi «madre»dir.",
             },
         ]
     },
