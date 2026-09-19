@@ -1130,6 +1130,7 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
     # Assessment payloads are the largest review calls. Run them one at a time:
     # concurrent worst-case budget reservations can reject a healthy third unit
     # even though the first two calls release their reservations seconds later.
+    assessment_workers = 1  # hard invariant: large assessment reservations stay serial
     _log(
         "[QUALITY-GATE] assessment review remains serial to preserve worst-case "
         "budget headroom for its large structured payloads."
