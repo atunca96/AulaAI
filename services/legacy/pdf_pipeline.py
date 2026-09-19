@@ -689,8 +689,9 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         # are adversarially checked, and deterministic publication integrity verifies rules,
         # IPA and MCQs. A failed/incomplete review aborts publication rather
         # than silently shipping a classroom we did not actually verify.
-        _run_publication_quality_gate(
-            course_id, language, level, material_language, gen_id=gen_id
+        certified = _run_publication_until_ready(
+            course_id, language, level, material_language,
+            gen_id=gen_id, progress=topic_count, total_steps=topic_count,
         )
 
         _log(f"Phase 2 Complete for {course_id}.")
@@ -700,15 +701,10 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             except Exception as cost_err:
                 _log(f"Cost summary unavailable: {cost_err}")
         _log("Bilingual post-processor disabled: using persisted bilingual lesson fields from the AI engine.")
-        # Passing the gate above is necessary but not sufficient: it proved the
-        # in-memory reviewed objects, and what the learner receives is whatever
-        # the persist step actually wrote. `mark_ready` re-reads those rows and
-        # proves the invariants again before the classroom becomes exportable,
-        # so the certified state and the stored state cannot be different
-        # things. It is also the only writer of the ready state.
-        from services.authoring import publication_state as PS
-        certified = PS.mark_ready(course_id, gen_id, progress=topic_count,
-                                  total_steps=topic_count)
+        # _run_publication_until_ready does not return until the persisted rows
+        # themselves pass the publication proof and mark_ready succeeds. A
+        # content refusal is therefore internal retry feedback, not a terminal
+        # user-visible state.
         _log(f"[PUBLICATION] READY certified from persisted rows: "
              f"topics={certified['topics']} mcqs={certified['mcqs']} "
              f"unit_assessment_questions={certified['unit_assessment_questions']}")
@@ -843,6 +839,125 @@ Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".
     if filled:
         bump_version()
     return filled
+
+
+
+def _run_publication_until_ready(course_id, language, level, material_language,
+                                 gen_id=None, progress=None, total_steps=None):
+    """Keep publication refusals inside the machine until the classroom passes.
+
+    A QualityGateError is not a product state. It is validator feedback for the
+    next repair attempt. The exact exception text — the same text that used to
+    become `Publication refused: ...` — is fed verbatim into the next targeted
+    repair prompt. The user only sees an in-progress quality-review state.
+
+    This loop intentionally has no content-retry ceiling. Every candidate still
+    has to pass the unchanged quality gate and the persisted-row proof before
+    READY, so persistence/retry replaces terminal refusal without weakening any
+    validator.
+    """
+    from services.authoring import quality_gate as Q
+    from services.authoring import publication_state as PS
+
+    retry_attempt = 0
+    while True:
+        try:
+            _run_publication_quality_gate(
+                course_id, language, level, material_language, gen_id=gen_id
+            )
+
+            # Do the persisted proof BEFORE mark_ready. mark_ready records a
+            # refusal as build_stage='failed' on exception; proving first keeps
+            # transient repairable content failures invisible to the user.
+            PS.verify_publishable(course_id)
+            return PS.mark_ready(
+                course_id, gen_id, progress=progress, total_steps=total_steps
+            )
+
+        except (Q.QualityGateError, PS.NotPublishable) as failure:
+            retry_attempt += 1
+            publication_error = str(failure)
+            _log(
+                f"[QUALITY-SELF-HEAL] retry {retry_attempt} intercepted "
+                f"publication refusal: {publication_error}"
+            )
+
+            # Never surface the refusal in the course card. Logs retain the full
+            # diagnostic; the UI only reports that quality repair is continuing.
+            with db_connection() as db:
+                db.execute(
+                    "UPDATE courses SET is_building=1, build_stage='quality_review', "
+                    "build_message=? WHERE id=? AND "
+                    "(generation_id=? OR generation_id IS NULL OR ?='LEGACY')",
+                    (
+                        f"Quality review: automatic repair retry {retry_attempt}",
+                        course_id, gen_id, gen_id,
+                    ),
+                )
+                db.commit()
+            bump_version()
+
+            try:
+                units = PS.load_persisted_units(course_id)
+                # Fresh bounded budget per feedback attempt. The outer retry is
+                # unbounded; a single bad provider response cannot reserve an
+                # unbounded amount at once.
+                feedback_budget = Q.ReviewBudget(
+                    float(os.getenv("QUALITY_SELF_HEAL_ATTEMPT_BUDGET", "0.18"))
+                )
+                changed = Q.repair_publication_refusal_feedback(
+                    units=units,
+                    language=language,
+                    level=level,
+                    track=material_language,
+                    publication_error=publication_error,
+                    retry_attempt=retry_attempt,
+                    budget=feedback_budget,
+                )
+
+                if changed:
+                    with db_connection() as db:
+                        for unit in units:
+                            for topic in unit.get("topics") or []:
+                                db.execute(
+                                    "UPDATE topics SET content=? WHERE id=?",
+                                    (
+                                        json.dumps(
+                                            topic.get("content") or {},
+                                            ensure_ascii=False,
+                                        ),
+                                        topic.get("id"),
+                                    ),
+                                )
+                        db.commit()
+                    bump_version()
+                    _log(
+                        f"[QUALITY-SELF-HEAL] retry {retry_attempt} persisted "
+                        f"{changed} feedback-driven patch(es); rerunning the "
+                        f"full publication proof."
+                    )
+                else:
+                    _log(
+                        f"[QUALITY-SELF-HEAL] retry {retry_attempt} produced no "
+                        f"safe patch; the next attempt will receive the same "
+                        f"authoritative refusal plus a new retry ordinal."
+                    )
+
+            except Q.QualityGateError as retry_failure:
+                # Provider/schema/budget failures during the repair prompt are
+                # retry transport failures, not publication verdicts.
+                _log(
+                    f"[QUALITY-SELF-HEAL] retry {retry_attempt} repair call "
+                    f"did not complete: {retry_failure}"
+                )
+            except PS.NotPublishable as retry_failure:
+                _log(
+                    f"[QUALITY-SELF-HEAL] retry {retry_attempt} could not load "
+                    f"a publishable-shaped snapshot yet: {retry_failure}"
+                )
+
+            # Avoid a hot spin if the provider repeatedly gives no usable patch.
+            time.sleep(min(5.0, 0.35 * retry_attempt))
 
 
 def _run_publication_quality_gate(course_id, language, level, material_language, gen_id=None,
