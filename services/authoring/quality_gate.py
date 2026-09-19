@@ -1914,6 +1914,10 @@ def _ungrounded_explanation_names(page: Any) -> List[str]:
         return []
 
     per_locale = []
+    roman_label = re.compile(
+        r"\\b([^\\W\\d_]+)\\s+(?:I|II|III|IV|V|VI|VII|VIII|IX|X)\\b",
+        re.UNICODE,
+    )
     for keys in (_NAME_GENDER_EN_KEYS, _NAME_GENDER_TR_KEYS):
         found: set = set()
         present = False
@@ -1923,11 +1927,20 @@ def _ungrounded_explanation_names(page: Any) -> List[str]:
                 continue
             present = True
             quoted = RC._quoted_common_tokens(text)
+            # Grammar labels such as "Konjunktiv II" are deliberately shared
+            # across locale rationales and capitalized, but they are not people.
+            # Treat only the label token as grammatical evidence; this remains
+            # lexicon-free and does not weaken ordinary personal-name detection.
+            grammar_labels = {
+                RC._fold(match.group(1))
+                for match in roman_label.finditer(text)
+                if match.group(1)
+            }
             for raw in RC._WORD_TOKEN.findall(text):
                 if len(raw) < 3 or not raw[:1].isupper() or raw.isupper():
                     continue
                 folded = RC._fold(raw)
-                if folded and folded not in quoted:
+                if folded and folded not in quoted and folded not in grammar_labels:
                     found.add(folded)
         if present:
             per_locale.append(found)
