@@ -1207,11 +1207,18 @@ Review EVERY supplied topic. Be adversarial and conservative. Check:
 - every absolute pedagogical claim containing meanings such as always, never,
   every, only, must or impossible. Keep it absolute only if it is genuinely
   exceptionless in the declared standard variety; otherwise scope it precisely;
-- lesson MCQs for exactly one defensible answer and plausible distractors;
+- lesson MCQs for exactly one defensible answer and high-quality distractors.
+  Distractors must be plausible learner errors from the SAME tested semantic or
+  grammatical space, similar enough in form/function to require knowledge rather
+  than elimination by obvious category mismatch, absurdity or malformed language;
 - every stored answer-key rationale must justify the keyed answer from evidence
   visible in that question or from the grammatical/lexical fact directly tested
-  there. Never introduce a person, situation, grammatical subject or fact that
-  is absent from the item merely to make the explanation sound concrete;
+  there. The rationale must state the specific discriminating rule, form or
+  learner-visible evidence that makes the keyed answer correct; generic statements
+  such as "it matches the rule", "the material says so", "this is correct" or
+  equivalent low-information paraphrases are not publication quality. Never
+  introduce a person, situation, grammatical subject or fact that is absent from
+  the item merely to make the explanation sound concrete;
 - translations and instructional prose must be idiomatic in their own language,
   not literal fragments or awkward calques. Correct genuine naturalness defects,
   but do not perform cosmetic rewrites;
@@ -1297,8 +1304,12 @@ counterexample before accepting it. Scope consistency inside one lesson is
 mandatory: if a nearby claim about the same form/category says "many", "most",
 "usually", "often" or otherwise names exceptions/subclasses, a second statement
 must not silently broaden that same category to ALL members. Narrow the broader
-statement unless the broader claim is genuinely universal. This applies
-language-agnostically to morphology, spelling, pronunciation, syntax and usage.
+statement unless the broader claim is genuinely universal. This applies language-agnostically to morphology, spelling, pronunciation,
+phonology, connected-speech claims, syntax and usage. For pronunciation claims,
+distinguish pedagogical tendencies from exceptionless phonological rules: dialect,
+speech rate, prosodic position, emphasis and careful-vs-casual speech can matter.
+Do not allow "always/never/every" wording unless the declared standard variety
+really licenses an exceptionless statement.
 
 Preserve CEFR level and meaning. If one correction has paired English/Turkish fields,
 patch both so they remain semantically equivalent.
@@ -1436,7 +1447,9 @@ For every question check:
   wording (the classic failure is asking which h is silent when every option's
   h is silent);
 - the stem is grammatical, natural, unambiguous and CEFR-appropriate;
-- distractors are plausible learner errors, not nonsense giveaways;
+- distractors are plausible learner errors from the SAME tested semantic or
+  grammatical space, not nonsense giveaways, unrelated categories, obviously
+  malformed forms or choices removable without knowing the taught distinction;
 - the item tests taught material and does not require outside knowledge;
 - if the payload contains render_contract_blockers, EVERY listed blocker is mandatory:
   repair that question so its answer follows only from facts explicitly stated in the stem
@@ -1445,8 +1458,12 @@ For every question check:
 - compare each assessment item with ALL lesson MCQs/evidence in the unit. A repeated
   or paraphrased question may never contradict the answer taught earlier. If the
   same fact was asked earlier, preserve the taught fact and repair the assessment;
-- check the answer explanation too: an answer key that contradicts the lesson is
-  a blocking factual defect even when the options are structurally valid.
+- check the answer explanation too: it must state the specific discriminating
+  evidence/rule/form that makes the keyed answer correct. Generic rationales such
+  as "it matches the rule", "the material says so", "this is the correct answer"
+  or equivalent low-information restatements are a quality defect and must be
+  repaired. An answer key that contradicts the lesson is a blocking factual defect
+  even when the options are structurally valid.
 
 Return JSON only:
 {"checked_questions":[1,2,3,4,5,6,7,8,9,10],
@@ -3665,22 +3682,40 @@ def _digit_notation_requires_escalation(term: str, value: str) -> bool:
     return digit_count >= 4 or len(digit_groups) >= 2
 
 
-def _risk_review_records(content: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _risk_review_records(content: Dict[str, Any], *,
+                         topic_type: str = "") -> List[Dict[str, Any]]:
     """Compact learner-visible claims that deserve a dedicated factual pass.
 
-    Grammar/theory page prose is itself a pedagogical rule surface even when it
-    contains no obvious absolute keyword. Include those text/explanation fields
-    so broad category claims such as "X does not depend on Y" cannot bypass the
-    risk reviewer merely because they were authored as prose instead of a rule.
+    Grammar/theory AND pronunciation/phonology prose are pedagogical rule
+    surfaces even when no obvious absolute keyword is present. Pronunciation
+    topics are especially vulnerable to textbook-sounding universals about
+    connected speech, allophony and register, so their explanatory prose must
+    receive the same counterexample/scope review as grammar.
     """
     pages = content.get("pages") if isinstance(content, dict) else None
     risk_page_indexes = set()
+    topic_kind = str(topic_type or "").strip().casefold()
+    pronunciation_topic = topic_kind in {
+        "phonetic", "phonetics", "phonology", "pronunciation"
+    }
     if isinstance(pages, list):
         for index, page in enumerate(pages):
             if not isinstance(page, dict):
                 continue
             ptype = str(page.get("type") or "").strip().casefold()
-            if ptype in ("grammar", "theory"):
+            pronunciation_page = ptype in {
+                "phonetic", "phonetics", "phonology", "pronunciation"
+            }
+            has_notation_surface = any(
+                str(rec.get("field") or "") in _NOTATION_FIELDS
+                for rec in _review_records(page)
+            )
+            if (
+                ptype in ("grammar", "theory")
+                or pronunciation_topic
+                or pronunciation_page
+                or has_notation_surface
+            ):
                 risk_page_indexes.add(index)
 
     out: List[Dict[str, Any]] = []
@@ -3736,7 +3771,9 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
         if topic.get(_RISK_REVIEW_DONE_KEY):
             continue
 
-        records = _risk_review_records(topic.get("content") or {})
+        records = _risk_review_records(
+            topic.get("content") or {}, topic_type=str(topic.get("type") or "")
+        )
         if not records:
             # Nothing in this topic makes a pedagogical claim worth verifying.
             # The selector stays the authority on that; no call is made.
@@ -3861,7 +3898,9 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
         # narrow, server-selected class: an absolute claim with a strongly
         # overlapping same-page sibling. This catches likely scope
         # contradictions without opening one model call per absolute sentence.
-        current_records = _risk_review_records(topic.get("content") or {})
+        current_records = _risk_review_records(
+            topic.get("content") or {}, topic_type=str(topic.get("type") or "")
+        )
         for exact_index, rec in enumerate(current_records):
             value = rec.get("value")
             if not (isinstance(value, str) and _ABSOLUTE_RISK_RE.search(value)):
@@ -3944,7 +3983,9 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             budget=budget, unit_title=unit_title,
         )
 
-        final_records = _risk_review_records(topic.get("content") or {})
+        final_records = _risk_review_records(
+            topic.get("content") or {}, topic_type=str(topic.get("type") or "")
+        )
         if final_records:
             final_risk_payload = {
                 "language": language,
