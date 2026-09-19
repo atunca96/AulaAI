@@ -1997,7 +1997,39 @@ def _ungrounded_explanation_names(page: Any) -> List[str]:
         return []
 
     visible = _visible_evidence_tokens(page)
-    return sorted(t for t in set.intersection(*per_locale) if t not in visible)
+    candidates = set.intersection(*per_locale) - visible
+
+    # Cross-locale capitalization is only a candidate generator, not sufficient
+    # evidence that a token names a person. German pedagogical labels such as
+    # Präteritum, Plusquamperfekt and Perfekt are routinely preserved verbatim
+    # in both English and Turkish explanations. Treat a candidate as a
+    # deterministic invented-person blocker only when the sentence containing
+    # it also carries a high-confidence human/identity cue. Lower-confidence
+    # scenario invention is still covered by the independent semantic rationale
+    # reviewer, so this narrows a noisy duplicate detector without removing a
+    # quality check.
+    grounded_people: set = set()
+    for key in tuple(dict.fromkeys(_NAME_GENDER_EN_KEYS + _NAME_GENDER_TR_KEYS)):
+        value = page.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        for statement in RC._STATEMENT_SPLIT.split(value):
+            folded_statement = RC._fold(statement)
+            tokens = set(RC._WORD_TOKEN.findall(folded_statement))
+            hits = candidates & tokens
+            if not hits:
+                continue
+            human_cue = (
+                bool(RC._V57_GENDER_WORDS.search(folded_statement))
+                or any(noun in folded_statement for noun in RC._V57_GENDER_NOUNS)
+                or bool(RC._V57_NAME_WORDS.search(folded_statement))
+                or bool(RC._V57_IDENTITY.search(folded_statement))
+                or RC._has_biography_marker(folded_statement, RC._V57_BIOGRAPHY)
+            )
+            if human_cue:
+                grounded_people.update(hits)
+
+    return sorted(grounded_people)
 
 
 def _rationale_has_specific_evidence(page: Any) -> bool:
