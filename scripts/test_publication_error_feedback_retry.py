@@ -211,7 +211,7 @@ print("[PUBLICATION-FEEDBACK] outer publication loop has no content-retry ceilin
 # loop. That legacy bypass was the production path that still surfaced
 # "Publication refused: ..." after the loop itself had been fixed.
 import server as S  # noqa: E402
-server_source = inspect.getsource(S.AulaHandler._retry_classroom_publication)
+server_source = inspect.getsource(S.APIHandler._retry_classroom_publication)
 assert "_run_publication_until_ready" in server_source
 assert "_run_publication_quality_gate" not in server_source
 assert "PS.mark_failed(" not in server_source
