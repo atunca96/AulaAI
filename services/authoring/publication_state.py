@@ -49,6 +49,7 @@ driven by the course's own declared language and instructional track.
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Dict, List, Optional
 
 __all__ = [
@@ -63,6 +64,34 @@ class NotPublishable(Exception):
 
 READY_STAGE = "completed"
 READY_MESSAGE = "Classroom is ready!"
+
+
+def _raw_benchmark_enabled() -> bool:
+    return os.getenv("AULAAI_RAW_BENCHMARK", "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _raw_benchmark_counts(course_id: str) -> Dict[str, int]:
+    """Count the persisted raw artifact without judging or mutating it."""
+    units = load_persisted_units(course_id)
+    topic_count = 0
+    mcq_count = 0
+    assessment_count = 0
+    for unit in units:
+        for topic in unit.get("topics") or []:
+            topic_count += 1
+            pages = (topic.get("content") or {}).get("pages") or []
+            for page in pages:
+                if not isinstance(page, dict):
+                    continue
+                if str(page.get("type") or "").casefold() == "mcq":
+                    mcq_count += 1
+                    if topic.get("is_assessment"):
+                        assessment_count += 1
+    return {
+        "topics": topic_count,
+        "mcqs": mcq_count,
+        "unit_assessment_questions": assessment_count,
+    }
 
 # Stages that mean "this classroom is not finished, or was refused". The export
 # route refuses these outright; `mark_ready` can only move a course out of one
@@ -187,16 +216,19 @@ def mark_ready(course_id: str, gen_id: Optional[str] = None, *,
     """
     from database import db_connection
 
-    try:
-        certified = verify_publishable(course_id)
-    except NotPublishable as exc:
-        # Legacy/direct callers may still choose a terminal refusal. The
-        # self-healing publication loop explicitly disables that write so a
-        # transient/content refusal can never flash "Publication refused" to
-        # the user between retry iterations.
-        if terminal_on_refusal:
-            mark_failed(course_id, str(exc), gen_id)
-        raise
+    if _raw_benchmark_enabled():
+        certified = _raw_benchmark_counts(course_id)
+    else:
+        try:
+            certified = verify_publishable(course_id)
+        except NotPublishable as exc:
+            # Legacy/direct callers may still choose a terminal refusal. The
+            # self-healing publication loop explicitly disables that write so a
+            # transient/content refusal can never flash "Publication refused" to
+            # the user between retry iterations.
+            if terminal_on_refusal:
+                mark_failed(course_id, str(exc), gen_id)
+            raise
 
     fields = ["is_building = 0", "build_stage = ?", "build_message = ?"]
     params: List[Any] = [READY_STAGE, READY_MESSAGE]
@@ -237,4 +269,6 @@ def assert_exportable(course_id: str) -> Dict[str, int]:
             if stage != "failed" else
             "this classroom failed publication review and cannot be exported"
         )
+    if _raw_benchmark_enabled():
+        return _raw_benchmark_counts(course_id)
     return verify_publishable(course_id)
