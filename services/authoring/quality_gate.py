@@ -530,11 +530,13 @@ def _sentence_camel_corruption_cleaner(a: Any, b: Any) -> Optional[str]:
     return b if ah else a
 
 
-def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[Any]) -> int:
+def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[Any],
+                   notation_conflicts: Optional[List[Dict[str, Any]]] = None) -> int:
     # Normalize duplicates before mutating content, so an ambiguous first
     # proposal cannot be written and then make the concrete duplicate stale.
     normalized: List[Any] = []
     index_by_marker: Dict[Tuple[str, str], int] = {}
+    deferred_notation: Dict[Tuple[str, str], Dict[str, Any]] = {}
     for raw in patches or []:
         if not isinstance(raw, dict):
             normalized.append(raw)
@@ -551,6 +553,11 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
             normalized.append(raw)
             continue
         marker = (topic_id, json.dumps(coerced, ensure_ascii=False))
+        if marker in deferred_notation:
+            value = raw.get("value")
+            if isinstance(value, str) and value.strip() and                     value not in deferred_notation[marker]["candidates"]:
+                deferred_notation[marker]["candidates"].append(value)
+            continue
         if marker not in index_by_marker:
             index_by_marker[marker] = len(normalized)
             normalized.append(raw)
@@ -585,9 +592,37 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
                     normalized[prev_i] = raw
                 # else previous already is the clean concrete candidate.
                 continue
+
+        # Pronunciation fields are judged linguistically later. Two different
+        # reviewer proposals for the same exact notation path are not a reason
+        # to abandon the classroom: neither proposal is authoritative yet.
+        # Defer the untouched path and all candidates to the narrow pronunciation
+        # arbiter. Other semantic-field conflicts remain fail-closed.
+        if coerced and str(coerced[-1]) in _NOTATION_FIELDS and                 notation_conflicts is not None:
+            current = _get_path(content, coerced)
+            entry = {
+                "topic_id": topic_id,
+                "path": list(coerced),
+                "current": current,
+                "candidates": [
+                    value for value in (prev_value, new_value)
+                    if isinstance(value, str) and value.strip()
+                ],
+            }
+            entry["candidates"] = list(dict.fromkeys(entry["candidates"]))
+            deferred_notation[marker] = entry
+            notation_conflicts.append(entry)
+            normalized[prev_i] = None
+            print(
+                f"[QUALITY-PATCH] DEFER notation conflict at {topic_id} "
+                f"{list(coerced)!r} -> pronunciation arbiter",
+                flush=True,
+            )
+            continue
+
         normalized.append(raw)
 
-    patches = normalized
+    patches = [raw for raw in normalized if raw is not None]
     # Structured reviewers occasionally emit the same exact patch path twice in
     # one response (commonly when bilingual/dialogue checks converge on the same
     # learner-visible field). Identical duplicate proposals are harmless and
@@ -718,6 +753,84 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
             continue
         _set_path(content, path, proposed, old=old)
         applied += 1
+    return applied
+
+
+def _repair_notation_patch_conflicts(*, topics_by_id: Dict[str, Dict[str, Any]],
+                                      conflicts: Sequence[Dict[str, Any]],
+                                      language: str, level: str,
+                                      budget: ReviewBudget) -> int:
+    """Resolve reviewer disagreement on one exact pronunciation field.
+
+    Broad semantic review is advisory for notation. When it proposes two
+    different transcriptions for one path, keep the canonical content untouched
+    and ask the existing pronunciation arbiter to choose one linguistically.
+    """
+    profile = S.profile_for_language(language)
+    applied = 0
+    for conflict in conflicts or []:
+        topic_id = str(conflict.get("topic_id") or "")
+        topic = topics_by_id.get(topic_id)
+        path = conflict.get("path")
+        if not topic or not isinstance(path, list) or not path:
+            continue
+        content = topic.get("content")
+        if not isinstance(content, dict):
+            continue
+        path = _coerce_patch_path(content, path)
+        current = _get_path(content, path)
+
+        parent = content
+        for part in path[:-1]:
+            parent = parent[part]
+        term = ""
+        if isinstance(parent, dict):
+            term = str(
+                parent.get("term") or parent.get("word") or
+                parent.get("target") or parent.get("example") or ""
+            ).strip()
+        if not term:
+            term = str(topic.get("title") or "pronunciation item")
+
+        candidates = []
+        for value in [current] + list(conflict.get("candidates") or []):
+            if isinstance(value, str) and value.strip() and value.strip() not in candidates:
+                candidates.append(value.strip())
+        if len(candidates) < 2:
+            continue
+
+        data = _call_review(
+            model=REPAIR_MODEL,
+            system=_EXACT_PHONETIC_CONFLICT_REPAIR_SYSTEM,
+            payload={
+                "language": language,
+                "level": level,
+                "regional_variety": profile.variety if profile else "",
+                "term": term,
+                "candidates": candidates,
+                "occurrences": [{
+                    "topic": str(topic.get("title") or ""),
+                    "field": str(path[-1]),
+                    "current_value": str(current or ""),
+                }],
+            },
+            max_tokens=500,
+            effort="low",
+            budget=budget,
+            stage=f"review_notation_conflict:{topic.get('title')}:{'.'.join(map(str, path))}",
+            response_schema=_EXACT_TARGET_REPAIR_SCHEMA,
+            response_name="notation_patch_conflict_repair",
+        )
+        replacement = data.get("value")
+        if not isinstance(replacement, str) or not replacement.strip():
+            raise QualityGateError(
+                f"{topic.get('title')}: notation conflict repair returned empty value "
+                f"for {path!r}"
+            )
+        replacement = replacement.strip()
+        if replacement != current:
+            _set_path(content, path, replacement, old=current)
+            applied += 1
     return applied
 
 
@@ -2848,7 +2961,18 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 )
             patch["topic_id"] = row_topic_id
             patches.append(patch)
-        applied += _apply_patches(by_id, patches)
+        notation_conflicts: List[Dict[str, Any]] = []
+        applied += _apply_patches(
+            by_id, patches, notation_conflicts=notation_conflicts
+        )
+        if notation_conflicts:
+            applied += _repair_notation_patch_conflicts(
+                topics_by_id=by_id,
+                conflicts=notation_conflicts,
+                language=language,
+                level=level,
+                budget=budget,
+            )
 
         # Everything the broad editor did not cure goes to the bounded
         # convergence controller: detect the exact blocker, dispatch it to the
