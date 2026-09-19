@@ -470,6 +470,64 @@ def test_gemini_can_fill_a_missing_bilingual_counterpart():
           "Gemini can repair the missing bilingual field without inventing structure")
 
 
+def test_review_attestation_cache_is_exact_and_fail_safe():
+    print("\n[Q9] semantic review attestation cache is exact-input only")
+    import os
+    import tempfile
+
+    old_db = Q._REVIEW_ATTEST_DB
+    with tempfile.TemporaryDirectory() as td:
+        Q._REVIEW_ATTEST_DB = os.path.join(td, "attest.sqlite3")
+        payload = {"language": "Spanish", "records": [{"value": "hola"}]}
+        schema = {"type": "object"}
+
+        key = Q._review_attestation_key(
+            kind="lesson_broad", model="model-a", system="system-a",
+            payload=payload, response_schema=schema, response_name="review",
+        )
+        check(not Q._review_attestation_has(key),
+              "an unseen semantic state is a cache miss")
+        Q._review_attestation_store(key, stage="test")
+        check(Q._review_attestation_has(key),
+              "a proven exact state is reusable")
+
+        changed_payload = Q._review_attestation_key(
+            kind="lesson_broad", model="model-a", system="system-a",
+            payload={"language": "Spanish", "records": [{"value": "adios"}]},
+            response_schema=schema, response_name="review",
+        )
+        check(changed_payload != key and not Q._review_attestation_has(changed_payload),
+              "one content change invalidates the attestation")
+
+        changed_system = Q._review_attestation_key(
+            kind="lesson_broad", model="model-a", system="system-b",
+            payload=payload, response_schema=schema, response_name="review",
+        )
+        check(changed_system != key and not Q._review_attestation_has(changed_system),
+              "a review-contract change invalidates the attestation")
+
+        changed_model = Q._review_attestation_key(
+            kind="lesson_broad", model="model-b", system="system-a",
+            payload=payload, response_schema=schema, response_name="review",
+        )
+        check(changed_model != key and not Q._review_attestation_has(changed_model),
+              "a model change invalidates the attestation")
+
+        # The cache stores only a digest, never provider/model output or lesson text.
+        import sqlite3
+        conn = sqlite3.connect(Q._REVIEW_ATTEST_DB)
+        try:
+            cols = [row[1] for row in conn.execute(
+                "PRAGMA table_info(review_attestations)"
+            ).fetchall()]
+        finally:
+            conn.close()
+        check(cols == ["digest", "created_at"],
+              "cache persists only proof digests, never semantic output")
+
+    Q._REVIEW_ATTEST_DB = old_db
+
+
 def main():
     test_transport_strict_schema_and_content_blocks()
     test_non_ipa_fails_closed()
@@ -481,6 +539,7 @@ def main():
     test_publication_integrity_catches_renderer_silent_drop()
     test_publication_integrity_rejects_duplicates_and_missing_english()
     test_gemini_can_fill_a_missing_bilingual_counterpart()
+    test_review_attestation_cache_is_exact_and_fail_safe()
     print(f"\n=== {len(FAILS)} quality-gate failing checks ===")
     for failure in FAILS:
         print("  -", failure)
