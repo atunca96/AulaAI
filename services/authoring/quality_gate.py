@@ -3330,6 +3330,76 @@ def review_unit_risk_claims(*, unit_title: str, topics: List[Dict[str, Any]],
             patches.append(item)
         applied += _apply_patches({topic_id: topic}, patches)
 
+        # Broad risk review is not authoritative for categorical claims. Re-scan
+        # the CURRENT topic after its patches and arbitrate each remaining
+        # categorical statement independently, with same-page siblings as
+        # context. This prevents a batch reviewer from overlooking a local
+        # "many" vs "all" scope contradiction.
+        current_records = _risk_review_records(topic.get("content") or {})
+        for exact_index, rec in enumerate(current_records):
+            value = rec.get("value")
+            if not (isinstance(value, str) and _ABSOLUTE_RISK_RE.search(value)):
+                continue
+            path = rec.get("path") or []
+            page_index = path[1] if (
+                len(path) >= 2 and path[0] == "pages" and isinstance(path[1], int)
+            ) else None
+            siblings = []
+            for sibling in current_records:
+                spath = sibling.get("path") or []
+                if sibling is rec:
+                    continue
+                if (
+                    page_index is not None and len(spath) >= 2
+                    and spath[0] == "pages" and spath[1] == page_index
+                    and isinstance(sibling.get("value"), str)
+                ):
+                    siblings.append({
+                        "field": sibling.get("field"),
+                        "value": sibling.get("value"),
+                    })
+            exact = _call_review(
+                model=REVIEW_MODEL,
+                system=_EXACT_CATEGORICAL_REVIEW_SYSTEM,
+                payload={
+                    "language": language,
+                    "level": level,
+                    "regional_variety": profile.variety if profile else "",
+                    "unit": unit_title,
+                    "topic": str(topic.get("title") or ""),
+                    "current": value,
+                    "field": rec.get("field"),
+                    "same_page_siblings": siblings,
+                },
+                max_tokens=700,
+                effort="low",
+                budget=budget,
+                stage=f"review_categorical_exact:{unit_title}:{topic.get('title')}:{exact_index}",
+                response_schema=_EXACT_CATEGORICAL_REVIEW_SCHEMA,
+                response_name="categorical_claim_exact_review",
+            )
+            verdict = str(exact.get("verdict") or "")
+            replacement = exact.get("value")
+            if verdict == "ok":
+                if replacement != value:
+                    raise QualityGateError(
+                        f"{topic.get('title')}: categorical exact reviewer marked ok "
+                        "but changed the value"
+                    )
+                continue
+            if verdict != "fix" or not isinstance(replacement, str) or not replacement.strip():
+                raise QualityGateError(
+                    f"{topic.get('title')}: categorical exact reviewer returned invalid fix"
+                )
+            exact_patch = {
+                "topic_id": topic_id,
+                "path": path,
+                "old": value,
+                "value": replacement,
+                "reason": exact.get("reason") or "categorical scope correction",
+            }
+            applied += _apply_patches({topic_id: topic}, [exact_patch])
+
         # A risk patch is an ordinary content edit and can leave any of the
         # repairable classes behind it. Proving that is the convergence
         # controller's job, not a second hand-rolled audit/render check here:
