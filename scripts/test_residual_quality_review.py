@@ -85,16 +85,26 @@ try:
                      "reason":"Gerekçeyi assessment kökündeki açık kanıta bağla."},
                 ],
             }
+        if stage.startswith("review_complex_digit_terra:"):
+            assert "612 34 56 78" in payload["term"]
+            good="[teˈlefono ˈsejs ˈuno ˈðos ˈtɾes ˈkwatɾo ˈθiŋko ˈsejs ˈsjete ˈotʃo]"
+            return {
+                "verdict":"fix",
+                "spoken_form":"teléfono seis uno dos tres cuatro cinco seis siete ocho",
+                "value":good,
+                "reason":"Multiple primary stresses in a fused token reveal malformed pseudo-IPA."
+            }
         if stage.startswith("review_complex_digit_notation:"):
             assert "612 34 56 78" in payload["term"]
             current=payload["current"]
             good="[teˈlefono ˈsejs ˈuno ˈðos ˈtɾes ˈkwatɾo ˈθiŋko ˈsejs ˈsjete ˈotʃo]"
             if current != good:
+                # Reproduce the production miss: Gemini says the malformed value is ok.
                 return {
-                    "verdict":"fix",
+                    "verdict":"ok",
                     "spoken_form":"teléfono seis uno dos tres cuatro cinco seis siete ocho",
-                    "value":good,
-                    "reason":"The stored transcription did not match the written digit sequence."
+                    "value":current,
+                    "reason":"Simulated Gemini false acceptance."
                 }
             return {
                 "verdict":"ok",
