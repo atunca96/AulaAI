@@ -7057,6 +7057,13 @@ function renderClassroomSelection(courses) {
                 </button>
               </div>
             ` : ''}
+            ${(!isBuilding && !isPhase1 && !isFailed) ? `
+              <div style="margin:10px 0 0;">
+                <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); retryPublicationReview('${c.id}', true)" style="width:100%; font-size:11px; opacity:.82;">
+                  <span>${currentLang === 'tr' ? 'İncelemeyi yeniden çalıştır' : 'Run review again'}</span>
+                </button>
+              </div>
+            ` : ''}
         </div>
         <button class="btn ${(isPhase1 || isBuilding) ? 'btn-ghost' : 'btn-outline'} btn-full" ${(isPhase1 || isBuilding) ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
             <span>${isReviewing
@@ -7136,8 +7143,16 @@ function checkClassroomBuildingPoll() {
   }, 2000);
 }
 
-async function retryPublicationReview(cid) {
+async function retryPublicationReview(cid, confirmFirst = false) {
   if (!cid) return;
+  if (confirmFirst) {
+    const ok = confirm(
+      currentLang === 'tr'
+        ? 'Mevcut dersleri ve değerlendirmeleri yeniden üretmeden yalnız yayın kalite incelemesi tekrar çalıştırılacak. Devam edilsin mi?'
+        : 'This will rerun publication quality review only, without regenerating lessons or assessments. Continue?'
+    );
+    if (!ok) return;
+  }
   try {
     const res = await api('/classroom/retry-publication', {
       method: 'POST',
