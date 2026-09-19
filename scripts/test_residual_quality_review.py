@@ -99,6 +99,29 @@ _invented_person_page={
 }
 assert Q._ungrounded_explanation_names(_invented_person_page) == ["ella"]
 
+# Production regression: identical bilingual fields are reported by the
+# deterministic auditor as one pair marker such as "title/title_tr". The repair
+# router must resolve that marker to both real scalar paths rather than looking
+# for a literal field with a slash in its name.
+_pair_content={
+    "pages":[{
+        "type":"lesson",
+        "title":"Polite Requests and Wishes",
+        "title_tr":"Polite Requests and Wishes",
+        "text":"English explanation.",
+        "text_tr":"Türkçe açıklama.",
+    }]
+}
+_pair_finding=Q.A.Finding(
+    "locale_leak_in_gloss", Q.A.BLOCK,
+    field="title/title_tr", role=Q.S.GLOSS,
+    detail="one language copied into the other's field",
+    value="Polite Requests and Wishes",
+)
+assert Q._repair_paths_for_finding(_pair_content, _pair_finding) == [
+    ["pages",0,"title"], ["pages",0,"title_tr"]
+]
+
 try:
     Q._audit_topic=lambda topic, language, track: []
     Q._topic_render_blockers=lambda content: []
